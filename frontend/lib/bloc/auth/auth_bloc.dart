@@ -41,6 +41,15 @@ class RegisterRequested extends AuthEvent {
 
 class LogoutRequested extends AuthEvent {}
 
+class ProfileUpdateRequested extends AuthEvent {
+  final User updatedUser;
+
+  const ProfileUpdateRequested({required this.updatedUser});
+
+  @override
+  List<Object?> get props => [updatedUser];
+}
+
 // States
 abstract class AuthState extends Equatable {
   const AuthState();
@@ -82,6 +91,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LoginRequested>(_onLoginRequested);
     on<RegisterRequested>(_onRegisterRequested);
     on<LogoutRequested>(_onLogoutRequested);
+    on<ProfileUpdateRequested>(_onProfileUpdateRequested);
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -159,6 +169,45 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await prefs.remove('auth_user_id');
     await prefs.remove('auth_user_email');
     emit(AuthUnauthenticated());
+  }
+
+  Future<void> _onProfileUpdateRequested(
+    ProfileUpdateRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    // Only update if currently authenticated
+    if (state is AuthAuthenticated) {
+      final currentState = state as AuthAuthenticated;
+      emit(AuthLoading());
+      try {
+        final user = await apiClient.updateProfile(event.updatedUser);
+        // Ensure token is persisted if it wasn't returned in the update
+        final updatedUserWithToken = user.token != null
+            ? user
+            : User(
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                homeAddress: user.homeAddress,
+                homeLat: user.homeLat,
+                homeLng: user.homeLng,
+                workAddress: user.workAddress,
+                workLat: user.workLat,
+                workLng: user.workLng,
+                useCurrentLocation: user.useCurrentLocation,
+                token: currentState.user.token,
+              );
+
+        await _saveUser(updatedUserWithToken);
+        emit(AuthAuthenticated(user: updatedUserWithToken));
+      } catch (e) {
+        // Revert to the authenticated state with old user if it fails
+        emit(AuthFailure(error: e.toString()));
+        emit(AuthAuthenticated(user: currentState.user));
+      }
+    }
   }
 
   Future<void> _saveUser(User user) async {

@@ -19,10 +19,13 @@ class AuthOutput(Schema):
     email: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    city: Optional[str] = ''
-    state: Optional[str] = ''
-    country: Optional[str] = ''
-    street: Optional[str] = ''
+    home_address: Optional[str] = ''
+    home_lat: Optional[float] = None
+    home_lng: Optional[float] = None
+    work_address: Optional[str] = ''
+    work_lat: Optional[float] = None
+    work_lng: Optional[float] = None
+    use_current_location: bool = False
 
 class RegisterInput(Schema):
     username: str
@@ -47,10 +50,13 @@ def login(request, data: LoginInput):
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "city": user.profile.city,
-        "state": user.profile.state,
-        "country": user.profile.country,
-        "street": user.profile.street
+        "home_address": user.profile.home_address,
+        "home_lat": user.profile.home_lat,
+        "home_lng": user.profile.home_lng,
+        "work_address": user.profile.work_address,
+        "work_lat": user.profile.work_lat,
+        "work_lng": user.profile.work_lng,
+        "use_current_location": user.profile.use_current_location
     }
 
 @router.post("/register", response=AuthOutput)
@@ -75,10 +81,13 @@ def register(request, data: RegisterInput):
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "city": profile.city,
-        "state": profile.state,
-        "country": profile.country,
-        "street": profile.street
+        "home_address": profile.home_address,
+        "home_lat": profile.home_lat,
+        "home_lng": profile.home_lng,
+        "work_address": profile.work_address,
+        "work_lat": profile.work_lat,
+        "work_lng": profile.work_lng,
+        "use_current_location": profile.use_current_location
     }
 
 @router.get("/me", response=AuthOutput)
@@ -108,8 +117,98 @@ def me(request):
         "email": request.user.email,
         "first_name": request.user.first_name,
         "last_name": request.user.last_name,
-        "city": request.user.profile.city,
-        "state": request.user.profile.state,
-        "country": request.user.profile.country,
-        "street": request.user.profile.street
+        "home_address": request.user.profile.home_address,
+        "home_lat": request.user.profile.home_lat,
+        "home_lng": request.user.profile.home_lng,
+        "work_address": request.user.profile.work_address,
+        "work_lat": request.user.profile.work_lat,
+        "work_lng": request.user.profile.work_lng,
+        "use_current_location": request.user.profile.use_current_location
+    }
+
+class ProfileUpdateInput(Schema):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    home_address: Optional[str] = None
+    home_lat: Optional[float] = None
+    home_lng: Optional[float] = None
+    work_address: Optional[str] = None
+    work_lat: Optional[float] = None
+    work_lng: Optional[float] = None
+    use_current_location: Optional[bool] = None
+
+@router.put("/me", response=AuthOutput)
+def update_me(request, data: ProfileUpdateInput):
+    if not request.user.is_authenticated:
+        raise HttpError(401, "Unauthorized")
+    
+    user = request.user
+    
+    # Update User fields if provided
+    user_updated = False
+    if data.first_name is not None:
+        user.first_name = data.first_name
+        user_updated = True
+    if data.last_name is not None:
+        user.last_name = data.last_name
+        user_updated = True
+        
+    if user_updated:
+        user.save()
+        
+    # Ensure profile exists
+    if not hasattr(user, 'profile'):
+        UserProfile.objects.create(user=user)
+        
+    profile = user.profile
+    
+    # Update UserProfile fields if provided
+    profile_updated = False
+    if data.home_address is not None:
+        profile.home_address = data.home_address
+        profile_updated = True
+    if data.home_lat is not None:
+        profile.home_lat = data.home_lat
+        profile_updated = True
+    if data.home_lng is not None:
+        profile.home_lng = data.home_lng
+        profile_updated = True
+        
+    if data.work_address is not None:
+        profile.work_address = data.work_address
+        profile_updated = True
+    if data.work_lat is not None:
+        profile.work_lat = data.work_lat
+        profile_updated = True
+    if data.work_lng is not None:
+        profile.work_lng = data.work_lng
+        profile_updated = True
+        
+    if data.use_current_location is not None:
+        profile.use_current_location = data.use_current_location
+        profile_updated = True
+        
+    if profile_updated:
+        profile.save()
+
+    try:
+        token = user.auth_token.key
+    except AuthToken.DoesNotExist:
+        token_obj = AuthToken.objects.create(user=user)
+        token = token_obj.key
+
+    return {
+        "token": token,
+        "username": user.username,
+        "id": user.id,
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "home_address": profile.home_address,
+        "home_lat": profile.home_lat,
+        "home_lng": profile.home_lng,
+        "work_address": profile.work_address,
+        "work_lat": profile.work_lat,
+        "work_lng": profile.work_lng,
+        "use_current_location": profile.use_current_location
     }

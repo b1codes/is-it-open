@@ -28,5 +28,16 @@ class UserProfile(models.Model):
     country = models.CharField(max_length=100, blank=True, default='')
     street = models.CharField(max_length=255, blank=True, default='')
 
+    # New Location Fields
+    home_address = models.CharField(max_length=255, blank=True, default='')
+    home_lat = models.FloatField(null=True, blank=True)
+    home_lng = models.FloatField(null=True, blank=True)
+    
+    work_address = models.CharField(max_length=255, blank=True, default='')
+    work_lat = models.FloatField(null=True, blank=True)
+    work_lng = models.FloatField(null=True, blank=True)
+    
+    use_current_location = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Profile for {self.user.username}"

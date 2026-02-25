@@ -136,3 +136,15 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+import platform
+
+# GDAL Settings
+if platform.system() == 'Darwin':
+    GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH', default='/opt/homebrew/opt/gdal/lib/libgdal.dylib')
+    GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH', default='/opt/homebrew/opt/geos/lib/libgeos_c.dylib')
+else:
+    if config('GDAL_LIBRARY_PATH', default=''):
+        GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH')
+    if config('GEOS_LIBRARY_PATH', default=''):
+        GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH')

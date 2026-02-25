@@ -112,4 +112,15 @@ class ApiService {
       );
     }
   }
+
+  Future<User> updateProfile(User user) async {
+    try {
+      final response = await _dio.put('/auth/me', data: user.toJson());
+      return User.fromJson(response.data);
+    } on DioException catch (e) {
+      throw Exception(
+        'Failed to update profile: ${e.response?.data ?? e.message}',
+      );
+    }
+  }
 }
