@@ -7,6 +7,7 @@ import '../../../bloc/search/search_state.dart';
 
 import 'package:frontend/screens/places/create_place_screen.dart';
 import '../../components/search/search_result_list_card.dart';
+import '../../components/search/search_result_grid_card.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -17,6 +18,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
+  bool _isGridView = false;
 
   @override
   void dispose() {
@@ -76,6 +78,18 @@ class _SearchScreenState extends State<SearchScreen> {
                           onPressed: () => _performSearch(context),
                           child: const Text('Search'),
                         ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: Icon(
+                            _isGridView ? Icons.view_list : Icons.grid_view,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _isGridView = !_isGridView;
+                            });
+                          },
+                          tooltip: _isGridView ? 'List View' : 'Grid View',
+                        ),
                       ],
                     );
                   },
@@ -112,32 +126,75 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                         );
                       }
-                      return ListView.builder(
-                        itemCount: state.places.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == state.places.length) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const CreatePlaceScreen(),
+                      return _isGridView
+                          ? GridView.builder(
+                              padding: const EdgeInsets.all(8),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 0.85,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                  ),
+                              itemCount: state.places.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == state.places.length) {
+                                  return Card(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                    child: InkWell(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const CreatePlaceScreen(),
+                                          ),
+                                        );
+                                      },
+                                      child: const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(16.0),
+                                          child: Text(
+                                            "Don't see it?\nCreate a New Place",
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   );
-                                },
-                                child: const Text(
-                                  "Don't see it? Create a New Place",
-                                ),
-                              ),
+                                }
+                                final place = state.places[index];
+                                return SearchResultGridCard(place: place);
+                              },
+                            )
+                          : ListView.builder(
+                              itemCount: state.places.length + 1,
+                              itemBuilder: (context, index) {
+                                if (index == state.places.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: TextButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const CreatePlaceScreen(),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text(
+                                        "Don't see it? Create a New Place",
+                                      ),
+                                    ),
+                                  );
+                                }
+                                final place = state.places[index];
+                                return SearchResultListCard(place: place);
+                              },
                             );
-                          }
-                          final place = state.places[index];
-                          return SearchResultListCard(place: place);
-                        },
-                      );
                     }
                     return Center(
                       child: Text(

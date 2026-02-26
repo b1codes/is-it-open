@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../services/api_service.dart';
 import '../../../models/saved_place.dart';
 import '../../../components/places/saved_place_list_card.dart';
+import '../../../components/places/saved_place_grid_card.dart';
 
 class MyPlacesScreen extends StatefulWidget {
   const MyPlacesScreen({super.key});
@@ -13,6 +14,7 @@ class MyPlacesScreen extends StatefulWidget {
 
 class _MyPlacesScreenState extends State<MyPlacesScreen> {
   late Future<List<SavedPlace>> _bookmarksFuture;
+  bool _isGridView = false;
 
   @override
   void initState() {
@@ -35,6 +37,15 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+            onPressed: () {
+              setState(() {
+                _isGridView = !_isGridView;
+              });
+            },
+            tooltip: _isGridView ? 'List View' : 'Grid View',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _refreshBookmarks,
@@ -75,16 +86,34 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
             final places = snapshot.data!;
             return RefreshIndicator(
               onRefresh: _refreshBookmarks,
-              child: ListView.builder(
-                itemCount: places.length,
-                itemBuilder: (context, index) {
-                  final savedPlace = places[index];
-                  return SavedPlaceListCard(
-                    savedPlace: savedPlace,
-                    onRefresh: _refreshBookmarks,
-                  );
-                },
-              ),
+              child: _isGridView
+                  ? GridView.builder(
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.85,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                      itemCount: places.length,
+                      itemBuilder: (context, index) {
+                        return SavedPlaceGridCard(
+                          savedPlace: places[index],
+                          onRefresh: _refreshBookmarks,
+                        );
+                      },
+                    )
+                  : ListView.builder(
+                      itemCount: places.length,
+                      itemBuilder: (context, index) {
+                        final savedPlace = places[index];
+                        return SavedPlaceListCard(
+                          savedPlace: savedPlace,
+                          onRefresh: _refreshBookmarks,
+                        );
+                      },
+                    ),
             );
           },
         ),
