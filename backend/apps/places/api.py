@@ -77,27 +77,6 @@ def search_places(request, query: str):
             
     return results
 
-@router.get("/{tomtom_id}", response=PlaceSchema)
-def get_place_details(request, tomtom_id: str):
-    # Check if place exists in DB
-    place = Place.objects.filter(tomtom_id=tomtom_id).first()
-    
-    if place:
-        return place
-    
-    # If not, fetch from TomTom and save
-    client = TomTomClient()
-    details = client.get_place_details(tomtom_id) # Hypothetical method, need to implement in TomTomClient
-    
-    # For now, let's assume search returns enough info or we implement get_place_details
-    # If get_place_details is not implemented, we might return 404 or handle differently.
-    # But sticking to plan: Fetch details, store in DB.
-    
-    # TODO: Implement full details fetch. For now, returning 404 if not cached 
-    # as we rely on search results being passed to create.
-    # Alternatively, we can use the create_place logic.
-    return 404
-
 @router.post("/", response=PlaceSchema)
 def create_place(request, payload: PlaceCreateSchema):
     with transaction.atomic():
@@ -135,3 +114,28 @@ def bookmark_place(request, payload: SavePlaceInput):
         saved_place.custom_name = payload.custom_name
         saved_place.save()
     return saved_place
+
+@router.get("/bookmarks", response=List[SavedPlaceSchema])
+def get_bookmarks(request):
+    return SavedPlace.objects.filter(user=request.auth).select_related("place").prefetch_related("place__hours")
+
+@router.get("/{tomtom_id}", response=PlaceSchema)
+def get_place_details(request, tomtom_id: str):
+    # Check if place exists in DB
+    place = Place.objects.filter(tomtom_id=tomtom_id).first()
+    
+    if place:
+        return place
+    
+    # If not, fetch from TomTom and save
+    client = TomTomClient()
+    details = client.get_place_details(tomtom_id) # Hypothetical method, need to implement in TomTomClient
+    
+    # For now, let's assume search returns enough info or we implement get_place_details
+    # If get_place_details is not implemented, we might return 404 or handle differently.
+    # But sticking to plan: Fetch details, store in DB.
+    
+    # TODO: Implement full details fetch. For now, returning 404 if not cached 
+    # as we rely on search results being passed to create.
+    # Alternatively, we can use the create_place logic.
+    return 404

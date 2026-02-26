@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'; // For kIsWeb and debugPrint
 import 'dart:io'; // For Platform check
 import '../models/place.dart';
 import '../models/user.dart';
+import '../models/saved_place.dart';
 
 class ApiService {
   late final Dio _dio;
@@ -109,6 +110,18 @@ class ApiService {
     } on DioException catch (e) {
       throw Exception(
         'Failed to bookmark place: ${e.response?.data ?? e.message}',
+      );
+    }
+  }
+
+  Future<List<SavedPlace>> getBookmarks() async {
+    try {
+      final response = await _dio.get('/places/bookmarks');
+      final List<dynamic> data = response.data;
+      return data.map((json) => SavedPlace.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw Exception(
+        'Failed to get bookmarks: ${e.response?.data ?? e.message}',
       );
     }
   }

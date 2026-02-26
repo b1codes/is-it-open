@@ -7,6 +7,7 @@ import '../../../bloc/search/search_state.dart';
 
 import 'package:frontend/screens/places/place_detail_screen.dart'; // Will be created next
 import 'package:frontend/screens/places/create_place_screen.dart';
+import '../../components/shared/glass_container.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -135,14 +136,16 @@ class _SearchScreenState extends State<SearchScreen> {
                             );
                           }
                           final place = state.places[index];
-                          return Card(
-                            color: Theme.of(
-                              context,
-                            ).cardColor.withValues(alpha: 0.9),
+                          final isDarkTheme =
+                              Theme.of(context).brightness == Brightness.dark;
+                          return GlassContainer(
                             margin: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
+                            borderRadius: BorderRadius.circular(12),
+                            color: isDarkTheme ? Colors.black : Colors.white,
+                            opacity: isDarkTheme ? 0.3 : 0.7,
                             child: ListTile(
                               title: Text(place.name),
                               subtitle: Text(place.address),
