@@ -52,8 +52,8 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.white,
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.white,
+      backgroundColor: AppColors.white,
+      foregroundColor: AppColors.black,
       elevation: 0,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(

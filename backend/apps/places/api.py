@@ -119,6 +119,14 @@ def bookmark_place(request, payload: SavePlaceInput):
 def get_bookmarks(request):
     return SavedPlace.objects.filter(user=request.auth).select_related("place").prefetch_related("place__hours")
 
+@router.delete("/bookmarks/{tomtom_id}", response={204: None, 404: dict})
+def delete_bookmark(request, tomtom_id: str):
+    place = get_object_or_404(Place, tomtom_id=tomtom_id)
+    deleted, _ = SavedPlace.objects.filter(user=request.auth, place=place).delete()
+    if deleted:
+        return 204, None
+    return 404, {"detail": "Bookmark not found"}
+
 @router.get("/{tomtom_id}", response=PlaceSchema)
 def get_place_details(request, tomtom_id: str):
     # Check if place exists in DB

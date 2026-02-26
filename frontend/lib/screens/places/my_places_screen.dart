@@ -104,6 +104,33 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        color: Theme.of(context).colorScheme.error,
+                        onPressed: () async {
+                          try {
+                            await context.read<ApiService>().deleteBookmark(
+                              savedPlace.place.tomtomId,
+                            );
+                            _refreshBookmarks();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Place removed from bookmarks'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to remove place: $e'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
                       onTap: () {
                         Navigator.push(
                           context,

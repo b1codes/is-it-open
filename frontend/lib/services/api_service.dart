@@ -114,6 +114,16 @@ class ApiService {
     }
   }
 
+  Future<void> deleteBookmark(String tomtomId) async {
+    try {
+      await _dio.delete('/places/bookmarks/$tomtomId');
+    } on DioException catch (e) {
+      throw Exception(
+        'Failed to delete bookmark: ${e.response?.data ?? e.message}',
+      );
+    }
+  }
+
   Future<List<SavedPlace>> getBookmarks() async {
     try {
       final response = await _dio.get('/places/bookmarks');
