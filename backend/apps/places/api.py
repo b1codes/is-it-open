@@ -58,8 +58,23 @@ class SavePlaceInput(Schema):
 def search_places(request, query: str):
     client = TomTomClient()
     results = client.search_place(query)
-    # The results from TomTomClient need to be adapted to match PlaceCreateSchema
-    # assuming TomTomClient returns dicts that match the schema keys
+    
+    # Search local database for custom places
+    local_places = Place.objects.filter(name__icontains=query)
+    tomtom_ids = {r.get('tomtom_id') for r in results if isinstance(r, dict)}
+    
+    for place in local_places:
+        if place.tomtom_id not in tomtom_ids:
+            results.append({
+                "tomtom_id": place.tomtom_id,
+                "name": place.name,
+                "address": place.address,
+                "latitude": place.latitude,
+                "longitude": place.longitude,
+                "hours": PlaceSchema.resolve_hours(place)
+            })
+            tomtom_ids.add(place.tomtom_id)
+            
     return results
 
 @router.get("/{tomtom_id}", response=PlaceSchema)
