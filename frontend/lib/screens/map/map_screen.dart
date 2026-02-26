@@ -129,7 +129,9 @@ class _MapScreenState extends State<MapScreen> {
         ),
         children: [
           TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            urlTemplate: Theme.of(context).brightness == Brightness.dark
+                ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.example.app',
           ),
           if (markers.isNotEmpty) MarkerLayer(markers: markers),
