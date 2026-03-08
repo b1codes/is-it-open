@@ -29,7 +29,11 @@ RUN uv sync --frozen --no-install-project --no-dev
 # Copy project code
 COPY . .
 
+# Run collectstatic for production (Whitenoise will serve these)
+# We set a dummy SECRET_KEY and DATABASE_URL for the build step
+RUN SECRET_KEY=build-time-only DATABASE_URL=sqlite:///db.sqlite3 python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
-# Use the virtualenv's python
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Use gunicorn with uvicorn workers for ASGI support
+CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-log", "-"]
