@@ -22,6 +22,9 @@ class PlaceSchema(Schema):
     address: str
     latitude: float
     longitude: float
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    categories: List[str] = []
     hours: List[BusinessHoursSchema] = []
 
     @staticmethod
@@ -41,6 +44,9 @@ class PlaceCreateSchema(Schema):
     address: str
     latitude: float
     longitude: float
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    categories: List[str] = []
     hours: List[BusinessHoursSchema] = []
 
 class SavedPlaceSchema(Schema):
@@ -82,6 +88,9 @@ def search_places(request, query: str):
                 "address": place.address,
                 "latitude": place.latitude,
                 "longitude": place.longitude,
+                "phone": place.phone,
+                "website": place.website,
+                "categories": place.categories,
                 "hours": PlaceSchema.resolve_hours(place)
             })
             tomtom_ids.add(place.tomtom_id)
@@ -98,8 +107,26 @@ def create_place(request, payload: PlaceCreateSchema):
                 "address": payload.address,
                 "latitude": payload.latitude,
                 "longitude": payload.longitude,
+                "phone": payload.phone,
+                "website": payload.website,
+                "categories": payload.categories,
             }
         )
+        
+        if not created:
+            updated = False
+            if payload.phone and place.phone != payload.phone:
+                place.phone = payload.phone
+                updated = True
+            if payload.website and place.website != payload.website:
+                place.website = payload.website
+                updated = True
+            if payload.categories and place.categories != payload.categories:
+                place.categories = payload.categories
+                updated = True
+                
+            if updated:
+                place.save()
         
         # Update hours
         if payload.hours:

@@ -187,6 +187,83 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return controller;
   }
 
+  Widget _buildContactInfoSection() {
+    final hasPhone = widget.place.phone != null && widget.place.phone!.isNotEmpty;
+    final hasWebsite = widget.place.website != null && widget.place.website!.isNotEmpty;
+    final hasCategories = widget.place.categories.isNotEmpty;
+
+    if (!hasPhone && !hasWebsite && !hasCategories) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasCategories) ...[
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 4.0,
+              children: widget.place.categories.map((category) {
+                return Chip(
+                  label: Text(category, style: const TextStyle(fontSize: 12)),
+                  backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
+            ),
+            if (hasPhone || hasWebsite) const SizedBox(height: 12),
+          ],
+          if (hasPhone) ...[
+            Row(
+              children: [
+                Icon(Icons.phone, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.place.phone!,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            if (hasWebsite) const SizedBox(height: 12),
+          ],
+          if (hasWebsite) ...[
+            Row(
+              children: [
+                Icon(Icons.language, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.place.website!,
+                    style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.primary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildCalendarOptions() {
     return SegmentedButton<CalendarViewType>(
       segments: const [
@@ -695,33 +772,78 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       appBar: AppBar(
         title: Text(widget.place.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () async {
-              try {
-                final apiService = context.read<ApiService>();
-                await apiService.deleteBookmark(widget.place.tomtomId);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Removed from My Places'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  Navigator.pop(context);
+          if (_isLoadingSavedPlace)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (_savedPlace == null)
+            IconButton(
+              icon: const Icon(Icons.bookmark_add_outlined),
+              tooltip: 'Save Place',
+              onPressed: () async {
+                setState(() => _isLoadingSavedPlace = true);
+                try {
+                  final apiService = context.read<ApiService>();
+                  await apiService.savePlace(widget.place);
+                  await apiService.bookmarkPlace(widget.place.tomtomId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Saved to My Places'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    _checkSavedStatus();
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    setState(() => _isLoadingSavedPlace = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Error saving place'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Error deleting place'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+              },
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.delete),
+              tooltip: 'Remove from Saved Places',
+              onPressed: () async {
+                setState(() => _isLoadingSavedPlace = true);
+                try {
+                  final apiService = context.read<ApiService>();
+                  await apiService.deleteBookmark(widget.place.tomtomId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Removed from My Places'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    setState(() => _isLoadingSavedPlace = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Error deleting place'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
-              }
-            },
-          ),
+              },
+            ),
         ],
       ),
       body: Row(
@@ -735,6 +857,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 children: [
                   _buildGraphicPicker(),
                   _buildAddressSection(),
+                  const SizedBox(height: 16),
+                  _buildContactInfoSection(),
                   // More details will be added here later
                 ],
               ),

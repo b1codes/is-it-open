@@ -38,6 +38,12 @@ class TomTomClient:
             position = result.get('position', {})
             
             hours = self._parse_opening_hours(poi.get('openingHours', {}))
+            
+            categories = []
+            for cset in poi.get('categorySet', []):
+                name = cset.get('name')
+                if name:
+                    categories.append(name)
 
             place_data = {
                 "tomtom_id": result.get('id'),
@@ -48,6 +54,9 @@ class TomTomClient:
                 ),
                 "latitude": position.get('lat'),
                 "longitude": position.get('lon'),
+                "phone": poi.get('phone'),
+                "website": poi.get('url'),
+                "categories": categories,
                 "hours": hours
             }
             parsed.append(place_data)

@@ -7,6 +7,9 @@ class Place {
   final String name;
   final String address;
   final LatLng location;
+  final String? phone;
+  final String? website;
+  final List<String> categories;
   final List<BusinessHours> hours;
 
   Place({
@@ -15,6 +18,9 @@ class Place {
     required this.name,
     required this.address,
     required this.location,
+    this.phone,
+    this.website,
+    this.categories = const [],
     this.hours = const [],
   });
 
@@ -27,6 +33,13 @@ class Place {
       name: json['name'],
       address: json['address'],
       location: LatLng(json['latitude'], json['longitude']),
+      phone: json['phone'],
+      website: json['website'],
+      categories:
+          (json['categories'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       hours:
           (json['hours'] as List<dynamic>?)
               ?.map((e) => BusinessHours.fromJson(e))
@@ -43,6 +56,9 @@ class Place {
       'address': address,
       'latitude': location.latitude,
       'longitude': location.longitude,
+      'phone': phone,
+      'website': website,
+      'categories': categories,
       'hours': hours.map((e) => e.toJson()).toList(),
     };
   }
