@@ -41,6 +41,7 @@ class MyApp extends StatelessWidget {
                   buildWhen: (previous, current) {
                     if (current is AuthInitial) return true;
                     if (current is AuthLoading) return false;
+                    if (current is AuthUnauthenticated) return true;
 
                     bool wasAuth = previous is AuthAuthenticated;
                     bool isAuth = current is AuthAuthenticated;
