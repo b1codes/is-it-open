@@ -863,6 +863,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        headerStyle: HeaderStyle(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+          ),
+        ),
         eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
         showLiveTimeLineInAllDays: true,
@@ -921,6 +926,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        headerStyle: HeaderStyle(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+          ),
+        ),
+        weekTitleBackgroundColor: const Color(0xFF1565C0),
         eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
         showLiveTimeLineInAllDays: true,
@@ -942,6 +953,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           }
         },
         weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
+        weekNumberBuilder: (date) => const SizedBox.shrink(),
         hourIndicatorSettings: HourIndicatorSettings(
           color: Theme.of(context).dividerColor,
         ),
@@ -962,22 +974,27 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             ),
           );
         },
-        weekDayBuilder: (date) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
+        weekDayBuilder: (date) {
+          final isToday = DateUtils.isSameDay(date, DateTime.now());
+          return Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              decoration: isToday ? BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+              ) : null,
+              child: Text(
                 _weekDayShortName(date.weekday),
                 style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyLarge?.color ?? textColor,
+                  color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       );
     }
 
@@ -1021,7 +1038,20 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
         ),
         Expanded(
-          child: calendarWidget,
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: Theme.of(context).colorScheme.copyWith(
+                secondaryContainer: Theme.of(context).scaffoldBackgroundColor,
+                primaryContainer: Theme.of(context).scaffoldBackgroundColor,
+                surface: Theme.of(context).scaffoldBackgroundColor,
+                error: Colors.transparent,
+              ),
+              canvasColor: Theme.of(context).scaffoldBackgroundColor,
+              cardColor: Theme.of(context).scaffoldBackgroundColor,
+              secondaryHeaderColor: Theme.of(context).scaffoldBackgroundColor,
+            ),
+            child: calendarWidget,
+          ),
         ),
       ],
     );
