@@ -39,7 +39,7 @@ dependencies:
   equatable: ^2.0.5
   flutter_map: ^6.0.0
   latlong2: ^0.9.0
-  calendar_view: ^1.0.3
+  calendar_view: ^2.0.0
   shared_preferences: ^2.2.2
   device_calendar: ^4.3.0
   geolocator: ^10.1.0

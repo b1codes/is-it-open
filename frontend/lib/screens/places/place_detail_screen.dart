@@ -344,7 +344,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -447,7 +447,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -558,7 +558,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -630,8 +630,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       return const SizedBox.shrink(); // Not saved -> don't show picker
     }
 
-    final currentColorHex = _selectedColor ?? _savedPlace!.color ?? Colors.blue.value.toRadixString(16);
-    final currentColor = Color(int.parse(currentColorHex, radix: 16)).withOpacity(1.0);
+    final currentColorHex = _selectedColor ?? _savedPlace!.color ?? Colors.blue.toARGB32().toRadixString(16);
+    final currentColor = Color(int.parse(currentColorHex, radix: 16));
     final currentIconName = _selectedIcon ?? _savedPlace!.icon ?? 'star';
 
     return Container(
@@ -642,7 +642,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -716,11 +716,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: _availableColors.map((color) {
-                  final isSelected = color.value == currentColor.value;
+                  final isSelected = color.toARGB32() == currentColor.toARGB32();
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _selectedColor = color.value.toRadixString(16);
+                        _selectedColor = color.toARGB32().toRadixString(16);
                       });
                     },
                     child: Container(
@@ -758,7 +758,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isSelected ? currentColor.withOpacity(0.2) : Colors.transparent,
+                        color: isSelected ? currentColor.withValues(alpha: 0.2) : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         border: isSelected ? Border.all(color: currentColor) : Border.all(color: Colors.transparent),
                       ),
@@ -827,8 +827,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget _buildCalendar(Color textColor, Color textSmallColor, bool use24HourFormat) {
     List<WeekDays> weekDays = WeekDays.values;
     String headerText = "";
+    int daysToAdvance = 0;
+    bool showNavigation = true;
 
     if (_currentView == CalendarViewType.threeDay) {
+      daysToAdvance = 3;
       weekDays = [
         WeekDays.values[_baseDate.weekday - 1],
         WeekDays.values[_baseDate.add(const Duration(days: 1)).weekday - 1],
@@ -836,10 +839,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       ];
       headerText = "3-Day Schedule";
     } else if (_currentView == CalendarViewType.singleDay) {
+      daysToAdvance = 1;
       headerText = "Daily Schedule";
     } else {
+      daysToAdvance = 7;
       headerText = "Weekly Schedule";
+      showNavigation = false;
     }
+
+    final now = DateTime.now();
+    final initialScrollOffset = (now.hour * 60.0 + now.minute) * 1.0; // 1.0 is heightPerMinute
 
     Widget calendarWidget;
     if (_currentView == CalendarViewType.singleDay) {
@@ -847,6 +856,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         key: ValueKey(_baseDate),
         controller: _buildEventController(),
         initialDay: _baseDate,
+        scrollOffset: initialScrollOffset,
         minDay: _baseDate.subtract(const Duration(days: 28)),
         maxDay: _baseDate.add(const Duration(days: 84)),
         heightPerMinute: 1, // Compact view
@@ -855,6 +865,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
+        showLiveTimeLineInAllDays: true,
         onDateTap: (date) {
           if (_savedPlace?.averageVisitLength != null) {
             final visitEnd = date.add(Duration(minutes: _savedPlace!.averageVisitLength!));
@@ -901,6 +912,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         minDay: _baseDate.subtract(const Duration(days: 28)),
         maxDay: _baseDate.add(const Duration(days: 84)),
         initialDay: _baseDate,
+        scrollOffset: initialScrollOffset,
         startDay: _currentView == CalendarViewType.threeDay
             ? WeekDays.values[_baseDate.weekday - 1]
             : WeekDays.monday,
@@ -911,6 +923,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
+        showLiveTimeLineInAllDays: true,
         onDateTap: (date) {
           if (_savedPlace?.averageVisitLength != null) {
             final visitEnd = date.add(Duration(minutes: _savedPlace!.averageVisitLength!));
@@ -973,13 +986,37 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                headerText,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              if (showNavigation)
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: () {
+                    setState(() {
+                      _baseDate = _baseDate.subtract(Duration(days: daysToAdvance));
+                    });
+                  },
+                )
+              else
+                const SizedBox(width: 48), // Spacer to maintain alignment
+              Expanded(
+                child: Text(
+                  headerText,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
+              if (showNavigation)
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: () {
+                    setState(() {
+                      _baseDate = _baseDate.add(Duration(days: daysToAdvance));
+                    });
+                  },
+                )
+              else
+                const SizedBox(width: 48), // Spacer to maintain alignment
             ],
           ),
         ),
@@ -1119,6 +1156,7 @@ class StackEventArranger<T extends Object?> extends EventArranger<T> {
 
   @override
   List<OrganizedCalendarEventData<T>> arrange({
+    required DateTime calendarViewDate,
     required List<CalendarEventData<T>> events,
     required double height,
     required double width,
@@ -1154,6 +1192,7 @@ class StackEventArranger<T extends Object?> extends EventArranger<T> {
       }
 
       arrangedEvents.add(OrganizedCalendarEventData<T>(
+        calendarViewDate: calendarViewDate,
         startDuration: startTime,
         endDuration: endTime,
         top: top,
