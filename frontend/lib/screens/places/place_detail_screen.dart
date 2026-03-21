@@ -7,6 +7,7 @@ import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
 import '../../bloc/preferences/preferences_cubit.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -212,6 +213,17 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           }
         }
       },
+      onDoubleTap: isPlannedVisit ? () {
+        setState(() => _plannedVisitTime = null);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Planned visit removed'),
+            backgroundColor: Colors.grey,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } : null,
       onVerticalDragStart: (_) => _dragAccumulator = 0.0,
       onVerticalDragUpdate: isPlannedVisit ? (details) {
         if (_savedPlace?.averageVisitLength != null) {
@@ -563,7 +575,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               children: [
                 const Text('Average Visit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 Text(
-                  'Tap calendar to see if it fits',
+                  'Tap calendar to see if it fits, double tap to remove',
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -848,6 +860,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
         onDateTap: (date) {
           if (_savedPlace?.averageVisitLength != null) {
@@ -903,6 +916,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
         onDateTap: (date) {
           if (_savedPlace?.averageVisitLength != null) {
@@ -1129,5 +1143,59 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         ],
       ),
     );
+  }
+}
+
+class StackEventArranger<T extends Object?> extends EventArranger<T> {
+  const StackEventArranger();
+
+  @override
+  List<OrganizedCalendarEventData<T>> arrange({
+    required List<CalendarEventData<T>> events,
+    required double height,
+    required double width,
+    required double heightPerMinute,
+    required int startHour,
+  }) {
+    final arrangedEvents = <OrganizedCalendarEventData<T>>[];
+
+    // Ensure 'Open' is rendered first (background), so sort it to the top.
+    final sortedEvents = List<CalendarEventData<T>>.from(events)
+      ..sort((a, b) {
+        if (a.title == 'Open' && b.title != 'Open') return -1;
+        if (a.title != 'Open' && b.title == 'Open') return 1;
+        return 0;
+      });
+
+    for (final event in sortedEvents) {
+      final startTime = event.startTime ?? event.date;
+      final endTime = event.endTime ?? event.date;
+
+      final startOffset = (startTime.hour - startHour) * 60 + startTime.minute;
+      final top = math.max(0.0, startOffset * heightPerMinute);
+
+      var endOffset = (endTime.hour - startHour) * 60 + endTime.minute;
+      var bottom = height - (endOffset * heightPerMinute);
+
+      // If the event crosses midnight (endTime is on the next day)
+      // or endTime is actually 00:00:00 (which is parsed as the same day but 0th hour, 
+      // making endOffset negative or smaller than startOffset), 
+      // it extends to the end of the day.
+      if (endTime.day != startTime.day || bottom > (height - top)) {
+        bottom = 0.0;
+      }
+
+      arrangedEvents.add(OrganizedCalendarEventData<T>(
+        startDuration: startTime,
+        endDuration: endTime,
+        top: top,
+        bottom: bottom,
+        left: 0.0,
+        right: 0.0,
+        events: [event],
+      ));
+    }
+
+    return arrangedEvents;
   }
 }
