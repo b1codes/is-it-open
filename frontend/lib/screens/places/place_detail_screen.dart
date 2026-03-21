@@ -826,26 +826,19 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
 
   Widget _buildCalendar(Color textColor, Color textSmallColor, bool use24HourFormat) {
     List<WeekDays> weekDays = WeekDays.values;
-    int daysToAdvance = 7;
     String headerText = "";
 
     if (_currentView == CalendarViewType.threeDay) {
-      daysToAdvance = 3;
       weekDays = [
         WeekDays.values[_baseDate.weekday - 1],
         WeekDays.values[_baseDate.add(const Duration(days: 1)).weekday - 1],
         WeekDays.values[_baseDate.add(const Duration(days: 2)).weekday - 1],
       ];
-      final endDate = _baseDate.add(const Duration(days: 2));
-      headerText = "${_baseDate.month}/${_baseDate.day} - ${endDate.month}/${endDate.day}";
+      headerText = "3-Day Schedule";
     } else if (_currentView == CalendarViewType.singleDay) {
-      daysToAdvance = 1;
-      headerText = "${_baseDate.month}/${_baseDate.day}/${_baseDate.year}";
+      headerText = "Daily Schedule";
     } else {
-      daysToAdvance = 7;
-      final start = _baseDate.subtract(Duration(days: _baseDate.weekday - 1));
-      final end = start.add(const Duration(days: 6));
-      headerText = "${start.month}/${start.day} - ${end.month}/${end.day}";
+      headerText = "Weekly Schedule";
     }
 
     Widget calendarWidget;
@@ -964,13 +957,6 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               Text(
                 _weekDayShortName(date.weekday),
                 style: TextStyle(
-                  color: Theme.of(context).textTheme.bodySmall?.color ?? textSmallColor,
-                  fontSize: 12,
-                ),
-              ),
-              Text(
-                date.day.toString(),
-                style: TextStyle(
                   color: Theme.of(context).textTheme.bodyLarge?.color ?? textColor,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -987,30 +973,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: () {
-                  setState(() {
-                    _baseDate = _baseDate.subtract(Duration(days: daysToAdvance));
-                  });
-                },
-              ),
-              Expanded(
-                child: Text(
-                  headerText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: () {
-                  setState(() {
-                    _baseDate = _baseDate.add(Duration(days: daysToAdvance));
-                  });
-                },
+              Text(
+                headerText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
