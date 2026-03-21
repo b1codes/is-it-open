@@ -56,6 +56,7 @@ class SavedPlaceSchema(Schema):
     icon: Optional[str] = None
     color: Optional[str] = None
     is_pinned: bool
+    average_visit_length: Optional[int] = None
 
 class TogglePinInput(Schema):
     is_pinned: bool
@@ -64,6 +65,9 @@ class UpdateGraphicInput(Schema):
     icon: Optional[str] = None
     color: Optional[str] = None
     custom_name: Optional[str] = None
+
+class UpdateVisitLengthInput(Schema):
+    visit_length: Optional[int] = None
 
 class SavePlaceInput(Schema):
     tomtom_id: str
@@ -187,6 +191,15 @@ def update_graphic(request, tomtom_id: str, payload: UpdateGraphicInput):
         cn = data['custom_name']
         saved_place.custom_name = cn if cn and cn.strip() else None
 
+    saved_place.save()
+    return saved_place
+
+@router.patch("/bookmarks/{tomtom_id}/visit-length", response=SavedPlaceSchema)
+def update_visit_length(request, tomtom_id: str, payload: UpdateVisitLengthInput):
+    place = get_object_or_404(Place, tomtom_id=tomtom_id)
+    saved_place = get_object_or_404(SavedPlace, user=request.auth, place=place)
+    
+    saved_place.average_visit_length = payload.visit_length
     saved_place.save()
     return saved_place
 

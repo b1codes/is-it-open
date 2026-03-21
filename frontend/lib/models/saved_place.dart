@@ -7,6 +7,7 @@ class SavedPlace {
   final String? icon;
   final String? color;
   final bool isPinned;
+  final int? averageVisitLength;
 
   SavedPlace({
     required this.id,
@@ -15,6 +16,7 @@ class SavedPlace {
     this.icon,
     this.color,
     this.isPinned = false,
+    this.averageVisitLength,
   });
 
   factory SavedPlace.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,7 @@ class SavedPlace {
       icon: json['icon'],
       color: json['color'],
       isPinned: json['is_pinned'] ?? false,
+      averageVisitLength: json['average_visit_length'],
     );
   }
 
@@ -36,6 +39,7 @@ class SavedPlace {
       'icon': icon,
       'color': color,
       'is_pinned': isPinned,
+      'average_visit_length': averageVisitLength,
     };
   }
 }

@@ -32,6 +32,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   String? _selectedColor;
   bool _isEditingGraphic = false;
   final TextEditingController _labelController = TextEditingController();
+  DateTime? _plannedVisitTime;
+  double _dragAccumulator = 0.0;
 
   final List<String> _suggestedLabels = ['Gym', 'Pharmacy', 'Grocery', 'Coffee', 'Work', 'Home', 'Restaurant'];
 
@@ -137,6 +139,121 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return names[weekday - 1];
   }
 
+  bool _isOpenDuring(DateTime visitStart, DateTime visitEnd) {
+    if (widget.place.hours.isEmpty) return false;
+
+    for (int dayOffset = -1; dayOffset <= 1; dayOffset++) {
+      final baseDate = DateTime(
+        visitStart.year,
+        visitStart.month,
+        visitStart.day,
+      ).add(Duration(days: dayOffset));
+      
+      final dayOfWeek = baseDate.weekday - 1; // 0=Mon, ..., 6=Sun
+      final dayHours = widget.place.hours.where((h) => h.dayOfWeek == dayOfWeek);
+      
+      for (final hours in dayHours) {
+        final startTime = DateTime(
+          baseDate.year,
+          baseDate.month,
+          baseDate.day,
+          hours.openTime.hour,
+          hours.openTime.minute,
+        );
+        var endTime = DateTime(
+          baseDate.year,
+          baseDate.month,
+          baseDate.day,
+          hours.closeTime.hour,
+          hours.closeTime.minute,
+        );
+        if (endTime.isBefore(startTime)) {
+          endTime = endTime.add(const Duration(days: 1));
+        }
+
+        if ((visitStart.isAfter(startTime) || visitStart.isAtSameMomentAs(startTime)) &&
+            (visitEnd.isBefore(endTime) || visitEnd.isAtSameMomentAs(endTime))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Widget _buildEventTile(
+    DateTime date,
+    List<CalendarEventData<dynamic>> events,
+    Rect boundary,
+    DateTime startDuration,
+    DateTime endDuration,
+  ) {
+    if (events.isEmpty) return const SizedBox.shrink();
+    final event = events[0];
+    final isPlannedVisit = event.title == 'Planned Visit';
+
+    return GestureDetector(
+      onTapUp: (details) {
+        if (!isPlannedVisit && _savedPlace?.averageVisitLength != null) {
+          final tappedMinutes = details.localPosition.dy.toInt();
+          final tappedTime = event.startTime!.add(Duration(minutes: tappedMinutes));
+          final visitEnd = tappedTime.add(Duration(minutes: _savedPlace!.averageVisitLength!));
+          
+          if (_isOpenDuring(tappedTime, visitEnd)) {
+            setState(() => _plannedVisitTime = tappedTime);
+          } else {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Planned visit must be entirely within open business hours'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      },
+      onVerticalDragStart: (_) => _dragAccumulator = 0.0,
+      onVerticalDragUpdate: isPlannedVisit ? (details) {
+        if (_savedPlace?.averageVisitLength != null) {
+          _dragAccumulator += details.delta.dy;
+          if (_dragAccumulator.abs() >= 1.0) {
+            final minutesDelta = _dragAccumulator.toInt();
+            _dragAccumulator -= minutesDelta;
+            
+            setState(() {
+              final proposedTime = _plannedVisitTime!.add(Duration(minutes: minutesDelta));
+              final visitEnd = proposedTime.add(Duration(minutes: _savedPlace!.averageVisitLength!));
+              if (_isOpenDuring(proposedTime, visitEnd)) {
+                _plannedVisitTime = proposedTime;
+              }
+            });
+          }
+        }
+      } : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: event.color,
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: isPlannedVisit
+              ? [const BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))]
+              : null,
+          border: isPlannedVisit
+              ? Border.all(color: Colors.white, width: 1.5)
+              : null,
+        ),
+        padding: const EdgeInsets.all(4),
+        child: Text(
+          event.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
   EventController<Object?> _buildEventController() {
     final controller = EventController<Object?>();
     final now = DateTime.now();
@@ -182,6 +299,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
         );
       }
+    }
+
+    if (_plannedVisitTime != null && _savedPlace?.averageVisitLength != null) {
+      controller.add(
+        CalendarEventData(
+          title: 'Planned Visit',
+          date: DateTime(_plannedVisitTime!.year, _plannedVisitTime!.month, _plannedVisitTime!.day),
+          startTime: _plannedVisitTime!,
+          endTime: _plannedVisitTime!.add(Duration(minutes: _savedPlace!.averageVisitLength!)),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+        ),
+      );
     }
 
     return controller;
@@ -390,6 +519,88 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAverageVisitLengthPicker() {
+    if (_isLoadingSavedPlace || _savedPlace == null) {
+      return const SizedBox.shrink();
+    }
+
+    final List<int?> durations = [null, 15, 30, 45, 60, 90, 120, 180, 240];
+    String formatDuration(int? mins) {
+      if (mins == null) return 'None';
+      if (mins < 60) return '$mins mins';
+      final hrs = mins / 60;
+      return '${hrs.toStringAsFixed(hrs.truncateToDouble() == hrs ? 0 : 1)} ${hrs == 1 ? 'hr' : 'hrs'}';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(Icons.timer, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Average Visit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  'Tap calendar to see if it fits',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          DropdownButton<int?>(
+            value: _savedPlace!.averageVisitLength,
+            items: durations.map((d) => DropdownMenuItem(value: d, child: Text(formatDuration(d)))).toList(),
+            onChanged: (val) async {
+              try {
+                final apiService = context.read<ApiService>();
+                await apiService.updateVisitLength(widget.place.tomtomId, val);
+                if (mounted) {
+                  setState(() {
+                    _savedPlace = SavedPlace(
+                      id: _savedPlace!.id,
+                      place: _savedPlace!.place,
+                      customName: _savedPlace!.customName,
+                      icon: _savedPlace!.icon,
+                      color: _savedPlace!.color,
+                      isPinned: _savedPlace!.isPinned,
+                      averageVisitLength: val,
+                    );
+                    if (val == null) {
+                      _plannedVisitTime = null;
+                    }
+                  });
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to update visit length'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            underline: const SizedBox(),
           ),
         ],
       ),
@@ -637,6 +848,24 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        eventTileBuilder: _buildEventTile,
+        onDateTap: (date) {
+          if (_savedPlace?.averageVisitLength != null) {
+            final visitEnd = date.add(Duration(minutes: _savedPlace!.averageVisitLength!));
+            if (_isOpenDuring(date, visitEnd)) {
+              setState(() => _plannedVisitTime = date);
+            } else {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Planned visit must be entirely within open business hours'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        },
         dayTitleBuilder: (date) => const SizedBox.shrink(),
         hourIndicatorSettings: HourIndicatorSettings(
           color: Theme.of(context).dividerColor,
@@ -674,6 +903,24 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         scrollPhysics: const ClampingScrollPhysics(),
         pageViewPhysics: const NeverScrollableScrollPhysics(),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        eventTileBuilder: _buildEventTile,
+        onDateTap: (date) {
+          if (_savedPlace?.averageVisitLength != null) {
+            final visitEnd = date.add(Duration(minutes: _savedPlace!.averageVisitLength!));
+            if (_isOpenDuring(date, visitEnd)) {
+              setState(() => _plannedVisitTime = date);
+            } else {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Planned visit must be entirely within open business hours'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          }
+        },
         weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
         hourIndicatorSettings: HourIndicatorSettings(
           color: Theme.of(context).dividerColor,
@@ -856,6 +1103,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildGraphicPicker(),
+                  _buildAverageVisitLengthPicker(),
                   _buildAddressSection(),
                   const SizedBox(height: 16),
                   _buildContactInfoSection(),

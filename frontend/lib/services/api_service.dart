@@ -188,4 +188,17 @@ class ApiService {
       );
     }
   }
+
+  Future<void> updateVisitLength(String tomtomId, int? visitLength) async {
+    try {
+      await _dio.patch(
+        '/places/bookmarks/$tomtomId/visit-length',
+        data: {'visit_length': visitLength},
+      );
+    } on DioException catch (e) {
+      throw Exception(
+        'Failed to update visit length: ${e.response?.data ?? e.message}',
+      );
+    }
+  }
 }
