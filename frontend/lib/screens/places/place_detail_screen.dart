@@ -225,7 +225,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
         );
       } : null,
-      onVerticalDragStart: (_) => _dragAccumulator = 0.0,
+      onVerticalDragStart: isPlannedVisit ? (_) => _dragAccumulator = 0.0 : null,
       onVerticalDragUpdate: isPlannedVisit ? (details) {
         if (_savedPlace?.averageVisitLength != null) {
           _dragAccumulator += details.delta.dy;
@@ -1212,13 +1212,15 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           if (isMobile) {
             return Column(
               children: [
+                // Compact details section — scrollable within its constrained area
                 Container(
                   constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.4, // Max 40% of screen height for details so calendar has room
+                    maxHeight: MediaQuery.of(context).size.height * 0.3,
                   ),
                   child: detailsContent,
                 ),
                 const Divider(height: 1),
+                // Calendar takes remaining space and scrolls internally
                 Expanded(child: calendarContent),
               ],
             );
