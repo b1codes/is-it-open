@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
+import 'dart:async';
 import 'package:flutter_map/flutter_map.dart';
 import '../../models/place.dart';
 import '../../models/saved_place.dart';
@@ -824,6 +825,44 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     );
   }
 
+  Widget _buildTimeLineLabel(DateTime date, bool use24HourFormat, Color labelColor) {
+    final timeString = use24HourFormat
+        ? "${date.hour.toString().padLeft(2, '0')}:00"
+        : DateFormat('h a').format(DateTime(date.year, date.month, date.day, date.hour));
+    final label = Center(
+      child: Text(
+        timeString,
+        style: TextStyle(color: labelColor, fontSize: 12),
+      ),
+    );
+
+    // The package skips the label for hour 0 (12 AM / 00:00),
+    // so render it above the hour 1 slot.
+    if (date.hour == 1) {
+      final midnightString = use24HourFormat ? '00:00' : '12 AM';
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          label,
+          Positioned(
+            top: -60, // one hour height (heightPerMinute=1 * 60)
+            height: 60,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                midnightString,
+                style: TextStyle(color: labelColor, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return label;
+  }
+
   Widget _buildCalendar(Color textColor, Color textSmallColor, bool use24HourFormat) {
     List<WeekDays> weekDays = WeekDays.values;
     String headerText = "";
@@ -895,20 +934,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: Theme.of(context).colorScheme.primary,
         ),
-        timeLineBuilder: (date) {
-          final timeString = use24HourFormat
-              ? "${date.hour.toString().padLeft(2, '0')}:00"
-              : DateFormat('h a').format(DateTime(date.year, date.month, date.day, date.hour));
-          return Center(
-            child: Text(
-              timeString,
-              style: TextStyle(
-                color: Theme.of(context).textTheme.bodySmall?.color ?? textSmallColor,
-                fontSize: 12,
-              ),
-            ),
-          );
-        },
+        timeLineBuilder: (date) => _buildTimeLineLabel(
+          date, use24HourFormat,
+          Theme.of(context).textTheme.bodySmall?.color ?? textSmallColor,
+        ),
       );
     } else {
       calendarWidget = WeekView(
@@ -935,23 +964,6 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         eventArranger: const StackEventArranger(),
         eventTileBuilder: _buildEventTile,
         showLiveTimeLineInAllDays: true,
-        onDateTap: (date) {
-          if (_savedPlace?.averageVisitLength != null) {
-            final visitEnd = date.add(Duration(minutes: _savedPlace!.averageVisitLength!));
-            if (_isOpenDuring(date, visitEnd)) {
-              setState(() => _plannedVisitTime = date);
-            } else {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Planned visit must be entirely within open business hours'),
-                  backgroundColor: Colors.orange,
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            }
-          }
-        },
         weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
         weekNumberBuilder: (date) => const SizedBox.shrink(),
         hourIndicatorSettings: HourIndicatorSettings(
@@ -959,21 +971,45 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         ),
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: Theme.of(context).colorScheme.primary,
+          showBullet: false,
         ),
-        timeLineBuilder: (date) {
-          final timeString = use24HourFormat
-              ? "${date.hour.toString().padLeft(2, '0')}:00"
-              : DateFormat('h a').format(DateTime(date.year, date.month, date.day, date.hour));
-          return Center(
-            child: Text(
-              timeString,
-              style: TextStyle(
-                color: Theme.of(context).textTheme.bodySmall?.color ?? textSmallColor,
-                fontSize: 12,
-              ),
-            ),
+        weekDetectorBuilder: ({
+          required DateTime date,
+          required double height,
+          required double width,
+          required double heightPerMinute,
+          required MinuteSlotSize minuteSlotSize,
+        }) {
+          return _WeekDayColumnWithDot(
+            date: date,
+            height: height,
+            width: width,
+            heightPerMinute: heightPerMinute,
+            minuteSlotSize: minuteSlotSize,
+            onDateTap: (tappedDate) {
+              if (_savedPlace?.averageVisitLength != null) {
+                final visitEnd = tappedDate.add(Duration(minutes: _savedPlace!.averageVisitLength!));
+                if (_isOpenDuring(tappedDate, visitEnd)) {
+                  setState(() => _plannedVisitTime = tappedDate);
+                } else {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Planned visit must be entirely within open business hours'),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
+            dotColor: Theme.of(context).colorScheme.primary,
           );
         },
+        timeLineBuilder: (date) => _buildTimeLineLabel(
+          date, use24HourFormat,
+          Theme.of(context).textTheme.bodySmall?.color ?? textSmallColor,
+        ),
         weekDayBuilder: (date) {
           final isToday = DateUtils.isSameDay(date, DateTime.now());
           return Center(
@@ -1234,5 +1270,104 @@ class StackEventArranger<T extends Object?> extends EventArranger<T> {
     }
 
     return arrangedEvents;
+  }
+}
+
+class _WeekDayColumnWithDot extends StatefulWidget {
+  final DateTime date;
+  final double height;
+  final double width;
+  final double heightPerMinute;
+  final MinuteSlotSize minuteSlotSize;
+  final DateTapCallback? onDateTap;
+  final Color dotColor;
+
+  const _WeekDayColumnWithDot({
+    required this.date,
+    required this.height,
+    required this.width,
+    required this.heightPerMinute,
+    required this.minuteSlotSize,
+    required this.dotColor,
+    this.onDateTap,
+  });
+
+  @override
+  State<_WeekDayColumnWithDot> createState() => _WeekDayColumnWithDotState();
+}
+
+class _WeekDayColumnWithDotState extends State<_WeekDayColumnWithDot> {
+  late Timer _timer;
+  late TimeOfDay _currentTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTime = TimeOfDay.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final time = TimeOfDay.now();
+      if (time != _currentTime && mounted) {
+        setState(() => _currentTime = time);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = DateUtils.isSameDay(widget.date, DateTime.now());
+    final heightPerSlot = widget.minuteSlotSize.minutes * widget.heightPerMinute;
+    final slots = (24 * 60) ~/ widget.minuteSlotSize.minutes;
+
+    return SizedBox(
+      height: widget.height,
+      width: widget.width,
+      child: Stack(
+        children: [
+          // Tap detector slots
+          for (int i = 0; i < slots; i++)
+            Positioned(
+              top: heightPerSlot * i,
+              left: 0,
+              right: 0,
+              bottom: widget.height - (heightPerSlot * (i + 1)),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => widget.onDateTap?.call(
+                  DateTime(
+                    widget.date.year,
+                    widget.date.month,
+                    widget.date.day,
+                    0,
+                    widget.minuteSlotSize.minutes * i,
+                  ),
+                ),
+                child: SizedBox(width: widget.width, height: heightPerSlot),
+              ),
+            ),
+          // Time indicator dot for today only
+          if (isToday)
+            Positioned(
+              top: (_currentTime.hour * 60 + _currentTime.minute) *
+                      widget.heightPerMinute -
+                  5,
+              left: 0,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: widget.dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
