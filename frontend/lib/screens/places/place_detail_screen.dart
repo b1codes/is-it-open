@@ -36,6 +36,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final TextEditingController _labelController = TextEditingController();
   DateTime? _plannedVisitTime;
   double _dragAccumulator = 0.0;
+  bool _isCalendarExpanded = false;
 
   final List<String> _suggestedLabels = ['Gym', 'Pharmacy', 'Grocery', 'Coffee', 'Work', 'Home', 'Restaurant'];
 
@@ -1201,7 +1202,25 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
-                child: _buildCalendarOptions(),
+                child: Row(
+                  children: [
+                    if (isMobile) const SizedBox(width: 48), // Balance the right button
+                    const Spacer(),
+                    _buildCalendarOptions(),
+                    const Spacer(),
+                    if (isMobile) ...[
+                      IconButton(
+                        icon: Icon(
+                          _isCalendarExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
+                          size: 24,
+                        ),
+                        tooltip: _isCalendarExpanded ? 'Collapse calendar' : 'Expand calendar',
+                        onPressed: () => setState(() => _isCalendarExpanded = !_isCalendarExpanded),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ],
+                ),
               ),
               Expanded(
                 child: _buildCalendar(textColor, textSmallColor, use24HourFormat),
@@ -1212,14 +1231,16 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           if (isMobile) {
             return Column(
               children: [
-                // Compact details section — scrollable within its constrained area
-                Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.3,
+                if (!_isCalendarExpanded) ...[
+                  // Compact details section — scrollable within its constrained area
+                  Container(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.3,
+                    ),
+                    child: detailsContent,
                   ),
-                  child: detailsContent,
-                ),
-                const Divider(height: 1),
+                  const Divider(height: 1),
+                ],
                 // Calendar takes remaining space and scrolls internally
                 Expanded(child: calendarContent),
               ],
