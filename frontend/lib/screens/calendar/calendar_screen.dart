@@ -1041,7 +1041,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Calendar'),
         backgroundColor: Colors.transparent,

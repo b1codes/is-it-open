@@ -146,58 +146,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (state is AuthAuthenticated) {
           final user = state.user;
           return Scaffold(
-            backgroundColor: Colors.transparent,
             appBar: AppBar(
               title: const Text('Settings'),
               backgroundColor: Colors.transparent,
               elevation: 0,
             ),
-            body: SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.all(16.0),
-                children: [
-                  Text(
-                    'Location Preferences',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('Use Current Location'),
-                    subtitle: const Text(
-                      'Allow the app to access your device location',
+            body: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF1A237E).withValues(alpha: 0.1),
+                        const Color(0xFF0D47A1).withValues(alpha: 0.1),
+                        const Color(0xFF880E4F).withValues(alpha: 0.1),
+                      ],
                     ),
-                    value: user.useCurrentLocation,
-                    onChanged: _isUpdating
-                        ? null
-                        : (value) => _handleCurrentLocationToggle(value, user),
                   ),
-                  if (_isUpdating)
-                    const Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'App Preferences',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  BlocBuilder<PreferencesCubit, PreferencesState>(
-                    builder: (context, prefsState) {
-                      return SwitchListTile(
-                        title: const Text('Use 24-Hour Time'),
+                ),
+                SafeArea(
+                  child: ListView(
+                    padding: const EdgeInsets.all(16.0),
+                    children: [
+                      Text(
+                        'Location Preferences',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        title: const Text('Use Current Location'),
                         subtitle: const Text(
-                          'Display time in 24-hour format (e.g. 13:00)',
+                          'Allow the app to access your device location',
                         ),
-                        value: prefsState.use24HourFormat,
-                        onChanged: (value) {
-                          context.read<PreferencesCubit>().toggle24HourFormat(value);
+                        value: user.useCurrentLocation,
+                        onChanged: _isUpdating
+                            ? null
+                            : (value) => _handleCurrentLocationToggle(value, user),
+                      ),
+                      if (_isUpdating)
+                        const Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'App Preferences',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 16),
+                      BlocBuilder<PreferencesCubit, PreferencesState>(
+                        builder: (context, prefsState) {
+                          return SwitchListTile(
+                            title: const Text('Use 24-Hour Time'),
+                            subtitle: const Text(
+                              'Display time in 24-hour format (e.g. 13:00)',
+                            ),
+                            value: prefsState.use24HourFormat,
+                            onChanged: (value) {
+                              context.read<PreferencesCubit>().toggle24HourFormat(value);
+                            },
+                          );
                         },
-                      );
-                    },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         } else {

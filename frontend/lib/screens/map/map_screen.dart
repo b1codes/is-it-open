@@ -353,7 +353,7 @@ class _MapScreenState extends State<MapScreen> {
           urlTemplate: Theme.of(context).brightness == Brightness.dark
               ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.example.app',
+          userAgentPackageName: 'com.brandonlc.isitopen',
         ),
         if (markers.isNotEmpty) MarkerLayer(markers: markers),
       ],
@@ -431,7 +431,6 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Map'),
         backgroundColor: Colors.transparent,

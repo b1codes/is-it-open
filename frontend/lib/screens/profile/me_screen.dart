@@ -157,10 +157,8 @@ class _MeScreenState extends State<MeScreen> {
         if (_currentUser != null) {
           final user = _currentUser!;
           return Scaffold(
-            backgroundColor: Colors.transparent,
             appBar: AppBar(
               title: const Text('My Profile'),
-              backgroundColor: Colors.transparent,
               elevation: 0,
               actions: [
                 IconButton(
@@ -174,133 +172,150 @@ class _MeScreenState extends State<MeScreen> {
                 ),
               ],
             ),
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Account Information',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: TextEditingController(text: user.username),
-                        decoration: const InputDecoration(
-                          labelText: 'Username',
-                          border: OutlineInputBorder(),
-                        ),
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: TextEditingController(
-                          text: user.email ?? '',
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: 'Email',
-                          border: OutlineInputBorder(),
-                        ),
-                        enabled: false,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
+            body: Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF1A237E).withValues(alpha: 0.1),
+                        const Color(0xFF0D47A1).withValues(alpha: 0.1),
+                        const Color(0xFF880E4F).withValues(alpha: 0.1),
+                      ],
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _firstNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'First Name',
-                                border: OutlineInputBorder(),
+                          Text(
+                            'Account Information',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: TextEditingController(text: user.username),
+                            decoration: const InputDecoration(
+                              labelText: 'Username',
+                              border: OutlineInputBorder(),
+                            ),
+                            enabled: false,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: TextEditingController(
+                              text: user.email ?? '',
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                              border: OutlineInputBorder(),
+                            ),
+                            enabled: false,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _firstNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'First Name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
                               ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _lastNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Last Name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          Text(
+                            'Location Preferences',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 16),
+                          AddressInputAccordion(
+                            title: 'Home Address',
+                            icon: Icons.home,
+                            streetController: _homeStreetController,
+                            cityController: _homeCityController,
+                            stateController: _homeStateController,
+                            zipController: _homeZipController,
+                            initiallyExpanded:
+                                _homeStreetController.text.isNotEmpty ||
+                                _homeCityController.text.isNotEmpty ||
+                                _homeStateController.text.isNotEmpty ||
+                                _homeZipController.text.isNotEmpty,
+                          ),
+                          const SizedBox(height: 16),
+                          AddressInputAccordion(
+                            title: 'Work Address',
+                            icon: Icons.work,
+                            streetController: _workStreetController,
+                            cityController: _workCityController,
+                            stateController: _workStateController,
+                            zipController: _workZipController,
+                            initiallyExpanded:
+                                _workStreetController.text.isNotEmpty ||
+                                _workCityController.text.isNotEmpty ||
+                                _workStateController.text.isNotEmpty ||
+                                _workZipController.text.isNotEmpty,
+                          ),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: state is AuthLoading
+                                  ? null
+                                  : () => _saveProfile(user),
+                              child: state is AuthLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Save Profile'),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _lastNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Last Name',
-                                border: OutlineInputBorder(),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                context.read<AuthBloc>().add(LogoutRequested());
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
                               ),
+                              child: const Text('Logout'),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 32),
-                      Text(
-                        'Location Preferences',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      AddressInputAccordion(
-                        title: 'Home Address',
-                        icon: Icons.home,
-                        streetController: _homeStreetController,
-                        cityController: _homeCityController,
-                        stateController: _homeStateController,
-                        zipController: _homeZipController,
-                        initiallyExpanded:
-                            _homeStreetController.text.isNotEmpty ||
-                            _homeCityController.text.isNotEmpty ||
-                            _homeStateController.text.isNotEmpty ||
-                            _homeZipController.text.isNotEmpty,
-                      ),
-                      const SizedBox(height: 16),
-                      AddressInputAccordion(
-                        title: 'Work Address',
-                        icon: Icons.work,
-                        streetController: _workStreetController,
-                        cityController: _workCityController,
-                        stateController: _workStateController,
-                        zipController: _workZipController,
-                        initiallyExpanded:
-                            _workStreetController.text.isNotEmpty ||
-                            _workCityController.text.isNotEmpty ||
-                            _workStateController.text.isNotEmpty ||
-                            _workZipController.text.isNotEmpty,
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: state is AuthLoading
-                              ? null
-                              : () => _saveProfile(user),
-                          child: state is AuthLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Save Profile'),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            context.read<AuthBloc>().add(LogoutRequested());
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
-                          ),
-                          child: const Text('Logout'),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           );
         } else {

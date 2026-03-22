@@ -513,7 +513,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     urlTemplate: Theme.of(context).brightness == Brightness.dark
                         ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
                         : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.app',
+                    userAgentPackageName: 'com.brandonlc.isitopen',
                   ),
                   MarkerLayer(
                     markers: [
