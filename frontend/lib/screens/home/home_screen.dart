@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/screens/search/search_screen.dart';
 import 'package:frontend/screens/map/map_screen.dart';
 import 'package:frontend/screens/places/my_places_screen.dart';
+import 'package:frontend/screens/calendar/calendar_screen.dart';
 import '../../components/shared/side_menu.dart';
 import 'package:frontend/screens/profile/me_screen.dart';
 import 'package:frontend/screens/profile/settings_screen.dart';
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
     SearchScreen(),
     MapScreen(),
     MyPlacesScreen(),
+    CalendarScreen(),
     MeScreen(),
     SettingsScreen(),
   ];

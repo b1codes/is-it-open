@@ -56,7 +56,8 @@ class SideMenu extends StatelessWidget {
                 _buildNavItem(context, 0, 'Search', Icons.search),
                 _buildNavItem(context, 1, 'Map', Icons.map),
                 _buildNavItem(context, 2, 'My Places', Icons.star),
-                _buildNavItem(context, 3, 'Me', Icons.person),
+                _buildNavItem(context, 3, 'Calendar', Icons.calendar_month),
+                _buildNavItem(context, 4, 'Me', Icons.person),
               ],
             ),
           ),
@@ -65,7 +66,7 @@ class SideMenu extends StatelessWidget {
               context,
             ).colorScheme.onSurface.withValues(alpha: 0.2),
           ),
-          _buildNavItem(context, 4, 'Settings', Icons.settings),
+          _buildNavItem(context, 5, 'Settings', Icons.settings),
           ListTile(
             leading: Icon(
               isDarkMode ? Icons.dark_mode : Icons.light_mode,
