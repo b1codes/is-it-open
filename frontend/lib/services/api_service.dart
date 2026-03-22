@@ -11,9 +11,20 @@ class ApiService {
 
   ApiService() {
     // Determine Base URL based on platform
-    String baseUrl = 'http://127.0.0.1:8000/api';
-    if (!kIsWeb && Platform.isAndroid) {
+    String baseUrl;
+    if (kIsWeb) {
+      // Web runs on the same machine as the server
+      baseUrl = 'http://127.0.0.1:8000/api';
+    } else if (Platform.isAndroid) {
+      // Android emulator uses 10.0.2.2 to reach host machine
       baseUrl = 'http://10.0.2.2:8000/api';
+    } else if (Platform.isIOS) {
+      // Physical iOS device needs the Mac's local network IP
+      // Simulator can use 127.0.0.1 but the local IP works for both
+      baseUrl = 'http://192.168.1.168:8000/api';
+    } else {
+      // macOS desktop
+      baseUrl = 'http://127.0.0.1:8000/api';
     }
 
     _dio = Dio(

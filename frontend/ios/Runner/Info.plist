@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This app needs access to your calendars to display your events alongside business hours.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>This app needs full access to your calendars to display your events alongside business hours.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
 	<key>NSLocationAlwaysUsageDescription</key>

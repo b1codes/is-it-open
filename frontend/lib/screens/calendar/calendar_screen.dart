@@ -43,6 +43,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final Set<String> _checkedCalendarIds = {};
   bool _isLoadingCalendars = false;
   bool _hasCalendarPermission = false;
+  bool _permissionRequestedOnce = false;
 
   // Imported events (iCal/ICS)
   List<CalendarEventData<Object?>> _importedEvents = [];
@@ -132,6 +133,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  /// Returns true if the IcsDateTime represents a date-only value (all-day).
+  bool _isAllDayIcsDateTime(IcsDateTime dt) {
+    // Date-only values in iCal have no 'T' separator and are 8 chars (YYYYMMDD)
+    return !dt.dt.contains('T');
+  }
+
   Future<void> _fetchRemoteCalendar() async {
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticated) return;
@@ -153,18 +160,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
           final description = entry['description'];
 
           if (dtstart != null) {
+            final isAllDay = _isAllDayIcsDateTime(dtstart);
             final start = dtstart.toDateTime();
             final end = dtend?.toDateTime() ?? start?.add(const Duration(hours: 1));
             
             if (start != null) {
-              events.add(CalendarEventData(
-                title: title,
-                date: start,
-                startTime: start,
-                endTime: end ?? start,
-                description: description,
-                color: Colors.deepPurple.withOpacity(0.5),
-              ));
+              if (isAllDay) {
+                // All-day event: omit startTime/endTime for header display
+                final endDate = end != null
+                    ? end.subtract(const Duration(days: 1))
+                    : start;
+                events.add(CalendarEventData(
+                  title: title,
+                  date: start,
+                  endDate: endDate,
+                  description: description,
+                  color: Colors.deepPurple.withOpacity(0.5),
+                ));
+              } else {
+                events.add(CalendarEventData(
+                  title: title,
+                  date: start,
+                  startTime: start,
+                  endTime: end ?? start,
+                  description: description,
+                  color: Colors.deepPurple.withOpacity(0.5),
+                ));
+              }
             }
           }
         }
@@ -194,7 +216,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     context.read<AuthBloc>().add(ProfileUpdateRequested(updatedUser: updatedUser));
   }
 
-  Future<void> _initDeviceCalendar() async {
+  Future<void> _initDeviceCalendar({bool fromButton = false}) async {
     // Only support mobile for local device calendar sync for now
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
 
@@ -210,7 +232,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           setState(() => _hasCalendarPermission = true);
         }
         await _loadDeviceCalendars();
+      } else if (fromButton && mounted) {
+        // Permission was denied — if we already asked once, the OS won't
+        // show the dialog again. Guide the user to Settings.
+        if (_permissionRequestedOnce) {
+          _showPermissionDeniedDialog();
+        }
       }
+      _permissionRequestedOnce = true;
     } catch (e) {
       debugPrint('Error initializing device calendar: $e');
     } finally {
@@ -218,6 +247,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
         setState(() => _isLoadingCalendars = false);
       }
     }
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Calendar Permission Required'),
+        content: const Text(
+          'Calendar permission was not granted. '
+          'Please open Settings > Is It Open? and enable Calendars access, then try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadDeviceCalendars() async {
@@ -237,6 +285,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
       return;
     }
 
+    // Build a lookup map for calendar colors
+    final calendarColorMap = <String, Color>{};
+    for (final cal in _deviceCalendars) {
+      if (cal.id != null) {
+        calendarColorMap[cal.id!] = cal.color != null
+            ? Color(cal.color!).withOpacity(0.7)
+            : Colors.blue.withOpacity(0.7);
+      }
+    }
+
     final now = DateTime.now();
     final startDate = now.subtract(const Duration(days: 28));
     final endDate = now.add(const Duration(days: 84));
@@ -244,6 +302,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     List<CalendarEventData<Object?>> allEvents = [];
 
     for (final calendarId in _checkedCalendarIds) {
+      final calColor = calendarColorMap[calendarId] ?? Colors.blue.withOpacity(0.7);
+
       final eventsResult = await _deviceCalendarPlugin.retrieveEvents(
         calendarId,
         RetrieveEventsParams(startDate: startDate, endDate: endDate),
@@ -252,14 +312,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (eventsResult.isSuccess && eventsResult.data != null) {
         for (final event in eventsResult.data!) {
           if (event.start != null && event.end != null) {
-            allEvents.add(CalendarEventData(
-              title: event.title ?? 'No Title',
-              date: event.start!,
-              startTime: event.start!,
-              endTime: event.end!,
-              description: event.description,
-              color: Colors.blue.withOpacity(0.5), // You could use calendar color if available
-            ));
+            if (event.allDay == true) {
+              // Full-day event: omit startTime/endTime so calendar_view
+              // treats it as a full-day event shown in the header area.
+              allEvents.add(CalendarEventData(
+                title: event.title ?? 'No Title',
+                date: event.start!,
+                endDate: event.end!.subtract(const Duration(days: 1)),
+                description: event.description,
+                color: calColor,
+              ));
+            } else {
+              allEvents.add(CalendarEventData(
+                title: event.title ?? 'No Title',
+                date: event.start!,
+                startTime: event.start!,
+                endTime: event.end!,
+                description: event.description,
+                color: calColor,
+              ));
+            }
           }
         }
       }
@@ -294,18 +366,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
             final description = entry['description'];
 
             if (dtstart != null) {
+              final isAllDay = _isAllDayIcsDateTime(dtstart);
               final start = dtstart.toDateTime();
               final end = dtend?.toDateTime() ?? start?.add(const Duration(hours: 1));
               
               if (start != null) {
-                events.add(CalendarEventData(
-                  title: title,
-                  date: start,
-                  startTime: start,
-                  endTime: end ?? start,
-                  description: description,
-                  color: Colors.teal.withOpacity(0.5),
-                ));
+                if (isAllDay) {
+                  final endDate = end != null
+                      ? end.subtract(const Duration(days: 1))
+                      : start;
+                  events.add(CalendarEventData(
+                    title: title,
+                    date: start,
+                    endDate: endDate,
+                    description: description,
+                    color: Colors.teal.withOpacity(0.5),
+                  ));
+                } else {
+                  events.add(CalendarEventData(
+                    title: title,
+                    date: start,
+                    startTime: start,
+                    endTime: end ?? start,
+                    description: description,
+                    color: Colors.teal.withOpacity(0.5),
+                  ));
+                }
               }
             }
           }
@@ -482,6 +568,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  // ── Full-day event header builder ─────────────────────────────
+  Widget _buildFullDayEventWidget(
+    List<CalendarEventData<dynamic>> events,
+    DateTime date,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: events.map((event) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: event.color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              event.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   // ── Weekday short name ────────────────────────────────────────
   String _weekDayShortName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -606,6 +727,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         eventArranger: const _StackEventArranger(),
         eventTileBuilder: _buildEventTile,
+        fullDayEventBuilder: _buildFullDayEventWidget,
         showLiveTimeLineInAllDays: true,
         dayTitleBuilder: (date) => const SizedBox.shrink(),
         hourIndicatorSettings: HourIndicatorSettings(color: Theme.of(context).dividerColor),
@@ -640,6 +762,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         weekTitleBackgroundColor: const Color(0xFF1565C0),
         eventArranger: const _StackEventArranger(),
         eventTileBuilder: _buildEventTile,
+        fullDayEventBuilder: _buildFullDayEventWidget,
         showLiveTimeLineInAllDays: true,
         weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
         weekNumberBuilder: (date) => const SizedBox.shrink(),
@@ -857,7 +980,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _initDeviceCalendar,
+              onPressed: () => _initDeviceCalendar(fromButton: true),
               child: const Text('Grant Permission'),
             ),
           ],
