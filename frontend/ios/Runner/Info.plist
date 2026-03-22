@@ -26,6 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to location when open to show your current position on the map and find nearby places.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,13 +74,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location when open to show your current position on the map and find nearby places.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
-	<key>NSLocationUsageDescription</key>
-	<string>This app needs access to location to show your current position on the map and find nearby places.</string>
 </dict>
 </plist>
