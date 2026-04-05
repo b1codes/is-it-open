@@ -1,7 +1,7 @@
 {
   "fill" : {
     "linear-gradient" : [
-      "extended-gray:0.75000,1.00000",
+      "extended-srgb:1.00000,0.55294,0.15686,1.00000",
       "extended-srgb:0.00000,0.53333,1.00000,1.00000"
     ],
     "orientation" : {
@@ -19,12 +19,19 @@
     {
       "layers" : [
         {
-          "image-name" : "Is It Open_ Foreground.png",
-          "name" : "Is It Open_ Foreground"
+          "image-name" : "Is It Open_ Foreground 4.png",
+          "name" : "Is It Open_ Foreground 4"
         },
         {
-          "image-name" : "Is It Open_ Background.png",
-          "name" : "Is It Open_ Background"
+          "image-name" : "Is It Open_ Background 2.png",
+          "name" : "Is It Open_ Background 2",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {
