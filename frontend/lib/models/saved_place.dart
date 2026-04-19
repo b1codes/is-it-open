@@ -7,6 +7,7 @@ class SavedPlace {
   final String? icon;
   final String? color;
   final bool isPinned;
+  final bool isCheckItOut;
   final int? averageVisitLength;
 
   SavedPlace({
@@ -16,6 +17,7 @@ class SavedPlace {
     this.icon,
     this.color,
     this.isPinned = false,
+    this.isCheckItOut = false,
     this.averageVisitLength,
   });
 
@@ -27,6 +29,7 @@ class SavedPlace {
       icon: json['icon'],
       color: json['color'],
       isPinned: json['is_pinned'] ?? false,
+      isCheckItOut: json['is_check_it_out'] ?? false,
       averageVisitLength: json['average_visit_length'],
     );
   }
@@ -39,6 +42,7 @@ class SavedPlace {
       'icon': icon,
       'color': color,
       'is_pinned': isPinned,
+      'is_check_it_out': isCheckItOut,
       'average_visit_length': averageVisitLength,
     };
   }

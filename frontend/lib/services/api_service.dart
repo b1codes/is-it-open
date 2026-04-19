@@ -182,6 +182,19 @@ class ApiService {
     }
   }
 
+  Future<void> toggleCheckItOut(String tomtomId, bool isCheckItOut) async {
+    try {
+      await _dio.patch(
+        '/places/bookmarks/$tomtomId/check-it-out',
+        data: {'is_check_it_out': isCheckItOut},
+      );
+    } on DioException catch (e) {
+      throw Exception(
+        'Failed to toggle check-it-out for place: ${e.response?.data ?? e.message}',
+      );
+    }
+  }
+
   Future<void> updateBookmarkGraphic(String tomtomId, String? icon, String? color, {String? customName}) async {
     try {
       final Map<String, dynamic> data = {};
