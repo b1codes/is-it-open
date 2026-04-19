@@ -81,6 +81,36 @@ class SavedPlaceGridCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      savedPlace.isCheckItOut
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                    color: savedPlace.isCheckItOut
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    iconSize: 20,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.only(right: 12),
+                    tooltip: savedPlace.isCheckItOut ? 'Mark as Visited' : 'Check It Out',
+                    onPressed: () async {
+                      try {
+                        await context.read<ApiService>().toggleCheckItOut(
+                              savedPlace.place.tomtomId,
+                              !savedPlace.isCheckItOut,
+                            );
+                        onRefresh();
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to update: $e')),
+                          );
+                        }
+                      }
+                    },
+                  ),
                   IconButton(
                     icon: Icon(
                       savedPlace.isPinned

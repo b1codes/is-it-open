@@ -45,6 +45,32 @@ class SavedPlaceListCard extends StatelessWidget {
           children: [
             IconButton(
               icon: Icon(
+                savedPlace.isCheckItOut
+                    ? Icons.visibility
+                    : Icons.visibility_off,
+              ),
+              color: savedPlace.isCheckItOut
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+              tooltip: savedPlace.isCheckItOut ? 'Mark as Visited' : 'Check It Out',
+              onPressed: () async {
+                try {
+                  await context.read<ApiService>().toggleCheckItOut(
+                        savedPlace.place.tomtomId,
+                        !savedPlace.isCheckItOut,
+                      );
+                  onRefresh();
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+            IconButton(
+              icon: Icon(
                 savedPlace.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
               ),
               color: savedPlace.isPinned
