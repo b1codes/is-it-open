@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'dart:convert' show utf8;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
+import '../../components/calendar/calendar_event_tile.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
@@ -168,80 +169,7 @@ class _CalendarScreenContent extends StatelessWidget {
     return controller;
   }
 
-  Widget _buildEventTile(
-    DateTime date,
-    List<CalendarEventData<dynamic>> events,
-    Rect boundary,
-    DateTime startDuration,
-    DateTime endDuration,
-  ) {
-    if (events.isEmpty) return const SizedBox.shrink();
-    final event = events[0];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: event.color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            event.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (event.description != null && event.description!.isNotEmpty)
-            Text(
-              event.description!,
-              style: const TextStyle(color: Colors.white70, fontSize: 9),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFullDayEventWidget(
-    List<CalendarEventData<dynamic>> events,
-    DateTime date,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: events.map((event) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: event.color,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              event.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
   String _weekDayShortName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -367,9 +295,17 @@ class _CalendarScreenContent extends StatelessWidget {
                 pageViewPhysics: const NeverScrollableScrollPhysics(),
                 backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 headerStyle: HeaderStyle(decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor)),
-                eventArranger: const _StackEventArranger(),
-                eventTileBuilder: _buildEventTile,
-                fullDayEventBuilder: _buildFullDayEventWidget,
+                eventArranger: const StackEventArranger(),
+                eventTileBuilder: (date, events, boundary, startDuration, endDuration) =>
+                    CalendarEventTileWidget(
+                  date: date,
+                  events: events,
+                  boundary: boundary,
+                  startDuration: startDuration,
+                  endDuration: endDuration,
+                ),
+                fullDayEventBuilder: (events, date) =>
+                    FullDayEventWidget(events: events, date: date),
                 showLiveTimeLineInAllDays: true,
                 dayTitleBuilder: (date) => const SizedBox.shrink(),
                 hourIndicatorSettings: HourIndicatorSettings(color: Theme.of(context).dividerColor),
@@ -396,9 +332,17 @@ class _CalendarScreenContent extends StatelessWidget {
                 backgroundColor: Theme.of(context).scaffoldBackgroundColor,
                 headerStyle: HeaderStyle(decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor)),
                 weekTitleBackgroundColor: const Color(0xFF1565C0),
-                eventArranger: const _StackEventArranger(),
-                eventTileBuilder: _buildEventTile,
-                fullDayEventBuilder: _buildFullDayEventWidget,
+                eventArranger: const StackEventArranger(),
+                eventTileBuilder: (date, events, boundary, startDuration, endDuration) =>
+                    CalendarEventTileWidget(
+                  date: date,
+                  events: events,
+                  boundary: boundary,
+                  startDuration: startDuration,
+                  endDuration: endDuration,
+                ),
+                fullDayEventBuilder: (events, date) =>
+                    FullDayEventWidget(events: events, date: date),
                 showLiveTimeLineInAllDays: true,
                 weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
                 weekNumberBuilder: (date) => const SizedBox.shrink(),
@@ -886,48 +830,7 @@ class _CalendarScreenContent extends StatelessWidget {
   }
 }
 
-class _StackEventArranger<T extends Object?> extends EventArranger<T> {
-  const _StackEventArranger();
 
-  @override
-  List<OrganizedCalendarEventData<T>> arrange({
-    required DateTime calendarViewDate,
-    required List<CalendarEventData<T>> events,
-    required double height,
-    required double width,
-    required double heightPerMinute,
-    required int startHour,
-  }) {
-    final arrangedEvents = <OrganizedCalendarEventData<T>>[];
 
-    for (final event in events) {
-      final startTime = event.startTime ?? event.date;
-      final endTime = event.endTime ?? event.date;
 
-      final startOffset = (startTime.hour - startHour) * 60 + startTime.minute;
-      final top = math.max(0.0, startOffset * heightPerMinute);
 
-      var endOffset = (endTime.hour - startHour) * 60 + endTime.minute;
-      var bottom = height - (endOffset * heightPerMinute);
-
-      if (endTime.day != startTime.day || bottom > (height - top)) {
-        bottom = 0.0;
-      }
-
-      arrangedEvents.add(
-        OrganizedCalendarEventData<T>(
-          calendarViewDate: calendarViewDate,
-          startDuration: startTime,
-          endDuration: endTime,
-          top: top,
-          bottom: bottom,
-          left: 0.0,
-          right: 0.0,
-          events: [event],
-        ),
-      );
-    }
-
-    return arrangedEvents;
-  }
-}
