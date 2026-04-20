@@ -6,10 +6,13 @@ import 'package:frontend/screens/auth/login_screen.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/theme/theme_cubit.dart';
 import 'bloc/preferences/preferences_cubit.dart';
+import 'core/env_config.dart';
 import 'services/api_service.dart';
 import 'utils/app_theme.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await EnvConfig.init();
   runApp(const MyApp());
 }
 

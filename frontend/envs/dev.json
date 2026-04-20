@@ -1,0 +1,6 @@
+{
+  "api_base_url_web": "http://127.0.0.1:8000/api",
+  "api_base_url_android": "http://10.0.2.2:8000/api",
+  "api_base_url_ios": "http://192.168.1.168:8000/api",
+  "api_base_url_macos": "http://127.0.0.1:8000/api"
+}

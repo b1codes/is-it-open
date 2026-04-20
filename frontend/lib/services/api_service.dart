@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart'; // For kIsWeb and debugPrint
-import 'dart:io'; // For Platform check
+import 'package:flutter/foundation.dart'; // For debugPrint
+import '../core/env_config.dart';
 import '../models/place.dart';
 import '../models/user.dart';
 import '../models/saved_place.dart';
@@ -10,26 +10,9 @@ class ApiService {
   String? _authToken;
 
   ApiService() {
-    // Determine Base URL based on platform
-    String baseUrl;
-    if (kIsWeb) {
-      // Web runs on the same machine as the server
-      baseUrl = 'http://127.0.0.1:8000/api';
-    } else if (Platform.isAndroid) {
-      // Android emulator uses 10.0.2.2 to reach host machine
-      baseUrl = 'http://10.0.2.2:8000/api';
-    } else if (Platform.isIOS) {
-      // Physical iOS device needs the Mac's local network IP
-      // Simulator can use 127.0.0.1 but the local IP works for both
-      baseUrl = 'http://192.168.1.168:8000/api';
-    } else {
-      // macOS desktop
-      baseUrl = 'http://127.0.0.1:8000/api';
-    }
-
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl,
+        baseUrl: EnvConfig.apiBaseUrl,
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 3),
         headers: {'Content-Type': 'application/json'},
