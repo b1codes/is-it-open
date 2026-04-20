@@ -167,3 +167,4 @@ _override.tf.json
 
 *.sqlite3.worktrees/
 backend/db.sqlite3
+\n.worktrees/
