@@ -6,6 +6,7 @@ from ninja.errors import HttpError
 from .models import AuthToken, UserProfile
 from .auth import GlobalAuth
 from typing import Optional
+from services.tomtom import TomTomClient
 
 router = Router()
 
@@ -159,7 +160,8 @@ def me(request):
         "work_zip": request.user.profile.work_zip,
         "work_lat": request.user.profile.work_lat,
         "work_lng": request.user.profile.work_lng,
-        "use_current_location": request.user.profile.use_current_location
+        "use_current_location": request.user.profile.use_current_location,
+        "calendar_subscription_url": request.user.profile.calendar_subscription_url
     }
 
 class ProfileUpdateInput(Schema):
@@ -184,8 +186,6 @@ class ProfileUpdateInput(Schema):
 
 @router.put("/me", response=AuthOutput, auth=GlobalAuth())
 def update_me(request, data: ProfileUpdateInput):
-    from services.tomtom import TomTomClient # Import locally to avoid circular imports if any, though likely fine at top
-
     if not request.user.is_authenticated:
         raise HttpError(401, "Unauthorized")
     
