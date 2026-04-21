@@ -208,12 +208,59 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     return false;
   }
 
+  bool _isAvailableDuring(
+    DateTime start,
+    DateTime end,
+    CalendarDataState dataState,
+  ) {
+    if (!_isOpenDuring(start, end)) return false;
+
+    for (final event in dataState.remoteEvents) {
+      if (event.startTime == null || event.endTime == null) continue;
+      if (start.isBefore(event.endTime!) && end.isAfter(event.startTime!)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _showConflictMessage(
+    DateTime start,
+    DateTime end,
+    CalendarDataState dataState,
+  ) {
+    String message = '';
+    if (!_isOpenDuring(start, end)) {
+      message = 'Planned visit must be entirely within open business hours';
+    } else {
+      for (final event in dataState.remoteEvents) {
+        if (event.startTime == null || event.endTime == null) continue;
+        if (start.isBefore(event.endTime!) && end.isAfter(event.startTime!)) {
+          message = 'Conflicts with a personal calendar event';
+          break;
+        }
+      }
+    }
+
+    if (message.isNotEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Widget _buildEventTile(
     DateTime date,
     List<CalendarEventData<dynamic>> events,
     Rect boundary,
     DateTime startDuration,
     DateTime endDuration,
+    CalendarDataState dataState,
   ) {
     if (events.isEmpty) return const SizedBox.shrink();
     final event = events[0];
@@ -233,19 +280,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             Duration(minutes: _savedPlace!.averageVisitLength!),
           );
 
-          if (_isOpenDuring(tappedTime, visitEnd)) {
+          if (_isAvailableDuring(tappedTime, visitEnd, dataState)) {
             setState(() => _plannedVisitTime = tappedTime);
           } else {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Planned visit must be entirely within open business hours',
-                ),
-                backgroundColor: Colors.orange,
-                duration: Duration(seconds: 2),
-              ),
-            );
+            _showConflictMessage(tappedTime, visitEnd, dataState);
           }
         }
       },
@@ -280,7 +318,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     final visitEnd = proposedTime.add(
                       Duration(minutes: _savedPlace!.averageVisitLength!),
                     );
-                    if (_isOpenDuring(proposedTime, visitEnd)) {
+                    if (_isAvailableDuring(proposedTime, visitEnd, dataState)) {
                       _plannedVisitTime = proposedTime;
                     }
                   });
@@ -1048,26 +1086,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
         ),
         eventArranger: const StackEventArranger(),
-        eventTileBuilder: _buildEventTile,
+        eventTileBuilder: (date, events, boundary, start, end) =>
+            _buildEventTile(date, events, boundary, start, end, dataState),
         showLiveTimeLineInAllDays: true,
         onDateTap: (date) {
           if (_savedPlace?.averageVisitLength != null) {
             final visitEnd = date.add(
               Duration(minutes: _savedPlace!.averageVisitLength!),
             );
-            if (_isOpenDuring(date, visitEnd)) {
+            if (_isAvailableDuring(date, visitEnd, dataState)) {
               setState(() => _plannedVisitTime = date);
             } else {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Planned visit must be entirely within open business hours',
-                  ),
-                  backgroundColor: Colors.orange,
-                  duration: Duration(seconds: 2),
-                ),
-              );
+              _showConflictMessage(date, visitEnd, dataState);
             }
           }
         },
@@ -1107,7 +1137,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         ),
         weekTitleBackgroundColor: const Color(0xFF1565C0),
         eventArranger: const StackEventArranger(),
-        eventTileBuilder: _buildEventTile,
+        eventTileBuilder: (date, events, boundary, start, end) =>
+            _buildEventTile(date, events, boundary, start, end, dataState),
         showLiveTimeLineInAllDays: true,
         weekPageHeaderBuilder: (start, end) => const SizedBox.shrink(),
         weekNumberBuilder: (date) => const SizedBox.shrink(),
@@ -1137,19 +1168,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     final visitEnd = tappedDate.add(
                       Duration(minutes: _savedPlace!.averageVisitLength!),
                     );
-                    if (_isOpenDuring(tappedDate, visitEnd)) {
+                    if (_isAvailableDuring(tappedDate, visitEnd, dataState)) {
                       setState(() => _plannedVisitTime = tappedDate);
                     } else {
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Planned visit must be entirely within open business hours',
-                          ),
-                          backgroundColor: Colors.orange,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      _showConflictMessage(tappedDate, visitEnd, dataState);
                     }
                   }
                 },
