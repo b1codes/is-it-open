@@ -24,57 +24,51 @@ class CalendarEventTileWidget extends StatelessWidget {
     if (events.isEmpty) return const SizedBox.shrink();
     final event = events[0];
 
-    return GlassCard(
-      color: event.color,
-      opacity: 0.3,
-      blur: 10,
-      padding: EdgeInsets.zero,
-      borderRadius: BorderRadius.circular(4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: event.color,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                bottomLeft: Radius.circular(4),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (event.description != null &&
-                      event.description!.isNotEmpty)
-                    Text(
-                      event.description!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 9,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
+    // Heuristic: Business blocks have alpha 1.0 (set in controller builder)
+    final isBusinessBlock = event.color.a == 1.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: isBusinessBlock ? event.color.withValues(alpha: 0.8) : Colors.transparent,
+        borderRadius: BorderRadius.circular(4),
+        border: isBusinessBlock
+            ? null
+            : Border.all(color: event.color.withValues(alpha: 0.5), width: 1),
+      ),
+      child: isBusinessBlock ? _buildBusinessBlock(event) : _buildPersonalCutout(event),
+    );
+  }
+
+  Widget _buildBusinessBlock(CalendarEventData event) {
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Text(
+        event.title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _buildPersonalCutout(CalendarEventData event) {
+    return Padding(
+      padding: const EdgeInsets.all(4),
+      child: Text(
+        event.title,
+        style: TextStyle(
+          color: event.color.withValues(alpha: 0.8),
+          fontSize: 11,
+          fontStyle: FontStyle.italic,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
