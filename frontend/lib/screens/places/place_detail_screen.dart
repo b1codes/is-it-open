@@ -216,8 +216,19 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     if (!_isOpenDuring(start, end)) return false;
 
     for (final event in dataState.remoteEvents) {
-      if (event.startTime == null || event.endTime == null) continue;
-      if (start.isBefore(event.endTime!) && end.isAfter(event.startTime!)) {
+      final eventStart = event.startTime ??
+          DateTime(event.date.year, event.date.month, event.date.day);
+      final eventEnd = event.endTime ??
+          DateTime(
+            event.endDate.year,
+            event.endDate.month,
+            event.endDate.day,
+            23,
+            59,
+            59,
+          );
+
+      if (start.isBefore(eventEnd) && end.isAfter(eventStart)) {
         return false;
       }
     }
@@ -234,8 +245,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       message = 'Planned visit must be entirely within open business hours';
     } else {
       for (final event in dataState.remoteEvents) {
-        if (event.startTime == null || event.endTime == null) continue;
-        if (start.isBefore(event.endTime!) && end.isAfter(event.startTime!)) {
+        final eventStart = event.startTime ??
+            DateTime(event.date.year, event.date.month, event.date.day);
+        final eventEnd = event.endTime ??
+            DateTime(
+              event.endDate.year,
+              event.endDate.month,
+              event.endDate.day,
+              23,
+              59,
+              59,
+            );
+        if (start.isBefore(eventEnd) && end.isAfter(eventStart)) {
           message = 'Conflicts with a personal calendar event';
           break;
         }
@@ -311,17 +332,17 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   final minutesDelta = _dragAccumulator.toInt();
                   _dragAccumulator -= minutesDelta;
 
-                  setState(() {
-                    final proposedTime = _plannedVisitTime!.add(
-                      Duration(minutes: minutesDelta),
-                    );
-                    final visitEnd = proposedTime.add(
-                      Duration(minutes: _savedPlace!.averageVisitLength!),
-                    );
-                    if (_isAvailableDuring(proposedTime, visitEnd, dataState)) {
+                  final proposedTime = _plannedVisitTime!.add(
+                    Duration(minutes: minutesDelta),
+                  );
+                  final visitEnd = proposedTime.add(
+                    Duration(minutes: _savedPlace!.averageVisitLength!),
+                  );
+                  if (_isAvailableDuring(proposedTime, visitEnd, dataState)) {
+                    setState(() {
                       _plannedVisitTime = proposedTime;
-                    }
-                  });
+                    });
+                  }
                 }
               }
             }
