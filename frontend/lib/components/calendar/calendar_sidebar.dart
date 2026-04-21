@@ -11,6 +11,7 @@ import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_event.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../shared/glass_card.dart';
 
 String displayName(SavedPlace sp) {
   if (sp.customName != null && sp.customName!.isNotEmpty) {
@@ -118,42 +119,49 @@ class CalendarSidebarWidget extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: dataState.savedPlaces.length,
-      itemBuilder: (context, index) {
-        final sp = dataState.savedPlaces[index];
-        final isChecked = dataState.checkedPlaceIds.contains(sp.place.tomtomId);
-        final color = colorForPlace(sp, index);
-        final iconName = sp.icon ?? 'star';
-        final iconData = availableIcons[iconName] ?? Icons.star;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: List.generate(dataState.savedPlaces.length, (index) {
+          final sp = dataState.savedPlaces[index];
+          final isChecked = dataState.checkedPlaceIds.contains(sp.place.tomtomId);
+          final color = colorForPlace(sp, index);
+          final iconName = sp.icon ?? 'star';
+          final iconData = availableIcons[iconName] ?? Icons.star;
 
-        return CheckboxListTile(
-          value: isChecked,
-          onChanged: (val) {
-            context.read<CalendarDataBloc>().add(
-              TogglePlaceFilter(sp.place.tomtomId),
-            );
-          },
-          secondary: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: Icon(iconData, color: Colors.white, size: 20),
-          ),
-          title: Text(
-            displayName(sp),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-          dense: true,
-          controlAffinity: ListTileControlAffinity.leading,
-          activeColor: color,
-        );
-      },
+          return GestureDetector(
+            onTap: () {
+              context.read<CalendarDataBloc>().add(
+                TogglePlaceFilter(sp.place.tomtomId),
+              );
+            },
+            child: GlassCard(
+              color: color,
+              opacity: isChecked ? 0.6 : 0.2,
+              blur: 15,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(iconData, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    displayName(sp),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 
@@ -218,41 +226,53 @@ class CalendarSidebarWidget extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: dataState.deviceCalendars.length,
-      itemBuilder: (context, index) {
-        final cal = dataState.deviceCalendars[index];
-        final isChecked = dataState.checkedCalendarIds.contains(cal.id);
-        final color = cal.color != null ? Color(cal.color!) : Colors.blue;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: List.generate(dataState.deviceCalendars.length, (index) {
+          final cal = dataState.deviceCalendars[index];
+          final isChecked = dataState.checkedCalendarIds.contains(cal.id);
+          final color = cal.color != null ? Color(cal.color!) : Colors.blue;
 
-        return CheckboxListTile(
-          value: isChecked,
-          onChanged: (val) {
-            if (cal.id != null) {
-              context.read<CalendarDataBloc>().add(
-                ToggleDeviceCalendar(cal.id!),
-              );
-            }
-          },
-          secondary: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          title: Text(
-            cal.name ?? 'Unnamed Calendar',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13),
-          ),
-          dense: true,
-          controlAffinity: ListTileControlAffinity.leading,
-          activeColor: color,
-        );
-      },
+          return GestureDetector(
+            onTap: () {
+              if (cal.id != null) {
+                context.read<CalendarDataBloc>().add(
+                  ToggleDeviceCalendar(cal.id!),
+                );
+              }
+            },
+            child: GlassCard(
+              color: color,
+              opacity: isChecked ? 0.6 : 0.2,
+              blur: 15,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    cal.name ?? 'Unnamed Calendar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 
