@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:calendar_view/calendar_view.dart';
 import 'package:frontend/components/calendar/calendar_event_tile.dart';
-import 'package:frontend/components/shared/glass_card.dart';
 
 void main() {
-  testWidgets('CalendarEventTileWidget uses GlassCard', (
+  testWidgets('CalendarEventTileWidget uses AnimatedContainer', (
     WidgetTester tester,
   ) async {
     final event = CalendarEventData(
@@ -28,7 +27,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(GlassCard), findsOneWidget);
+    expect(find.byType(AnimatedContainer), findsOneWidget);
     expect(find.text('Test Event'), findsOneWidget);
   });
 }

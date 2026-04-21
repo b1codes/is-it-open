@@ -214,6 +214,32 @@ class _CalendarScreenContent extends StatelessWidget {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 actions: [
+                  IconButton(
+                    icon: Icon(
+                      uiState.showBusinessHours
+                          ? Icons.business_center
+                          : Icons.business_center_outlined,
+                      color:
+                          uiState.showBusinessHours ? Colors.green : Colors.grey,
+                    ),
+                    tooltip: 'Toggle Business Hours',
+                    onPressed: () {
+                      context.read<CalendarUiCubit>().toggleBusinessHours();
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      uiState.showPersonalEvents
+                          ? Icons.person
+                          : Icons.person_outline,
+                      color:
+                          uiState.showPersonalEvents ? Colors.blue : Colors.grey,
+                    ),
+                    tooltip: 'Toggle Personal Events',
+                    onPressed: () {
+                      context.read<CalendarUiCubit>().togglePersonalEvents();
+                    },
+                  ),
                   Padding(
                     padding: const EdgeInsets.only(right: 8.0),
                     child: CalendarHeaderWidget(
