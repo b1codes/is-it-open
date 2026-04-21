@@ -126,7 +126,9 @@ class CalendarSidebarWidget extends StatelessWidget {
         runSpacing: 8,
         children: List.generate(dataState.savedPlaces.length, (index) {
           final sp = dataState.savedPlaces[index];
-          final isChecked = dataState.checkedPlaceIds.contains(sp.place.tomtomId);
+          final isChecked = dataState.checkedPlaceIds.contains(
+            sp.place.tomtomId,
+          );
           final color = colorForPlace(sp, index);
           final iconName = sp.icon ?? 'star';
           final iconData = availableIcons[iconName] ?? Icons.star;
@@ -152,7 +154,9 @@ class CalendarSidebarWidget extends StatelessWidget {
                     displayName(sp),
                     style: TextStyle(
                       color: Colors.white,
-                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isChecked
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       fontSize: 13,
                     ),
                   ),
@@ -256,14 +260,19 @@ class CalendarSidebarWidget extends StatelessWidget {
                   Container(
                     width: 8,
                     height: 8,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     cal.name ?? 'Unnamed Calendar',
                     style: TextStyle(
                       color: Colors.white,
-                      fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isChecked
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       fontSize: 13,
                     ),
                   ),

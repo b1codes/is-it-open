@@ -5,7 +5,9 @@ import 'package:frontend/components/calendar/calendar_event_tile.dart';
 import 'package:frontend/components/shared/glass_card.dart';
 
 void main() {
-  testWidgets('CalendarEventTileWidget uses GlassCard', (WidgetTester tester) async {
+  testWidgets('CalendarEventTileWidget uses GlassCard', (
+    WidgetTester tester,
+  ) async {
     final event = CalendarEventData(
       title: 'Test Event',
       date: DateTime.now(),

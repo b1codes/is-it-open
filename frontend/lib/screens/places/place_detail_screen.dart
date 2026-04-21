@@ -828,11 +828,14 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               Expanded(
                 child: Row(
                   children: [
-                    const Text(
-                      'Profile Graphic',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                    const Flexible(
+                      child: Text(
+                        'Profile Graphic',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (_savedPlace?.customName != null &&

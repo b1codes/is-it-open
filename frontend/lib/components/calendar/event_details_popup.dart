@@ -13,10 +13,11 @@ class EventDetailsPopup extends StatelessWidget {
     final startTime = event.startTime;
     final endTime = event.endTime;
     String timeRange = '';
-    
+
     if (startTime != null && endTime != null) {
       final timeFormat = DateFormat.jm();
-      timeRange = '${timeFormat.format(startTime)} - ${timeFormat.format(endTime)}';
+      timeRange =
+          '${timeFormat.format(startTime)} - ${timeFormat.format(endTime)}';
     } else {
       timeRange = 'All Day';
     }
@@ -74,7 +75,10 @@ class EventDetailsPopup extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     timeRange,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),

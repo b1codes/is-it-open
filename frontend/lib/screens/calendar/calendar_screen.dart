@@ -5,14 +5,11 @@ import '../../components/calendar/calendar_header.dart';
 import '../../components/calendar/calendar_view_stack.dart';
 import '../../components/calendar/calendar_sidebar.dart';
 import '../../models/saved_place.dart';
-import '../../services/api_service.dart';
 import '../../bloc/preferences/preferences_cubit.dart';
-import '../../bloc/auth/auth_bloc.dart';
 
 import '../../bloc/calendar/calendar_ui_cubit.dart';
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
-import '../../bloc/calendar/calendar_data_event.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
 
 class CalendarScreen extends StatelessWidget {
@@ -20,28 +17,8 @@ class CalendarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider<CalendarUiCubit>(create: (context) => CalendarUiCubit()),
-        BlocProvider<CalendarDataBloc>(
-          create: (context) {
-            final bloc = CalendarDataBloc(
-              apiService: context.read<ApiService>(),
-            );
-            bloc.add(LoadSavedPlaces());
-            bloc.add(const InitDeviceCalendar());
-
-            final authState = context.read<AuthBloc>().state;
-            if (authState is AuthAuthenticated) {
-              final url = authState.user.calendarSubscriptionUrl;
-              if (url != null && url.isNotEmpty) {
-                bloc.add(LoadRemoteEvents(url));
-              }
-            }
-            return bloc;
-          },
-        ),
-      ],
+    return BlocProvider<CalendarUiCubit>(
+      create: (context) => CalendarUiCubit(),
       child: const _CalendarScreenView(),
     );
   }
