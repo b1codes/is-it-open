@@ -1,9 +1,9 @@
-from django.test import TestCase
+from django.test import SimpleTestCase
 from unittest.mock import patch, Mock
 from services.tomtom import TomTomClient
 import requests
 
-class TomTomClientTest(TestCase):
+class TomTomClientTest(SimpleTestCase):
     def setUp(self):
         self.client = TomTomClient()
         self.client.api_key = "test_key"
@@ -41,6 +41,8 @@ class TomTomClientTest(TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]['tomtom_id'], '123')
         self.assertEqual(results[0]['name'], 'Test Place')
+        self.assertEqual(results[0]['location']['lat'], 10.0)
+        self.assertEqual(results[0]['location']['lng'], 20.0)
         self.assertEqual(len(results[0]['hours']), 1)
         self.assertEqual(results[0]['hours'][0]['day_of_week'], 0) # 2023-10-23 is a Monday
         self.assertEqual(results[0]['hours'][0]['open_time'], "09:00")

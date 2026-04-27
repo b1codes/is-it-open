@@ -54,8 +54,10 @@ class TomTomClient:
                 "address": address.get('freeformAddress', 
                     f"{address.get('streetNumber', '')} {address.get('streetName', '')}, {address.get('municipality', '')}"
                 ),
-                "latitude": position.get('lat'),
-                "longitude": position.get('lon'),
+                "location": {
+                    "lat": position.get('lat'),
+                    "lng": position.get('lon')
+                },
                 "phone": poi.get('phone'),
                 "website": poi.get('url'),
                 "categories": categories,
