@@ -20,7 +20,6 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   LatLng? _currentLocation = const LatLng(40.7128, -74.0060); // Default to NYC
   LatLng? _userPosition; // Stores the actual GPS location
-  bool _isLoadingLocation = false; // Start with false to show map immediately
 
   // Saved places state
   List<SavedPlace> _savedPlaces = [];
@@ -96,7 +95,6 @@ class _MapScreenState extends State<MapScreen> {
             _currentLocation = const LatLng(40.7128, -74.0060); // NYC
           }
           _userPosition = null;
-          _isLoadingLocation = false;
         });
       }
     }
@@ -122,7 +120,6 @@ class _MapScreenState extends State<MapScreen> {
         final newLocation = LatLng(position.latitude, position.longitude);
         setState(() {
           _userPosition = newLocation;
-          _isLoadingLocation = false;
         });
 
         // Refined panning rule:

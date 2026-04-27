@@ -1307,7 +1307,6 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
     final use24HourFormat = context
         .watch<PreferencesCubit>()
