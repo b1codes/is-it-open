@@ -1163,7 +1163,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             color: Theme.of(context).scaffoldBackgroundColor,
           ),
         ),
-        weekTitleBackgroundColor: const Color(0xFF1565C0),
+        weekTitleBackgroundColor: Theme.of(context).colorScheme.primary,
         eventArranger: const StackEventArranger(),
         eventTileBuilder: (date, events, boundary, start, end) =>
             _buildEventTile(date, events, boundary, start, end, dataState),
@@ -1213,22 +1213,23 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         ),
         weekDayBuilder: (date) {
           final isToday = DateUtils.isSameDay(date, DateTime.now());
+          final colors = Theme.of(context).colorScheme;
           return Center(
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
               decoration: isToday
                   ? BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
+                      color: colors.primaryContainer.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.4),
+                        color: colors.primary.withValues(alpha: 0.4),
                       ),
                     )
                   : null,
               child: Text(
                 _weekDayShortName(date.weekday),
                 style: TextStyle(
-                  color: Colors.white,
+                  color: isToday ? colors.onPrimaryContainer : Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1305,9 +1306,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final textSmallColor = isDark ? Colors.white70 : Colors.black87;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final use24HourFormat = context
         .watch<PreferencesCubit>()
         .state
@@ -1467,8 +1468,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   child: BlocBuilder<CalendarDataBloc, CalendarDataState>(
                     builder: (context, dataState) {
                       return _buildCalendar(
-                        textColor,
-                        textSmallColor,
+                        colorScheme.onSurface,
+                        colorScheme.onSurfaceVariant,
                         use24HourFormat,
                         dataState,
                       );

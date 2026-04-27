@@ -21,8 +21,19 @@ class SearchResultListCard extends StatelessWidget {
       color: isDarkTheme ? Colors.black : Colors.white,
       opacity: isDarkTheme ? 0.3 : 0.7,
       child: ListTile(
-        title: Text(place.name),
-        subtitle: Text(place.address),
+        title: Text(
+          place.name,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          place.address,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         onTap: () {
           context.read<SearchBloc>().add(AddRecentPlace(place));
           Navigator.push(

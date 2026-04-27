@@ -45,8 +45,12 @@ class GlassContainer extends StatelessWidget {
               border:
                   border ??
                   Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    width: 1.5,
+                    color:
+                        (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black)
+                            .withValues(alpha: 0.1),
+                    width: 1.0,
                   ),
             ),
             child: child,

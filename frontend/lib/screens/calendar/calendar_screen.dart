@@ -180,9 +180,9 @@ class _CalendarScreenContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final textSmallColor = isDark ? Colors.white70 : Colors.black87;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final use24HourFormat = context
         .watch<PreferencesCubit>()
         .state
@@ -206,8 +206,8 @@ class _CalendarScreenContent extends StatelessWidget {
               uiState: uiState,
               controller: controller,
               checkedPlacesCount: dataState.checkedPlaceIds.length,
-              textColor: textColor,
-              textSmallColor: textSmallColor,
+              textColor: colorScheme.onSurface,
+              textSmallColor: colorScheme.onSurfaceVariant,
               use24HourFormat: use24HourFormat,
             );
 
