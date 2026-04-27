@@ -19,6 +19,7 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   LatLng? _currentLocation = const LatLng(40.7128, -74.0060); // Default to NYC
+  LatLng? _userPosition; // Stores the actual GPS location
   bool _isLoadingLocation = false; // Start with false to show map immediately
 
   // Saved places state
@@ -62,6 +63,16 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize map center with home address if available
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      final user = authState.user;
+      if (user.homeLat != null && user.homeLng != null) {
+        _currentLocation = LatLng(user.homeLat!, user.homeLng!);
+      }
+    }
+
     _determinePosition();
     _loadSavedPlaces();
   }
@@ -73,7 +84,18 @@ class _MapScreenState extends State<MapScreen> {
     void useDefaultLocation() {
       if (mounted) {
         setState(() {
-          _currentLocation = const LatLng(40.7128, -74.0060);
+          final authState = context.read<AuthBloc>().state;
+          if (authState is AuthAuthenticated &&
+              authState.user.homeLat != null &&
+              authState.user.homeLng != null) {
+            _currentLocation = LatLng(
+              authState.user.homeLat!,
+              authState.user.homeLng!,
+            );
+          } else {
+            _currentLocation = const LatLng(40.7128, -74.0060); // NYC
+          }
+          _userPosition = null;
           _isLoadingLocation = false;
         });
       }
@@ -99,11 +121,29 @@ class _MapScreenState extends State<MapScreen> {
       if (mounted) {
         final newLocation = LatLng(position.latitude, position.longitude);
         setState(() {
-          _currentLocation = newLocation;
+          _userPosition = newLocation;
           _isLoadingLocation = false;
         });
-        // Pan to the real user location once found
-        _mapController.move(newLocation, 13.0);
+
+        // Refined panning rule:
+        // Only pan if Home is missing OR user prefers current location centering
+        final authState = context.read<AuthBloc>().state;
+        bool shouldPan = true;
+
+        if (authState is AuthAuthenticated) {
+          final user = authState.user;
+          final hasHome = user.homeLat != null && user.homeLng != null;
+          if (hasHome && !user.useCurrentLocation) {
+            shouldPan = false;
+          }
+        }
+
+        if (shouldPan) {
+          setState(() {
+            _currentLocation = newLocation;
+          });
+          _mapController.move(newLocation, 13.0);
+        }
       }
     } catch (e) {
       useDefaultLocation();
@@ -465,6 +505,30 @@ class _MapScreenState extends State<MapScreen> {
         );
       }
       colorIndex++;
+    }
+
+    if (_userPosition != null) {
+      markers.add(
+        Marker(
+          point: _userPosition!,
+          width: 22,
+          height: 22,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withValues(alpha: 0.4),
+                  spreadRadius: 4,
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     return FlutterMap(
