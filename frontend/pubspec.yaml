@@ -69,16 +69,12 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: "launcher_icon"
-  ios: true
+  ios: false
   remove_alpha_ios: true
   macos:
-    generate: true
-    image_path: "assets/GlassIcon-iOS-Default-1024x1024@1x.png"
+    generate: false
   web:
-    generate: true
-    image_path: "assets/GlassIcon-iOS-Default-1024x1024@1x.png"
-    background_color: "#ffffff"
-    theme_color: "#ffffff"
+    generate: false
   image_path: "assets/GlassIcon-iOS-Default-1024x1024@1x.png"
 
 # For information on the generic Dart part of this file, see the
@@ -95,6 +91,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - envs/
+    - assets/
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
