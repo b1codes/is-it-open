@@ -1,184 +1,193 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+/// Technical Luxury Design System Tokens
 class AppColors {
-  // Primary functionality
-  static const Color primary = Colors.blue;
-  static const Color primaryContainer = Color(0xFFE3F2FD); // Light blue
+  // Brand Anchor
+  static const Color terracotta = Color(0xFFD66A4D); // oklch(60% 0.12 45)
 
-  // Secondary functionality
-  static const Color secondary = Colors.teal;
+  // Neutrals (Paper & Ink)
+  static const Color paperWarm = Color(0xFFF9F7F2); // oklch(97% 0.008 60)
+  static const Color inkWarm = Color(0xFF363430); // oklch(20% 0.01 60)
+  static const Color inkWarmMuted = Color(0xFF736F6B); // oklch(45% 0.02 60)
 
-  // Neutral colors
-  static const Color white = Colors.white;
-  static const Color black = Colors.black;
-  static const Color grey = Colors.grey;
-  static const Color lightGrey = Color(0xFFEEEEEE);
-  static const Color darkGrey = Color(0xFF424242);
+  // Semantic
+  static const Color openGreen = Color(0xFF5FB467); // oklch(60% 0.13 145)
+  static const Color closingAmber = Color(0xFFE7A23F); // oklch(72% 0.16 75)
+  static const Color closedSlate = Color(0xFF736F6B); // oklch(45% 0.02 60)
 
-  // Semantic colors
-  static const Color error = Colors.red;
-  static const Color success = Colors.green;
+  // Interaction (Thermal Glow)
+  static const Color thermalCore = Color(0xFFFF3B30);
+  static const Color thermalCorona = Color(0xFFFF9500);
+
+  // Glass Material
+  static const Color glassSurface = Color(0x0DFFFFFF); // rgba(255, 255, 255, 0.05)
+  static const Color glassBorder = Color(0x1AFFFFFF); // semi-transparent white
 }
 
-class AppTextStyles {
-  // We remove hardcoded colors to allow Theme to handle them
-  static const TextStyle heading1 = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-    letterSpacing: -0.5,
-  );
+/// Custom Theme Extension for Is It Open specific visual properties
+@immutable
+class AppEffects extends ThemeExtension<AppEffects> {
+  const AppEffects({
+    required this.glassBlur,
+    required this.glassOpacity,
+    required this.thermalGlowGradient,
+    required this.dragResistance,
+  });
 
-  static const TextStyle heading2 = TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.w600,
-    letterSpacing: -0.2,
-  );
+  final double glassBlur;
+  final double glassOpacity;
+  final Gradient thermalGlowGradient;
+  final double dragResistance;
 
-  static const TextStyle body = TextStyle(fontSize: 16, height: 1.5);
+  @override
+  AppEffects copyWith({
+    double? glassBlur,
+    double? glassOpacity,
+    Gradient? thermalGlowGradient,
+    double? dragResistance,
+  }) {
+    return AppEffects(
+      glassBlur: glassBlur ?? this.glassBlur,
+      glassOpacity: glassOpacity ?? this.glassOpacity,
+      thermalGlowGradient: thermalGlowGradient ?? this.thermalGlowGradient,
+      dragResistance: dragResistance ?? this.dragResistance,
+    );
+  }
 
-  static const TextStyle bodySmall = TextStyle(fontSize: 14, height: 1.4);
+  @override
+  AppEffects lerp(ThemeExtension<AppEffects>? other, double t) {
+    if (other is! AppEffects) return this;
+    return AppEffects(
+      glassBlur: lerpDouble(glassBlur, other.glassBlur, t) ?? glassBlur,
+      glassOpacity: lerpDouble(glassOpacity, other.glassOpacity, t) ?? glassOpacity,
+      thermalGlowGradient: Gradient.lerp(thermalGlowGradient, other.thermalGlowGradient, t)!,
+      dragResistance: lerpDouble(dragResistance, other.dragResistance, t) ?? dragResistance,
+    );
+  }
 
-  static const TextStyle label = TextStyle(
-    fontSize: 12,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.5,
-  );
+  static double? lerpDouble(double? a, double? b, double t) {
+    if (a == null && b == null) return null;
+    a ??= 0.0;
+    b ??= 0.0;
+    return a + (b - a) * t;
+  }
 }
 
 class AppTheme {
-  static ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme colors) =>
-      ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colors.primary,
-          foregroundColor: colors.onPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          elevation: 2,
-        ),
-      );
+  static final AppEffects _effects = AppEffects(
+    glassBlur: 20.0,
+    glassOpacity: 0.05,
+    thermalGlowGradient: const LinearGradient(
+      colors: [AppColors.thermalCore, AppColors.thermalCorona],
+    ),
+    dragResistance: 0.15,
+  );
 
-  static InputDecorationTheme _inputDecorationTheme(ColorScheme colors) =>
-      InputDecorationTheme(
-        filled: true,
-        fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: colors.outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: colors.outline.withValues(alpha: 0.5)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: colors.primary, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-      );
+  static final TextTheme _textTheme = TextTheme(
+    displayLarge: GoogleFonts.montserrat(
+      fontSize: 34,
+      fontWeight: FontWeight.bold,
+      color: AppColors.inkWarm,
+    ),
+    displayMedium: GoogleFonts.montserrat(
+      fontSize: 22,
+      fontWeight: FontWeight.w600,
+      color: AppColors.inkWarm,
+    ),
+    titleLarge: GoogleFonts.openSans(
+      fontSize: 17,
+      fontWeight: FontWeight.w600,
+      color: AppColors.inkWarm,
+    ),
+    bodyLarge: GoogleFonts.openSans(
+      fontSize: 16,
+      fontWeight: FontWeight.w400,
+      color: AppColors.inkWarm,
+      height: 1.5,
+    ),
+    bodyMedium: GoogleFonts.openSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: AppColors.inkWarmMuted,
+      height: 1.4,
+    ),
+    labelLarge: GoogleFonts.openSans(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: AppColors.inkWarm,
+      letterSpacing: 0.05, // 5% tracking for small labels
+    ),
+  );
 
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      primary: AppColors.primary,
-      secondary: AppColors.secondary,
-      surface: AppColors.white,
-      onSurface: AppColors.black,
-      onSurfaceVariant: AppColors.darkGrey,
+    colorScheme: const ColorScheme(
+      brightness: Brightness.light,
+      primary: AppColors.terracotta,
+      onPrimary: Colors.white,
+      secondary: AppColors.inkWarm,
+      onSecondary: AppColors.paperWarm,
+      error: AppColors.thermalCore,
+      onError: Colors.white,
+      surface: AppColors.paperWarm,
+      onSurface: AppColors.inkWarm,
+      outline: AppColors.inkWarmMuted,
     ),
-    scaffoldBackgroundColor: AppColors.white,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.white,
-      foregroundColor: AppColors.black,
-      elevation: 0,
-      centerTitle: true,
+    scaffoldBackgroundColor: AppColors.paperWarm,
+    textTheme: _textTheme,
+    extensions: [_effects],
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.terracotta,
+        foregroundColor: Colors.white,
+        textStyle: GoogleFonts.montserrat(
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0, // Elevation is earned, not default
+      ),
     ),
-    textTheme: const TextTheme(
-      displayLarge: AppTextStyles.heading1,
-      displayMedium: AppTextStyles.heading2,
-      bodyLarge: AppTextStyles.body,
-      bodyMedium: AppTextStyles.bodySmall,
-      labelLarge: AppTextStyles.label,
-    ),
-    elevatedButtonTheme: _elevatedButtonTheme(
-      ColorScheme.fromSeed(seedColor: AppColors.primary),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-    ),
-    inputDecorationTheme: _inputDecorationTheme(
-      ColorScheme.fromSeed(seedColor: AppColors.primary),
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      selectedItemColor: AppColors.primary,
-      unselectedItemColor: AppColors.grey,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: AppColors.white,
-      elevation: 8,
-    ),
-    cardTheme: CardThemeData(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.5),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.inkWarmMuted, width: 0.5),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.inkWarmMuted, width: 0.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.terracotta, width: 1.5),
+      ),
+      contentPadding: const EdgeInsets.all(16),
+      labelStyle: GoogleFonts.openSans(color: AppColors.inkWarmMuted),
+      hintStyle: GoogleFonts.openSans(color: AppColors.inkWarmMuted.withValues(alpha: 0.5)),
     ),
   );
 
+  // Dark theme follows the same principles but with adjusted elevations
   static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: AppColors.terracotta,
       brightness: Brightness.dark,
-      primary: AppColors.primary,
-      secondary: AppColors.secondary,
-      onSurface: Colors.white,
-      onSurfaceVariant: Colors.white70,
+      primary: AppColors.terracotta,
+      surface: const Color(0xFF1A1918), // Slightly lighter than pure black
+      onSurface: AppColors.paperWarm,
     ),
-    scaffoldBackgroundColor: const Color(0xFF121212),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Color(0xFF121212),
-      foregroundColor: Colors.white,
-      elevation: 0,
-      centerTitle: true,
+    scaffoldBackgroundColor: const Color(0xFF141312),
+    textTheme: _textTheme.apply(
+      bodyColor: AppColors.paperWarm,
+      displayColor: AppColors.paperWarm,
     ),
-    textTheme: TextTheme(
-      displayLarge: AppTextStyles.heading1.copyWith(color: Colors.white),
-      displayMedium: AppTextStyles.heading2.copyWith(color: Colors.white),
-      bodyLarge: AppTextStyles.body.copyWith(color: Colors.white),
-      bodyMedium: AppTextStyles.bodySmall.copyWith(color: Colors.white70),
-      labelLarge: AppTextStyles.label.copyWith(color: Colors.white70),
-    ),
-    elevatedButtonTheme: _elevatedButtonTheme(
-      ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.dark,
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-    ),
-    inputDecorationTheme: _inputDecorationTheme(
-      ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.dark,
-      ),
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      selectedItemColor: AppColors.primary,
-      unselectedItemColor: Colors.white38,
-      type: BottomNavigationBarType.fixed,
-      backgroundColor: Color(0xFF1E1E1E),
-      elevation: 8,
-    ),
-    cardTheme: CardThemeData(
-      color: const Color(0xFF1E1E1E),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-    ),
+    extensions: [_effects],
   );
 }

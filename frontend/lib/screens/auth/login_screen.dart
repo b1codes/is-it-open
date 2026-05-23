@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
-import 'package:frontend/screens/auth/register_screen.dart';
+import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 import '../../components/shared/glass_card.dart';
+import '../../components/shared/thermal_button.dart';
 import '../../utils/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -19,199 +21,172 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text(''),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      backgroundColor: AppColors.paperWarm,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.error)));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.error),
+                backgroundColor: AppColors.thermalCore,
+              ),
+            );
           }
         },
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF1A237E), // Deep Indigo
-                Color(0xFF0D47A1), // Blue
-                Color(0xFF01579B), // Light Blue
-              ],
-            ),
-          ),
-          child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.lock_open_rounded,
-                      size: 80,
-                      color: Colors.white,
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Industrial Header
+                  Text(
+                    'IS IT OPEN?',
+                    style: theme.textTheme.displayLarge?.copyWith(
+                      letterSpacing: 2.0,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Is It Open?',
-                      style: AppTextStyles.heading1.copyWith(
-                        color: Colors.white,
-                        fontSize: 32,
-                        letterSpacing: 1.2,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in to your list',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: AppColors.inkWarmMuted,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sign in to explore places',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 450),
-                      child: GlassCard(
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Login',
-                                style: AppTextStyles.heading2.copyWith(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                ),
+                  ),
+                  const SizedBox(height: 64),
+
+                  // Auth Form
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: GlassCard(
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'LOGIN',
+                              style: theme.textTheme.displayMedium,
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Email/Username Field
+                            TextFormField(
+                              controller: _usernameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Email Address',
+                                prefixIcon: Icon(Icons.email_outlined),
                               ),
-                              const SizedBox(height: 24),
-                              TextFormField(
-                                controller: _usernameController,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: _buildInputDecoration(
-                                  'Username',
-                                  Icons.person_outline,
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter a username';
-                                  }
-                                  return null;
-                                },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter your email';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Password Field
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(Icons.lock_outline),
                               ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passwordController,
-                                style: const TextStyle(color: Colors.white),
-                                decoration: _buildInputDecoration(
-                                  'Password',
-                                  Icons.lock_outline,
-                                ),
-                                obscureText: true,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter a password';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 32),
-                              BlocBuilder<AuthBloc, AuthState>(
-                                builder: (context, state) {
-                                  if (state is AuthLoading) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                      ),
-                                    );
-                                  }
-                                  return ElevatedButton(
-                                    onPressed: () {
-                                      if (_formKey.currentState!.validate()) {
-                                        context.read<AuthBloc>().add(
-                                          LoginRequested(
-                                            username: _usernameController.text,
-                                            password: _passwordController.text,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: AppColors.primary,
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    child: const Text(
-                                      'Login',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter your password';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // Forgot Password
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const ForgotPasswordScreen(),
                                     ),
                                   );
                                 },
+                                child: Text(
+                                  'Forgot password?',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.terracotta,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Primary Action
+                            BlocBuilder<AuthBloc, AuthState>(
+                              builder: (context, state) {
+                                return ThermalButton(
+                                  isLoading: state is AuthLoading,
+                                  onPressed: () {
+                                    if (_formKey.currentState!.validate()) {
+                                      context.read<AuthBloc>().add(
+                                        LoginRequested(
+                                          username: _usernameController.text,
+                                          password: _passwordController.text,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: const Text('SIGN IN'),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const RegisterScreen(),
+                  ),
+                  const SizedBox(height: 48),
+                  
+                  // Secondary Navigation
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'New here?',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Join the neighborhood',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.terracotta,
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                      },
-                      child: Text(
-                        'Don\'t have an account? Register',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 16,
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  InputDecoration _buildInputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70),
-      prefixIcon: Icon(icon, color: Colors.white70),
-      filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.1),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white, width: 2),
-      ),
-      errorStyle: const TextStyle(color: Colors.orangeAccent),
     );
   }
 }
