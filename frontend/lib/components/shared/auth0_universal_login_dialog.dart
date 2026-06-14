@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../utils/app_theme.dart';
+import '../../core/env_config.dart';
 
 class Auth0UniversalLoginDialog extends StatefulWidget {
   final String? connection;
@@ -34,9 +35,9 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
     };
     
     final payload = {
-      "iss": "https://is-it-open.us.auth0.com/",
+      "iss": "https://${EnvConfig.auth0Domain}/",
       "sub": sub,
-      "aud": "https://is-it-open/api",
+      "aud": EnvConfig.auth0Audience,
       "iat": DateTime.now().millisecondsSinceEpoch ~/ 1000,
       "exp": (DateTime.now().millisecondsSinceEpoch ~/ 1000) + 3600,
       "email": email,
