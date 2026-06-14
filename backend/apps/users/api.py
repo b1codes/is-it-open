@@ -125,15 +125,14 @@ def me(request):
     if not request.user.is_authenticated:
         raise HttpError(401, "Unauthorized")
     
-    # We need to get the token for the response schema
-    # If using standard django auth (session), there is no token.
-    # But we are using token auth, so we can get it from the user.
-    try:
-        token = request.user.auth_token.key
-    except AuthToken.DoesNotExist:
-        # Create one if missing for some reason
-        token_obj = AuthToken.objects.create(user=request.user)
-        token = token_obj.key
+    token = getattr(request, 'auth_token', None)
+    if not token:
+        try:
+            token = request.user.auth_token.key
+        except AuthToken.DoesNotExist:
+            # Create one if missing for some reason
+            token_obj = AuthToken.objects.create(user=request.user)
+            token = token_obj.key
 
     # Ensure profile exists
     if not hasattr(request.user, 'profile'):
@@ -304,11 +303,13 @@ def update_me(request, data: ProfileUpdateInput):
     if profile_updated:
         profile.save()
 
-    try:
-        token = user.auth_token.key
-    except AuthToken.DoesNotExist:
-        token_obj = AuthToken.objects.create(user=user)
-        token = token_obj.key
+    token = getattr(request, 'auth_token', None)
+    if not token:
+        try:
+            token = user.auth_token.key
+        except AuthToken.DoesNotExist:
+            token_obj = AuthToken.objects.create(user=user)
+            token = token_obj.key
 
     return {
         "token": token,

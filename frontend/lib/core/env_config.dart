@@ -38,4 +38,16 @@ class EnvConfig {
           _config!['api_base_url_web'] as String;
     }
   }
+
+  static String get auth0Domain {
+    return _config?['auth0_domain'] as String? ?? 'is-it-open.us.auth0.com';
+  }
+
+  static String get auth0ClientId {
+    return _config?['auth0_client_id'] as String? ?? 'mock_client_id';
+  }
+
+  static String get auth0Audience {
+    return _config?['auth0_audience'] as String? ?? 'https://is-it-open/api';
+  }
 }

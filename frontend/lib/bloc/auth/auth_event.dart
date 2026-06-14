@@ -45,3 +45,12 @@ class ProfileUpdateRequested extends AuthEvent {
   @override
   List<Object?> get props => [updatedUser];
 }
+
+class Auth0LoginRequested extends AuthEvent {
+  final String token;
+
+  const Auth0LoginRequested({required this.token});
+
+  @override
+  List<Object?> get props => [token];
+}

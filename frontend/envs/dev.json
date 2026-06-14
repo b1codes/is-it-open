@@ -2,5 +2,8 @@
   "api_base_url_web": "http://127.0.0.1:8000/api",
   "api_base_url_android": "http://10.0.2.2:8000/api",
   "api_base_url_ios": "http://192.168.1.168:8000/api",
-  "api_base_url_macos": "http://127.0.0.1:8000/api"
+  "api_base_url_macos": "http://127.0.0.1:8000/api",
+  "auth0_domain": "is-it-open.us.auth0.com",
+  "auth0_client_id": "mock_client_id",
+  "auth0_audience": "https://is-it-open/api"
 }

@@ -17,6 +17,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AppStarted>(_onAppStarted);
     on<LoginRequested>(_onLoginRequested);
     on<RegisterRequested>(_onRegisterRequested);
+    on<Auth0LoginRequested>(_onAuth0LoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
     on<ProfileUpdateRequested>(_onProfileUpdateRequested);
   }
@@ -98,6 +99,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         email: event.email,
       );
       apiClient.setAuthToken(user.token);
+      await _saveUser(user);
+      emit(AuthAuthenticated(user: user));
+    } catch (e) {
+      emit(AuthFailure(error: e.toString()));
+    }
+  }
+
+  Future<void> _onAuth0LoginRequested(
+    Auth0LoginRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+    try {
+      apiClient.setAuthToken(event.token);
+      final user = await apiClient.getProfile();
       await _saveUser(user);
       emit(AuthAuthenticated(user: user));
     } catch (e) {

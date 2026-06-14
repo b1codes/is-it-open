@@ -90,6 +90,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 TOMTOM_API_KEY = config('TOMTOM_API_KEY', default='')
 
+# Auth0 Configuration
+AUTH0_DOMAIN = config('AUTH0_DOMAIN', default='')
+AUTH0_AUDIENCE = config('AUTH0_AUDIENCE', default='')
+AUTH0_MOCK = config('AUTH0_MOCK', default=True, cast=bool)
+
 DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
