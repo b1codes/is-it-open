@@ -34,6 +34,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     required this.closedColor,
     required this.closedOnContrast,
     required this.unknownOutline,
+    required this.markerHome,
+    required this.markerWork,
+    required this.markerPosition,
   });
 
   final Color
@@ -53,6 +56,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
   final Color closedColor; // semantic — Closed.
   final Color closedOnContrast;
   final Color unknownOutline; // outlined pill stroke for Hours Unknown.
+  final Color markerHome; // centralized marker color for Home.
+  final Color markerWork; // centralized marker color for Work.
+  final Color markerPosition; // centralized marker color for Current Position.
 
   Color statusColor(PlaceStatusKind k) => switch (k) {
     PlaceStatusKind.open => openColor,
@@ -85,6 +91,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     Color? closedColor,
     Color? closedOnContrast,
     Color? unknownOutline,
+    Color? markerHome,
+    Color? markerWork,
+    Color? markerPosition,
   }) {
     return PlacesTheme(
       anchor: anchor ?? this.anchor,
@@ -102,6 +111,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
       closedColor: closedColor ?? this.closedColor,
       closedOnContrast: closedOnContrast ?? this.closedOnContrast,
       unknownOutline: unknownOutline ?? this.unknownOutline,
+      markerHome: markerHome ?? this.markerHome,
+      markerWork: markerWork ?? this.markerWork,
+      markerPosition: markerPosition ?? this.markerPosition,
     );
   }
 
@@ -136,6 +148,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
         t,
       )!,
       unknownOutline: Color.lerp(unknownOutline, other.unknownOutline, t)!,
+      markerHome: Color.lerp(markerHome, other.markerHome, t)!,
+      markerWork: Color.lerp(markerWork, other.markerWork, t)!,
+      markerPosition: Color.lerp(markerPosition, other.markerPosition, t)!,
     );
   }
 
@@ -159,6 +174,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     ), // ≈ oklch(46% 0.02 60), desaturated by design
     closedOnContrast: Color(0xFFF7F3EC),
     unknownOutline: Color(0xFFB0A899),
+    markerHome: Color(0xFF3F617A), // Muted Slate Blue
+    markerWork: Color(0xFF9E632A), // Muted Bronze Amber
+    markerPosition: Color(0xFFB14E27), // Terracotta Anchor
   );
 
   static const dark = PlacesTheme(
@@ -177,6 +195,9 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     closedColor: Color(0xFF8A8278),
     closedOnContrast: Color(0xFF1C1916),
     unknownOutline: Color(0xFF6B6258),
+    markerHome: Color(0xFF5B85A6), // Brightened Slate Blue
+    markerWork: Color(0xFFC4864B), // Brightened Bronze Amber
+    markerPosition: Color(0xFFD97A52), // Brightened Terracotta
   );
 }
 

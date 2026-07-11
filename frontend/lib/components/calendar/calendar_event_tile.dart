@@ -37,7 +37,7 @@ class CalendarEventTileWidget extends StatelessWidget {
         color: isBusinessBlock
             ? event.color.withValues(alpha: 0.15)
             : event.color.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.zero,
         border: Border.all(
           color: isBusinessBlock
               ? event.color.withValues(alpha: 0.5)

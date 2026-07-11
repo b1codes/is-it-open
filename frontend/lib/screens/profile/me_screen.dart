@@ -191,9 +191,8 @@ class _MeScreenState extends State<MeScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        const Color(0xFF1A237E).withValues(alpha: 0.1),
-                        const Color(0xFF0D47A1).withValues(alpha: 0.1),
-                        const Color(0xFF880E4F).withValues(alpha: 0.1),
+                        Theme.of(context).scaffoldBackgroundColor,
+                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
                       ],
                     ),
                   ),

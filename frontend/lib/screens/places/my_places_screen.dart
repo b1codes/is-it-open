@@ -353,12 +353,16 @@ class _TodayStrip extends StatelessWidget {
                     PlacesSpacing.lg,
                     PlacesSpacing.sm,
                   ),
-                  child: GestureDetector(
-                    onTap: () =>
-                        context.read<TodayRouteCubit>().dismissResetNote(),
-                    child: Text(
-                      "Today's route reset for ${_friendlyDate(DateTime.now())}.",
-                      style: PlacesType.bodySmall(theme.inkMuted),
+                  child: Semantics(
+                    button: true,
+                    label: "Dismiss route reset notification",
+                    child: GestureDetector(
+                      onTap: () =>
+                          context.read<TodayRouteCubit>().dismissResetNote(),
+                      child: Text(
+                        "Today's route reset for ${_friendlyDate(DateTime.now())}.",
+                        style: PlacesType.bodySmall(theme.inkMuted),
+                      ),
                     ),
                   ),
                 ),
@@ -447,56 +451,60 @@ class _TodayStopCard extends StatelessWidget {
             ? 'Loading…'
             : (match.customName ?? match.place.name);
 
-        return GestureDetector(
-          onLongPress: () => _showStopMenu(context, tomtomId, index),
-          child: Container(
-            width: 220,
-            padding: const EdgeInsets.all(PlacesSpacing.md),
-            decoration: BoxDecoration(
-              color: theme.paperRaised,
-              borderRadius: BorderRadius.circular(PlacesRadius.md),
-              border: Border.all(color: theme.ashSoft),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: theme.anchor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            color: theme.anchorOnContrast,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            height: 1,
+        return Semantics(
+          button: true,
+          label: 'Route stop: $name. Long press to open options menu.',
+          child: GestureDetector(
+            onLongPress: () => _showStopMenu(context, tomtomId, index),
+            child: Container(
+              width: 220,
+              padding: const EdgeInsets.all(PlacesSpacing.md),
+              decoration: BoxDecoration(
+                color: theme.paperRaised,
+                borderRadius: BorderRadius.circular(PlacesRadius.md),
+                border: Border.all(color: theme.ashSoft),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: theme.anchor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: theme.anchorOnContrast,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: PlacesSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: PlacesType.title(
-                          theme.ink,
-                        ).copyWith(fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: PlacesSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: PlacesType.title(
+                            theme.ink,
+                          ).copyWith(fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                StatusPill(status: status),
-              ],
+                    ],
+                  ),
+                  const Spacer(),
+                  StatusPill(status: status),
+                ],
+              ),
             ),
           ),
         );

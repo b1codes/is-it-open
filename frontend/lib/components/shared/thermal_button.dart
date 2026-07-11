@@ -49,14 +49,17 @@ class _ThermalButtonState extends State<ThermalButton> with SingleTickerProvider
     final effects = Theme.of(context).extension<AppEffects>();
     final isEnabled = widget.onPressed != null && !widget.isLoading;
 
-    return GestureDetector(
-      onTapDown: _handleTapDown,
-      onTap: () {
-        if (isEnabled) {
-          widget.onPressed!();
-        }
-      },
-      child: Stack(
+    return Semantics(
+      button: true,
+      enabled: isEnabled,
+      child: GestureDetector(
+        onTapDown: _handleTapDown,
+        onTap: () {
+          if (isEnabled) {
+            widget.onPressed!();
+          }
+        },
+        child: Stack(
         alignment: Alignment.center,
         children: [
           // The base button
@@ -113,8 +116,9 @@ class _ThermalButtonState extends State<ThermalButton> with SingleTickerProvider
             ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _ThermalGlowPainter extends CustomPainter {

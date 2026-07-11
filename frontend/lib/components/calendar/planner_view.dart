@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../utils/places_theme.dart';
 import '../../utils/availability_calculator.dart';
-import '../core/refractive_glass.dart';
 
 class PlannerView extends StatelessWidget {
   final DateTime baseDate;
@@ -270,35 +269,46 @@ class _DayColumn extends StatelessWidget {
       left: 4,
       right: 4,
       height: height,
-      child: RefractiveGlass(
-        opacity: 0.08,
-        child: InkWell(
-          onTap: () => onWindowTap(window),
-          splashColor: theme.anchor.withValues(alpha: 0.2),
-          highlightColor: theme.anchor.withValues(alpha: 0.1),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.door_front_door_outlined, size: 14, color: theme.anchor),
-                    const SizedBox(width: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.anchor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(PlacesRadius.md),
+          border: Border.all(
+            color: theme.anchor.withValues(alpha: 0.15),
+            width: 0.5,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => onWindowTap(window),
+            borderRadius: BorderRadius.circular(PlacesRadius.md),
+            splashColor: theme.anchor.withValues(alpha: 0.2),
+            highlightColor: theme.anchor.withValues(alpha: 0.1),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.door_front_door_outlined, size: 14, color: theme.anchor),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${window.placeCount} places open',
+                        style: PlacesType.label(theme.anchor).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  if (height > 40) ...[
+                    const Spacer(),
                     Text(
-                      '${window.placeCount} places open',
-                      style: PlacesType.label(theme.anchor).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                      'Open until ${DateFormat('h:mm a').format(window.endTime)}',
+                      style: PlacesType.label(theme.ink).copyWith(fontSize: 10),
                     ),
                   ],
-                ),
-                if (height > 40) ...[
-                  const Spacer(),
-                  Text(
-                    'Open until ${DateFormat('h:mm a').format(window.endTime)}',
-                    style: PlacesType.label(theme.ink).copyWith(fontSize: 10),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ),

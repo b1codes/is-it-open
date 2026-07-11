@@ -30,22 +30,24 @@ class GlassCard extends StatelessWidget {
     final effectiveColor = color ?? AppColors.glassSurface;
     final effectiveBorderRadius = borderRadius ?? BorderRadius.circular(12);
 
-    return ClipRRect(
-      borderRadius: effectiveBorderRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: effectiveBlur, sigmaY: effectiveBlur),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: effectiveColor.withValues(alpha: effectiveOpacity),
-            borderRadius: effectiveBorderRadius,
-            border: border ??
-                Border.all(
-                  color: AppColors.glassBorder.withValues(alpha: 0.1),
-                  width: 0.5,
-                ),
+    return RepaintBoundary(
+      child: ClipRRect(
+        borderRadius: effectiveBorderRadius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: effectiveBlur, sigmaY: effectiveBlur),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: effectiveColor.withValues(alpha: effectiveOpacity),
+              borderRadius: effectiveBorderRadius,
+              border: border ??
+                  Border.all(
+                    color: AppColors.glassBorder.withValues(alpha: 0.1),
+                    width: 0.5,
+                  ),
+            ),
+            child: child,
           ),
-          child: child,
         ),
       ),
     );

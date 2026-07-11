@@ -170,10 +170,11 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.places;
     return Text(
-      text.toUpperCase(),
-      style: PlacesType.label(
-        theme.inkMuted,
-      ).copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8),
+      text,
+      style: PlacesType.label(theme.inkMuted).copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
+      ),
     );
   }
 }
@@ -194,33 +195,39 @@ class _DurationChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.6,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(PlacesRadius.pill),
-        child: AnimatedContainer(
-          duration: PlacesMotion.standard,
-          curve: PlacesMotion.curve,
-          padding: const EdgeInsets.symmetric(
-            horizontal: PlacesSpacing.lg,
-            vertical: PlacesSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: selected ? theme.anchor : Colors.transparent,
-            borderRadius: BorderRadius.circular(PlacesRadius.pill),
-            border: Border.all(
-              color: selected ? theme.anchor : theme.ash,
-              width: 1,
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.6,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(PlacesRadius.pill),
+          child: AnimatedContainer(
+            duration: PlacesMotion.standard,
+            curve: PlacesMotion.curve,
+            constraints: const BoxConstraints(minHeight: 48),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(
+              horizontal: PlacesSpacing.lg,
+              vertical: PlacesSpacing.sm,
             ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? theme.anchorOnContrast : theme.ink,
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              letterSpacing: 0.1,
+            decoration: BoxDecoration(
+              color: selected ? theme.anchor : Colors.transparent,
+              borderRadius: BorderRadius.circular(PlacesRadius.pill),
+              border: Border.all(
+                color: selected ? theme.anchor : theme.ash,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.anchorOnContrast : theme.ink,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                letterSpacing: 0.1,
+              ),
             ),
           ),
         ),
@@ -306,9 +313,9 @@ class _WindowRow extends StatelessWidget {
                 Text(
                   '${_fmtClock(block.openTime.hour, block.openTime.minute, use24h)} – '
                   '${_fmtClock(block.closeTime.hour, block.closeTime.minute, use24h)}',
-                  style: PlacesType.title(theme.ink).copyWith(fontSize: 15),
+                  style: PlacesType.title(theme.ink),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: PlacesSpacing.xs),
                 Text(hint, style: PlacesType.bodySmall(theme.inkMuted)),
               ],
             ),

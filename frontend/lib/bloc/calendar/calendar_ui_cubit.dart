@@ -3,13 +3,14 @@ import 'package:timezone/timezone.dart' as tz;
 import 'calendar_ui_state.dart';
 
 class CalendarUiCubit extends Cubit<CalendarUiState> {
-  CalendarUiCubit({DateTime? initialDate})
+  CalendarUiCubit({DateTime? initialDate, bool initialSidebarCollapsed = false})
     : super(
         CalendarUiState(
           currentView: CalendarViewType.week,
           baseDate: initialDate ?? tz.TZDateTime.now(tz.local),
           isCalendarExpanded: false,
           isCalendarMinimized: false,
+          isSidebarCollapsed: initialSidebarCollapsed,
           showBusinessHours: true,
           showPersonalEvents: true,
         ),

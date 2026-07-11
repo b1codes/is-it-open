@@ -9,6 +9,7 @@ import '../../bloc/map/map_ui_state.dart';
 import '../../models/user.dart';
 import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
+import '../../utils/places_theme.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -33,16 +34,12 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
 
   static const List<Color> _defaultPalette = [
-    Colors.blue,
-    Colors.red,
-    Colors.green,
-    Colors.orange,
-    Colors.purple,
-    Colors.teal,
-    Colors.pink,
-    Colors.brown,
-    Colors.indigo,
-    Colors.cyan,
+    Color(0xFFB14E27), // Anchor
+    Color(0xFFD99B52), // Ochre
+    Color(0xFF8F7A6A), // Taupe
+    Color(0xFF6B5344), // Chestnut
+    Color(0xFFB57D65), // Dusty Rose
+    Color(0xFF9E8B7E), // Mushroom
   ];
 
   static const Map<String, IconData> _availableIcons = {
@@ -185,103 +182,109 @@ class _MapScreenState extends State<MapScreen> {
     return sp.place.name;
   }
 
-  Widget _buildPlacesSidebar() {
+  Widget _buildPlacesSliverSidebar() {
     if (_isLoadingPlaces) {
-      return const Center(child: CircularProgressIndicator());
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_savedPlaces.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.bookmark_border,
-                size: 48,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No saved places yet',
-                style: TextStyle(
-                  fontSize: 16,
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.bookmark_border,
+                  size: 48,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  'No saved places yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+    return SliverPadding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _savedPlaces.length,
-      itemBuilder: (context, index) {
-        final sp = _savedPlaces[index];
-        final isChecked = _checkedPlaceIds.contains(sp.place.tomtomId);
-        final color = _colorForPlace(sp, index);
-        final iconName = sp.icon ?? 'star';
-        final iconData = _availableIcons[iconName] ?? Icons.star;
+      sliver: SliverList.builder(
+        itemCount: _savedPlaces.length,
+        itemBuilder: (context, index) {
+          final sp = _savedPlaces[index];
+          final isChecked = _checkedPlaceIds.contains(sp.place.tomtomId);
+          final color = _colorForPlace(sp, index);
+          final iconName = sp.icon ?? 'star';
+          final iconData = _availableIcons[iconName] ?? Icons.star;
 
-        return CheckboxListTile(
-          value: isChecked,
-          onChanged: (val) {
-            setState(() {
-              if (val == true) {
-                _checkedPlaceIds.add(sp.place.tomtomId);
-                final allPinnedChecked = _savedPlaces
-                    .where((p) => p.isPinned)
-                    .every((p) => _checkedPlaceIds.contains(p.place.tomtomId));
-                if (allPinnedChecked) {
-                  _showPinnedLocations = true;
+          return CheckboxListTile(
+            value: isChecked,
+            onChanged: (val) {
+              setState(() {
+                if (val == true) {
+                  _checkedPlaceIds.add(sp.place.tomtomId);
+                  final allPinnedChecked = _savedPlaces
+                      .where((p) => p.isPinned)
+                      .every((p) => _checkedPlaceIds.contains(p.place.tomtomId));
+                  if (allPinnedChecked) {
+                    _showPinnedLocations = true;
+                  }
+                } else {
+                  _checkedPlaceIds.remove(sp.place.tomtomId);
+                  if (sp.isPinned) {
+                    _showPinnedLocations = false;
+                  }
                 }
-              } else {
-                _checkedPlaceIds.remove(sp.place.tomtomId);
-                if (sp.isPinned) {
-                  _showPinnedLocations = false;
-                }
-              }
-            });
-          },
-          secondary: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: Icon(iconData, color: Colors.white, size: 20),
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _displayName(sp),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ),
-              if (sp.isPinned)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4.0),
-                  child: Icon(
-                    Icons.push_pin,
-                    size: 14,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.7),
+              });
+            },
+            secondary: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: Icon(iconData, color: Colors.white, size: 20),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _displayName(sp),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
                 ),
-            ],
-          ),
-          dense: true,
-          controlAffinity: ListTileControlAffinity.leading,
-          activeColor: color,
-        );
-      },
+                if (sp.isPinned)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0),
+                    child: Icon(
+                      Icons.push_pin,
+                      size: 14,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.7),
+                    ),
+                  ),
+              ],
+            ),
+            dense: true,
+            controlAffinity: ListTileControlAffinity.leading,
+            activeColor: color,
+          );
+        },
+      ),
     );
   }
 
@@ -393,6 +396,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildMap() {
+    final theme = context.places;
     final authState = context.watch<AuthBloc>().state;
     User? user;
     if (authState is AuthAuthenticated) {
@@ -415,13 +419,13 @@ class _MapScreenState extends State<MapScreen> {
                   child: Container(
                     width: 20,
                     height: 20,
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
+                    decoration: BoxDecoration(
+                      color: theme.markerHome,
                       shape: BoxShape.circle,
                     ),
                   ),
                 ),
-                const Icon(Icons.location_on, color: Colors.blue, size: 40),
+                Icon(Icons.location_on, color: theme.markerHome, size: 40),
                 Positioned(
                   top: 8,
                   child: const Icon(Icons.home, color: Colors.white, size: 16),
@@ -445,13 +449,13 @@ class _MapScreenState extends State<MapScreen> {
                   child: Container(
                     width: 20,
                     height: 20,
-                    decoration: const BoxDecoration(
-                      color: Colors.orange,
+                    decoration: BoxDecoration(
+                      color: theme.markerWork,
                       shape: BoxShape.circle,
                     ),
                   ),
                 ),
-                const Icon(Icons.location_on, color: Colors.orange, size: 40),
+                Icon(Icons.location_on, color: theme.markerWork, size: 40),
                 Positioned(
                   top: 8,
                   child: const Icon(Icons.work, color: Colors.white, size: 16),
@@ -512,12 +516,12 @@ class _MapScreenState extends State<MapScreen> {
           height: 22,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.blue,
+              color: theme.markerPosition,
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blue.withValues(alpha: 0.4),
+                  color: theme.markerPosition.withValues(alpha: 0.4),
                   spreadRadius: 4,
                   blurRadius: 6,
                 ),
@@ -554,69 +558,73 @@ class _MapScreenState extends State<MapScreen> {
           Widget sidebarContent = SafeArea(
             child: uiState.isSidebarCollapsed
                 ? _buildCollapsedSidebar()
-                : ListView(
-                    children: [
-                      SwitchListTile(
-                        title: const Text('Show Pinned Locations'),
-                        subtitle: const Text(
-                          'Automatically show markers for all pinned places',
+                : CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: SwitchListTile(
+                          title: const Text('Show Pinned Locations'),
+                          subtitle: const Text(
+                            'Automatically show markers for all pinned places',
+                          ),
+                          value: _showPinnedLocations,
+                          onChanged: (val) {
+                            setState(() {
+                              _showPinnedLocations = val;
+                              if (val) {
+                                for (final sp in _savedPlaces) {
+                                  if (sp.isPinned) {
+                                    _checkedPlaceIds.add(sp.place.tomtomId);
+                                  }
+                                }
+                              } else {
+                                for (final sp in _savedPlaces) {
+                                  if (sp.isPinned) {
+                                    _checkedPlaceIds.remove(sp.place.tomtomId);
+                                  }
+                                }
+                              }
+                            });
+                          },
                         ),
-                        value: _showPinnedLocations,
-                        onChanged: (val) {
-                          setState(() {
-                            _showPinnedLocations = val;
-                            if (val) {
-                              for (final sp in _savedPlaces) {
-                                if (sp.isPinned) {
-                                  _checkedPlaceIds.add(sp.place.tomtomId);
-                                }
-                              }
-                            } else {
-                              for (final sp in _savedPlaces) {
-                                if (sp.isPinned) {
-                                  _checkedPlaceIds.remove(sp.place.tomtomId);
-                                }
-                              }
-                            }
-                          });
-                        },
                       ),
-                      const Divider(),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                        child: Row(
-                          children: [
-                            Text(
-                              'My Places',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurface,
+                      const SliverToBoxAdapter(child: Divider()),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                'My Places',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
                               ),
-                            ),
-                            const Spacer(),
-                            if (_checkedPlaceIds.isNotEmpty)
+                              const Spacer(),
+                              if (_checkedPlaceIds.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.layers_clear, size: 18),
+                                  tooltip: 'Hide All',
+                                  onPressed: () {
+                                    setState(() {
+                                      _checkedPlaceIds.clear();
+                                      _showPinnedLocations = false;
+                                    });
+                                  },
+                                ),
                               IconButton(
-                                icon: const Icon(Icons.layers_clear, size: 18),
-                                tooltip: 'Hide All',
+                                icon: const Icon(Icons.refresh, size: 18),
                                 onPressed: () {
-                                  setState(() {
-                                    _checkedPlaceIds.clear();
-                                    _showPinnedLocations = false;
-                                  });
+                                  setState(() => _isLoadingPlaces = true);
+                                  _loadSavedPlaces();
                                 },
                               ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh, size: 18),
-                              onPressed: () {
-                                setState(() => _isLoadingPlaces = true);
-                                _loadSavedPlaces();
-                              },
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                      _buildPlacesSidebar(),
+                      _buildPlacesSliverSidebar(),
                     ],
                   ),
           );

@@ -41,7 +41,7 @@ void _showSubscriptionDialog(BuildContext context, String? currentUrl) {
             'Enter a "Secret iCal URL" (ends in .ics) from iCloud, Outlook, or Proton.',
             style: PlacesType.bodySmall(theme.ink),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: PlacesSpacing.lg),
           TextField(
             controller: controller,
             decoration: InputDecoration(
@@ -116,7 +116,12 @@ class CalendarSidebarWidget extends StatelessWidget {
   }) {
     final theme = context.places;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      padding: const EdgeInsets.fromLTRB(
+        PlacesSpacing.xl,
+        PlacesSpacing.xxl,
+        PlacesSpacing.xl,
+        PlacesSpacing.md,
+      ),
       child: Row(
         children: [
           Text(title, style: PlacesType.title(theme.ink)),
@@ -132,7 +137,7 @@ class CalendarSidebarWidget extends StatelessWidget {
     return SingleChildScrollView(
       child: Column(
         children: [
-          const SizedBox(height: 24),
+          const SizedBox(height: PlacesSpacing.xxl),
           // Places
           ...List.generate(dataState.savedPlaces.length, (index) {
             final sp = dataState.savedPlaces[index];
@@ -144,30 +149,41 @@ class CalendarSidebarWidget extends StatelessWidget {
             final iconData = availableIcons[iconName] ?? Icons.star;
 
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Tooltip(
                 message: displayName(sp),
-                child: InkWell(
-                  onTap: () {
-                    context.read<CalendarDataBloc>().add(
-                      TogglePlaceFilter(sp.place.tomtomId),
-                    );
-                  },
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: isChecked ? color : Colors.transparent,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isChecked ? color : color.withValues(alpha: 0.5),
-                        width: 1.5,
+                child: Semantics(
+                  button: true,
+                  selected: isChecked,
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: InkWell(
+                      onTap: () {
+                        context.read<CalendarDataBloc>().add(
+                          TogglePlaceFilter(sp.place.tomtomId),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(PlacesRadius.pill),
+                      child: Center(
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isChecked ? color : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isChecked ? color : color.withValues(alpha: 0.5),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Icon(
+                            iconData,
+                            color: isChecked ? Colors.white : color,
+                            size: 18,
+                          ),
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      iconData,
-                      color: isChecked ? Colors.white : color,
-                      size: 18,
                     ),
                   ),
                 ),
@@ -185,35 +201,46 @@ class CalendarSidebarWidget extends StatelessWidget {
             final color = cal.color != null ? Color(cal.color!) : Colors.blue;
 
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Tooltip(
                 message: cal.name ?? 'Unnamed Calendar',
-                child: InkWell(
-                  onTap: () {
-                    if (cal.id != null) {
-                      context.read<CalendarDataBloc>().add(
-                        ToggleDeviceCalendar(cal.id!),
-                      );
-                    }
-                  },
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: isChecked ? color : Colors.transparent,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isChecked ? color : color.withValues(alpha: 0.5),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: isChecked ? Colors.white : color,
-                          shape: BoxShape.circle,
+                child: Semantics(
+                  button: true,
+                  selected: isChecked,
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: InkWell(
+                      onTap: () {
+                        if (cal.id != null) {
+                          context.read<CalendarDataBloc>().add(
+                            ToggleDeviceCalendar(cal.id!),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(PlacesRadius.pill),
+                      child: Center(
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isChecked ? color : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isChecked ? color : color.withValues(alpha: 0.5),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: isChecked ? Colors.white : color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -280,7 +307,7 @@ class CalendarSidebarWidget extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -293,45 +320,51 @@ class CalendarSidebarWidget extends StatelessWidget {
           final iconName = sp.icon ?? 'star';
           final iconData = availableIcons[iconName] ?? Icons.star;
 
-          return GestureDetector(
-            onTap: () {
-              context.read<CalendarDataBloc>().add(
-                TogglePlaceFilter(sp.place.tomtomId),
-              );
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: isChecked ? color : Colors.transparent,
-                borderRadius: BorderRadius.circular(PlacesRadius.lg),
-                border: Border.all(
-                  color: isChecked ? color : color.withValues(alpha: 0.3),
-                  width: 1,
+          return Semantics(
+            button: true,
+            selected: isChecked,
+            child: GestureDetector(
+              onTap: () {
+                context.read<CalendarDataBloc>().add(
+                  TogglePlaceFilter(sp.place.tomtomId),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                constraints: const BoxConstraints(minHeight: 48),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isChecked ? color : Colors.transparent,
+                  borderRadius: BorderRadius.circular(PlacesRadius.lg),
+                  border: Border.all(
+                    color: isChecked ? color : color.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    iconData,
-                    color: isChecked ? Colors.white : color,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    displayName(sp),
-                    style:
-                        PlacesType.label(
-                          isChecked ? Colors.white : theme.ink,
-                        ).copyWith(
-                          fontWeight: isChecked
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          letterSpacing: 0,
-                        ),
-                  ),
-                ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      iconData,
+                      color: isChecked ? Colors.white : color,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      displayName(sp),
+                      style:
+                          PlacesType.label(
+                            isChecked ? Colors.white : theme.ink,
+                          ).copyWith(
+                            fontWeight: isChecked
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            letterSpacing: 0,
+                          ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -344,7 +377,7 @@ class CalendarSidebarWidget extends StatelessWidget {
     final theme = context.places;
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
         child: Column(
           children: [
             Icon(Icons.devices_other, size: 32, color: theme.ash),
@@ -361,7 +394,7 @@ class CalendarSidebarWidget extends StatelessWidget {
 
     if (!dataState.hasCalendarPermission) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -387,7 +420,7 @@ class CalendarSidebarWidget extends StatelessWidget {
 
     if (dataState.deviceCalendars.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
         child: Text(
           'No calendars found on this device.',
           style: PlacesType.bodySmall(theme.ink),
@@ -396,57 +429,62 @@ class CalendarSidebarWidget extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
       child: Column(
         children: List.generate(dataState.deviceCalendars.length, (index) {
           final cal = dataState.deviceCalendars[index];
           final isChecked = dataState.checkedCalendarIds.contains(cal.id);
           final color = cal.color != null ? Color(cal.color!) : Colors.blue;
 
-          return GestureDetector(
-            onTap: () {
-              if (cal.id != null) {
-                context.read<CalendarDataBloc>().add(
-                  ToggleDeviceCalendar(cal.id!),
-                );
-              }
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: isChecked ? theme.paperRaised : Colors.transparent,
-                borderRadius: BorderRadius.circular(PlacesRadius.sm),
-                border: Border.all(
-                  color: isChecked ? theme.ash : Colors.transparent,
-                  width: 1,
+          return Semantics(
+            button: true,
+            selected: isChecked,
+            child: GestureDetector(
+              onTap: () {
+                if (cal.id != null) {
+                  context.read<CalendarDataBloc>().add(
+                    ToggleDeviceCalendar(cal.id!),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isChecked ? theme.paperRaised : Colors.transparent,
+                  borderRadius: BorderRadius.circular(PlacesRadius.sm),
+                  border: Border.all(
+                    color: isChecked ? theme.ash : Colors.transparent,
+                    width: 1,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: isChecked ? color : Colors.transparent,
-                      border: Border.all(color: color, width: 2),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      cal.name ?? 'Unnamed Calendar',
-                      style: PlacesType.bodySmall(theme.ink).copyWith(
-                        fontWeight: isChecked
-                            ? FontWeight.w600
-                            : FontWeight.w500,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: isChecked ? color : Colors.transparent,
+                        border: Border.all(color: color, width: 2),
+                        shape: BoxShape.circle,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        cal.name ?? 'Unnamed Calendar',
+                        style: PlacesType.bodySmall(theme.ink).copyWith(
+                          fontWeight: isChecked
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -499,7 +537,7 @@ class CalendarSidebarWidget extends StatelessWidget {
         ),
         if (!hasUrl)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
             child: Text(
               'No subscription URL set. Use a .ics URL for real-time sync.',
               style: PlacesType.bodySmall(theme.inkMuted),
@@ -507,7 +545,7 @@ class CalendarSidebarWidget extends StatelessWidget {
           )
         else
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
             child: Text(
               'Syncing with ${dataState.remoteEvents.length} events.',
               style: PlacesType.bodySmall(theme.ink),

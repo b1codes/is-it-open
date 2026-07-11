@@ -148,30 +148,34 @@ class CalendarViewStackWidget extends StatelessWidget {
 
           if (!hasAllDay) return const SizedBox.shrink();
 
-          return GestureDetector(
-            onTap: () {
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: theme.paper,
-                builder: (context) =>
-                    _AllDayEventsSheet(date: date, events: allDayEvents),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              color: theme.anchor.withValues(alpha: 0.1),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.event_note, size: 16, color: theme.anchor),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${allDayEvents.length} All-Day Event(s)',
-                    style: PlacesType.label(
-                      theme.anchor,
-                    ).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
+          return Semantics(
+            button: true,
+            label: 'Show all day events',
+            child: GestureDetector(
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: theme.paper,
+                  builder: (context) =>
+                      _AllDayEventsSheet(date: date, events: allDayEvents),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                color: theme.anchor.withValues(alpha: 0.1),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.event_note, size: 16, color: theme.anchor),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${allDayEvents.length} All-Day Event(s)',
+                      style: PlacesType.label(
+                        theme.anchor,
+                      ).copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -240,75 +244,79 @@ class CalendarViewStackWidget extends StatelessWidget {
               .toList();
           final hasAllDay = allDayEvents.isNotEmpty;
 
-          return GestureDetector(
-            onTap: () {
-              if (hasAllDay) {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: theme.paper,
-                  builder: (context) =>
-                      _AllDayEventsSheet(date: date, events: allDayEvents),
-                );
-              }
-            },
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 4,
-                  horizontal: 8,
-                ), // Reduced from 6 to 4 to fix overflow
-                decoration: isToday
-                    ? BoxDecoration(
-                        color: theme.anchor,
-                        borderRadius: BorderRadius.circular(8),
-                      )
-                    : null,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _weekDayShortName(date.weekday).toUpperCase(),
-                      style:
-                          PlacesType.label(
-                            isToday ? Colors.white : textColor,
-                          ).copyWith(
-                            fontSize: 10,
-                            fontWeight: isToday
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${date.day}',
-                          style:
-                              PlacesType.title(
-                                isToday ? Colors.white : textColor,
-                              ).copyWith(
-                                fontSize: 15,
-                                fontWeight: isToday
-                                    ? FontWeight.w700
-                                    : FontWeight.w600,
-                              ),
-                        ),
-                        if (hasAllDay) ...[
-                          const SizedBox(width: 4),
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: isToday ? Colors.white : theme.anchor,
-                              shape: BoxShape.circle,
+          return Semantics(
+            button: hasAllDay,
+            label: hasAllDay ? 'Show all day events' : null,
+            child: GestureDetector(
+              onTap: () {
+                if (hasAllDay) {
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: theme.paper,
+                    builder: (context) =>
+                        _AllDayEventsSheet(date: date, events: allDayEvents),
+                  );
+                }
+              },
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 8,
+                  ), // Reduced from 6 to 4 to fix overflow
+                  decoration: isToday
+                      ? BoxDecoration(
+                          color: theme.anchor,
+                          borderRadius: BorderRadius.circular(8),
+                        )
+                      : null,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _weekDayShortName(date.weekday).toUpperCase(),
+                        style:
+                            PlacesType.label(
+                              isToday ? Colors.white : textColor,
+                            ).copyWith(
+                              fontSize: 10,
+                              fontWeight: isToday
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              letterSpacing: 0.5,
                             ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${date.day}',
+                            style:
+                                PlacesType.title(
+                                  isToday ? Colors.white : textColor,
+                               ).copyWith(
+                                  fontSize: 15,
+                                  fontWeight: isToday
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                ),
                           ),
+                          if (hasAllDay) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: isToday ? Colors.white : theme.anchor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

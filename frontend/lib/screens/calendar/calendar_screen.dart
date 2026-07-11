@@ -22,8 +22,10 @@ class CalendarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final defaultCollapsed = width >= 600 && width < 1024;
     return BlocProvider<CalendarUiCubit>(
-      create: (context) => CalendarUiCubit(),
+      create: (context) => CalendarUiCubit(initialSidebarCollapsed: defaultCollapsed),
       child: const _CalendarScreenView(),
     );
   }
@@ -287,7 +289,7 @@ class _CalendarScreenContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    final isMobile = MediaQuery.of(context).size.width < 800;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return BlocBuilder<CalendarUiCubit, CalendarUiState>(
       builder: (context, uiState) {
@@ -368,13 +370,25 @@ class _CalendarScreenContent extends StatelessWidget {
                     activeColor: theme.inkMuted,
                     onTap: () => context.read<CalendarUiCubit>().togglePersonalEvents(),
                   ),
-                  if (isMobile)
+                  if (isMobile) ...[
+                    const SizedBox(width: 8),
                     Builder(
                       builder: (ctx) => IconButton(
                         icon: Icon(Icons.filter_list, color: theme.ink),
                         onPressed: () => Scaffold.of(ctx).openEndDrawer(),
                       ),
                     ),
+                  ] else ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        uiState.isSidebarCollapsed ? Icons.menu_open : Icons.menu,
+                        color: theme.ink,
+                      ),
+                      onPressed: () => context.read<CalendarUiCubit>().toggleSidebar(),
+                      tooltip: uiState.isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar',
+                    ),
+                  ],
                 ],
               ),
               endDrawer: isMobile
@@ -426,32 +440,39 @@ class _CalendarScreenContent extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     final theme = context.places;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isActive ? activeColor.withValues(alpha: 0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(PlacesRadius.lg),
-          border: Border.all(
-            color: isActive ? activeColor.withValues(alpha: 0.3) : theme.ash,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: isActive ? activeColor : theme.inkMuted),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: PlacesType.label(isActive ? activeColor : theme.inkMuted).copyWith(
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                letterSpacing: 0,
-              ),
+    return Semantics(
+      button: true,
+      selected: isActive,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isActive ? activeColor.withValues(alpha: 0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(PlacesRadius.lg),
+            border: Border.all(
+              color: isActive ? activeColor.withValues(alpha: 0.3) : theme.ash,
+              width: 1,
             ),
-          ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: isActive ? activeColor : theme.inkMuted),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: PlacesType.label(
+                  isActive ? activeColor : theme.ink,
+                ).copyWith(
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

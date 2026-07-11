@@ -170,8 +170,8 @@ _override.tf.json
 backend/db.sqlite3
 
 # Agent & Design "Secret Sauce"
-.agent/
-agent.md
+.agents/
+agents.md
 conductor/
 docs/superpowers/
 .gemini/
@@ -182,3 +182,4 @@ GEMINI.md
 DESIGN.md
 PRODUCT.md
 gha-creds-*.json
+skills-lock.json

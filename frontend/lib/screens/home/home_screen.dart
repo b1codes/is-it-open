@@ -5,6 +5,7 @@ import 'package:frontend/screens/places/my_places_screen.dart';
 import 'package:frontend/screens/calendar/calendar_screen.dart';
 import '../../components/shared/side_menu.dart';
 import 'package:frontend/screens/profile/me_screen.dart';
+import '../../utils/places_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.places;
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 800;
@@ -45,13 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      const Color(
-                        0xFF1A237E,
-                      ).withValues(alpha: 0.1), // Deep Blue
-                      const Color(0xFF0D47A1).withValues(alpha: 0.1), // Blue
-                      const Color(
-                        0xFF880E4F,
-                      ).withValues(alpha: 0.1), // Pink/Purple accent
+                      Theme.of(context).scaffoldBackgroundColor,
+                      Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
                     ],
                   ),
                 ),
@@ -76,38 +73,54 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           bottomNavigationBar: isMobile
-              ? BottomNavigationBar(
-                  currentIndex: _selectedIndex > 4 ? 4 : _selectedIndex,
-                  onTap: _onItemTapped,
-                  type: BottomNavigationBarType.fixed,
-                  selectedItemColor: Theme.of(context).primaryColor,
-                  unselectedItemColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  elevation: 8,
-                  items: const [
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.star),
-                      label: 'Places',
+              ? Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: theme.ashSoft,
+                        width: 1,
+                      ),
                     ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.calendar_month),
-                      label: 'Calendar',
+                  ),
+                  child: BottomNavigationBar(
+                    currentIndex: _selectedIndex > 4 ? 4 : _selectedIndex,
+                    onTap: _onItemTapped,
+                    type: BottomNavigationBarType.fixed,
+                    selectedItemColor: theme.anchor,
+                    unselectedItemColor: theme.inkMuted,
+                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                    elevation: 0,
+                    selectedLabelStyle: PlacesType.label(theme.anchor).copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
                     ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.map),
-                      label: 'Map',
+                    unselectedLabelStyle: PlacesType.label(theme.inkMuted).copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
                     ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.search),
-                      label: 'Search',
-                    ),
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.person),
-                      label: 'Profile',
-                    ),
-                  ],
+                    items: const [
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.star_rounded),
+                        label: 'My Places',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.calendar_month_rounded),
+                        label: 'Calendar',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.map_rounded),
+                        label: 'Map',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.search_rounded),
+                        label: 'Search',
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Icon(Icons.person_rounded),
+                        label: 'Me',
+                      ),
+                    ],
+                  ),
                 )
               : null,
         );

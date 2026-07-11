@@ -57,7 +57,7 @@ class SavedPlaceTile extends StatelessWidget {
                   Expanded(
                     child: Text(
                       name,
-                      style: PlacesType.title(theme.ink).copyWith(fontSize: 15),
+                      style: PlacesType.title(theme.ink),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -69,7 +69,7 @@ class SavedPlaceTile extends StatelessWidget {
                 address,
                 style: PlacesType.bodySmall(
                   theme.inkMuted,
-                ).copyWith(fontSize: 12),
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -103,25 +103,31 @@ class _TodayIconToggle extends StatelessWidget {
       button: true,
       label: isOnToday ? 'Remove from today\'s route' : 'Add to today\'s route',
       child: SizedBox(
-        width: 32,
-        height: 32,
-        child: Material(
-          color: isOnToday
-              ? theme.anchor.withValues(alpha: 0.12)
-              : Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(PlacesRadius.pill),
-            side: isOnToday
-                ? BorderSide.none
-                : BorderSide(color: theme.anchor.withValues(alpha: 0.5)),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(PlacesRadius.pill),
-            child: Icon(
-              isOnToday ? Icons.check_rounded : Icons.add_rounded,
-              size: 18,
-              color: theme.anchor,
+        width: 48,
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: Material(
+              color: isOnToday
+                  ? theme.anchor.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(PlacesRadius.pill),
+                side: isOnToday
+                    ? BorderSide.none
+                    : BorderSide(color: theme.anchor.withValues(alpha: 0.5)),
+              ),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(PlacesRadius.pill),
+                child: Icon(
+                  isOnToday ? Icons.check_rounded : Icons.add_rounded,
+                  size: 18,
+                  color: theme.anchor,
+                ),
+              ),
             ),
           ),
         ),
