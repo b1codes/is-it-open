@@ -173,7 +173,9 @@ class CalendarSidebarWidget extends StatelessWidget {
                             color: isChecked ? color : Colors.transparent,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isChecked ? color : color.withValues(alpha: 0.5),
+                              color: isChecked
+                                  ? color
+                                  : color.withValues(alpha: 0.5),
                               width: 1.5,
                             ),
                           ),
@@ -227,7 +229,9 @@ class CalendarSidebarWidget extends StatelessWidget {
                             color: isChecked ? color : Colors.transparent,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isChecked ? color : color.withValues(alpha: 0.5),
+                              color: isChecked
+                                  ? color
+                                  : color.withValues(alpha: 0.5),
                               width: 1.5,
                             ),
                           ),
@@ -333,7 +337,10 @@ class CalendarSidebarWidget extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 constraints: const BoxConstraints(minHeight: 48),
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isChecked ? color : Colors.transparent,
                   borderRadius: BorderRadius.circular(PlacesRadius.lg),
@@ -450,7 +457,10 @@ class CalendarSidebarWidget extends StatelessWidget {
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 constraints: const BoxConstraints(minHeight: 48),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isChecked ? theme.paperRaised : Colors.transparent,
                   borderRadius: BorderRadius.circular(PlacesRadius.sm),

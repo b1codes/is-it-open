@@ -34,7 +34,10 @@ class IcalParserService {
       RegExp(r'^(RRULE:.*)$', multiLine: true),
       (match) {
         final line = match.group(1)!;
-        return line.split(';').where((part) => !part.toUpperCase().startsWith('WKST=')).join(';');
+        return line
+            .split(';')
+            .where((part) => !part.toUpperCase().startsWith('WKST='))
+            .join(';');
       },
     );
 
@@ -98,8 +101,18 @@ class IcalParserService {
       final normalizedTzid = _normalizeTzid(tzid);
       try {
         final location = tz.getLocation(normalizedTzid);
-        final sourceTz = tz.TZDateTime(location, year, month, day, hour, minute, second);
-        return DateTime.fromMillisecondsSinceEpoch(sourceTz.millisecondsSinceEpoch).toLocal();
+        final sourceTz = tz.TZDateTime(
+          location,
+          year,
+          month,
+          day,
+          hour,
+          minute,
+          second,
+        );
+        return DateTime.fromMillisecondsSinceEpoch(
+          sourceTz.millisecondsSinceEpoch,
+        ).toLocal();
       } catch (e) {
         // Fallback: assume the time written is local wall-clock
         return DateTime(year, month, day, hour, minute, second);
@@ -125,13 +138,16 @@ class IcalParserService {
     final start = _parseIcsDateTime(dtstartIcs);
     if (start == null) return [];
 
-    final bool isAllDay = dtstartIcs.dt.length == 8 && !dtstartIcs.dt.contains('T');
+    final bool isAllDay =
+        dtstartIcs.dt.length == 8 && !dtstartIcs.dt.contains('T');
 
     DateTime end;
     if (dtendIcs != null) {
       end = _parseIcsDateTime(dtendIcs) ?? start.add(const Duration(hours: 1));
     } else {
-      end = isAllDay ? start.add(const Duration(days: 1)) : start.add(const Duration(hours: 1));
+      end = isAllDay
+          ? start.add(const Duration(days: 1))
+          : start.add(const Duration(hours: 1));
     }
 
     final duration = end.difference(start);
@@ -156,7 +172,10 @@ class IcalParserService {
               // Native OS Local conversion
               return date.toLocal();
             })
-            .where((date) => date.isAfter(rangeStart) || date.isAtSameMomentAs(rangeStart))
+            .where(
+              (date) =>
+                  date.isAfter(rangeStart) || date.isAtSameMomentAs(rangeStart),
+            )
             .toList();
 
         return instances.map((instanceStart) {

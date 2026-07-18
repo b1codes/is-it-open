@@ -18,7 +18,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: AppColors.paperWarm,
       appBar: AppBar(
@@ -53,7 +53,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 400),
                   child: GlassCard(
-                    child: _isSubmitted ? _buildSuccessState(theme) : _buildFormState(theme),
+                    child: _isSubmitted
+                        ? _buildSuccessState(theme)
+                        : _buildFormState(theme),
                   ),
                 ),
               ],
@@ -70,17 +72,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'RECOVER',
-            style: theme.textTheme.displayMedium,
-          ),
+          Text('RECOVER', style: theme.textTheme.displayMedium),
           const SizedBox(height: 16),
           Text(
             'Enter your email and we\'ll send you instructions to reset your password.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 32),
-          
+
           // Email Field
           TextFormField(
             controller: _emailController,
@@ -96,7 +95,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             },
           ),
           const SizedBox(height: 32),
-          
+
           // Primary Action
           ThermalButton(
             onPressed: () {

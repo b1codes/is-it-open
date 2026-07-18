@@ -32,9 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
-      backgroundColor: AppColors.paperWarm,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'Sign in to your list',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.inkWarmMuted,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 48),
@@ -76,54 +76,70 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            'SIGN IN',
-                            style: theme.textTheme.displayMedium,
-                          ),
+                          Text('SIGN IN', style: theme.textTheme.displayMedium),
                           const SizedBox(height: 24),
-                          
+
                           // Auth0 Social Login Buttons
                           _buildSocialButton(
+                            context: context,
                             icon: CupertinoIcons.circle_grid_3x3,
                             text: 'Continue with Google',
-                            onPressed: () => _handleAuth0Login(connection: 'google-oauth2'),
+                            onPressed: () =>
+                                _handleAuth0Login(connection: 'google-oauth2'),
                           ),
                           const SizedBox(height: 12),
                           _buildSocialButton(
+                            context: context,
                             icon: CupertinoIcons.check_mark_circled,
                             text: 'Continue with Apple',
-                            onPressed: () => _handleAuth0Login(connection: 'apple'),
+                            onPressed: () =>
+                                _handleAuth0Login(connection: 'apple'),
                           ),
                           const SizedBox(height: 12),
-                          
+
                           // Auth0 Email Login Button
                           _buildAuth0EmailButton(
                             onPressed: () => _handleAuth0Login(),
                           ),
-                          
+
                           const SizedBox(height: 24),
-                          
+
                           // Visual Divider
                           Row(
                             children: [
-                              Expanded(child: Divider(color: AppColors.inkWarm.withValues(alpha: 0.1))),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
+                              Expanded(
+                                child: Divider(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
                                 child: Text(
                                   'or developer login',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.inkWarmMuted,
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
                                   ),
                                 ),
                               ),
-                              Expanded(child: Divider(color: AppColors.inkWarm.withValues(alpha: 0.1))),
+                              Expanded(
+                                child: Divider(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                          
+
                           const SizedBox(height: 20),
-                          
+
                           // Traditional Local Login Form
                           Form(
                             key: _formKey,
@@ -135,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   controller: _usernameController,
                                   decoration: const InputDecoration(
                                     labelText: 'Email Address',
-                                    prefixIcon: Icon(Icons.email_outlined),
+                                    prefixIcon: Icon(CupertinoIcons.mail),
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
@@ -145,14 +161,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   },
                                 ),
                                 const SizedBox(height: 16),
-                                
+
                                 // Password Field
                                 TextFormField(
                                   controller: _passwordController,
                                   obscureText: true,
                                   decoration: const InputDecoration(
                                     labelText: 'Password',
-                                    prefixIcon: Icon(Icons.lock_outline),
+                                    prefixIcon: Icon(CupertinoIcons.lock),
                                   ),
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
@@ -162,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   },
                                 ),
                                 const SizedBox(height: 8),
-                                
+
                                 // Forgot Password
                                 Align(
                                   alignment: Alignment.centerRight,
@@ -170,21 +186,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onPressed: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => const ForgotPasswordScreen(),
+                                          builder: (_) =>
+                                              const ForgotPasswordScreen(),
                                         ),
                                       );
                                     },
                                     child: Text(
                                       'Forgot password?',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: AppColors.terracotta,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: AppColors.terracotta,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                
+
                                 // Primary Action
                                 BlocBuilder<AuthBloc, AuthState>(
                                   builder: (context, state) {
@@ -194,8 +212,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         if (_formKey.currentState!.validate()) {
                                           context.read<AuthBloc>().add(
                                             LoginRequested(
-                                              username: _usernameController.text,
-                                              password: _passwordController.text,
+                                              username:
+                                                  _usernameController.text,
+                                              password:
+                                                  _passwordController.text,
                                             ),
                                           );
                                         }
@@ -212,15 +232,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Secondary Navigation
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'New here?',
-                        style: theme.textTheme.bodyMedium,
-                      ),
+                      Text('New here?', style: theme.textTheme.bodyMedium),
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).pushReplacement(
@@ -249,40 +266,36 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildSocialButton({
+    required BuildContext context,
     required IconData icon,
     required String text,
     required VoidCallback onPressed,
   }) {
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.inkWarm,
-        side: BorderSide(color: AppColors.inkWarm.withValues(alpha: 0.15), width: 1.0),
+        foregroundColor: onSurface,
+        side: BorderSide(color: onSurface.withValues(alpha: 0.15), width: 1.0),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 18, color: AppColors.inkWarm),
+          Icon(icon, size: 18, color: onSurface),
           const SizedBox(width: 12),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAuth0EmailButton({
-    required VoidCallback onPressed,
-  }) {
+  Widget _buildAuth0EmailButton({required VoidCallback onPressed}) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
@@ -291,21 +304,16 @@ class _LoginScreenState extends State<LoginScreen> {
         elevation: 0,
         side: const BorderSide(color: AppColors.terracotta, width: 1.0),
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(CupertinoIcons.mail, size: 18, color: AppColors.terracotta),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Text(
             'Continue with Email',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ],
       ),

@@ -52,12 +52,17 @@ class PlannerView extends StatelessWidget {
     final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     for (int i = 0; i < dayCount; i++) {
       final date = baseDate.add(Duration(days: i));
-      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today) return true;
+      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today)
+        return true;
     }
     return false;
   }
 
-  Widget _buildHeader(BuildContext context, PlacesTheme theme, bool isTodayVisible) {
+  Widget _buildHeader(
+    BuildContext context,
+    PlacesTheme theme,
+    bool isTodayVisible,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Row(
@@ -84,7 +89,9 @@ class PlannerView extends StatelessWidget {
               onPressed: onNavigateToday,
               style: TextButton.styleFrom(
                 foregroundColor: theme.anchor,
-                textStyle: PlacesType.label(theme.anchor).copyWith(fontWeight: FontWeight.w600),
+                textStyle: PlacesType.label(
+                  theme.anchor,
+                ).copyWith(fontWeight: FontWeight.w600),
               ),
               child: const Text('Today'),
             ),
@@ -131,7 +138,8 @@ class _PlannerTimeline extends StatelessWidget {
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(
-        decelerationRate: ScrollDecelerationRate.normal, // We can't set 0.15 directly but normal is decent
+        decelerationRate: ScrollDecelerationRate
+            .normal, // We can't set 0.15 directly but normal is decent
       ),
       child: Container(
         padding: const EdgeInsets.only(top: 16, bottom: 32),
@@ -144,7 +152,9 @@ class _PlannerTimeline extends StatelessWidget {
               return Expanded(
                 child: _DayColumn(
                   date: date,
-                  windows: windows.where((w) => DateUtils.isSameDay(w.date, date)).toList(),
+                  windows: windows
+                      .where((w) => DateUtils.isSameDay(w.date, date))
+                      .toList(),
                   personalEvents: personalEvents.where((e) {
                     final start = e['startTime'] as DateTime;
                     return DateUtils.isSameDay(start, date);
@@ -205,9 +215,7 @@ class _DayColumn extends StatelessWidget {
           height: (17 * _PlannerTimeline.hourHeight), // 6 AM to 11 PM
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(color: theme.ashSoft, width: 0.5),
-            ),
+            border: Border(left: BorderSide(color: theme.ashSoft, width: 0.5)),
           ),
           child: Stack(
             children: [
@@ -229,16 +237,17 @@ class _DayColumn extends StatelessWidget {
         children: [
           Text(
             DateFormat('EEE').format(date).toUpperCase(),
-            style: PlacesType.label(isToday ? theme.anchor : theme.inkMuted).copyWith(
-              fontSize: 10,
-              fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
-            ),
+            style: PlacesType.label(isToday ? theme.anchor : theme.inkMuted)
+                .copyWith(
+                  fontSize: 10,
+                  fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
+                ),
           ),
           Text(
             '${date.day}',
-            style: PlacesType.title(isToday ? theme.anchor : theme.ink).copyWith(
-              fontSize: 18,
-            ),
+            style: PlacesType.title(
+              isToday ? theme.anchor : theme.ink,
+            ).copyWith(fontSize: 18),
           ),
         ],
       ),
@@ -260,7 +269,11 @@ class _DayColumn extends StatelessWidget {
     );
   }
 
-  Widget _buildWindowTile(BuildContext context, PlacesTheme theme, AvailabilityWindow window) {
+  Widget _buildWindowTile(
+    BuildContext context,
+    PlacesTheme theme,
+    AvailabilityWindow window,
+  ) {
     final top = _getTopOffset(window.startTime);
     final height = _getHeight(window.startTime, window.endTime);
 
@@ -292,11 +305,17 @@ class _DayColumn extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.door_front_door_outlined, size: 14, color: theme.anchor),
+                      Icon(
+                        Icons.door_front_door_outlined,
+                        size: 14,
+                        color: theme.anchor,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${window.placeCount} places open',
-                        style: PlacesType.label(theme.anchor).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: PlacesType.label(
+                          theme.anchor,
+                        ).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -332,11 +351,16 @@ class _DayColumn extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.inkMuted.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(PlacesRadius.md),
-          border: Border.all(color: theme.inkMuted.withValues(alpha: 0.3), width: 0.5),
+          border: Border.all(
+            color: theme.inkMuted.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
         ),
         child: Text(
           event['title'] as String,
-          style: PlacesType.label(theme.ink).copyWith(fontSize: 11, fontWeight: FontWeight.w600),
+          style: PlacesType.label(
+            theme.ink,
+          ).copyWith(fontSize: 11, fontWeight: FontWeight.w600),
           overflow: TextOverflow.ellipsis,
         ),
       ),
@@ -345,7 +369,9 @@ class _DayColumn extends StatelessWidget {
 
   Widget _buildNowIndicator(PlacesTheme theme) {
     final now = tz.TZDateTime.now(tz.local);
-    if (now.hour < _PlannerTimeline.startHour || now.hour > _PlannerTimeline.endHour) return const SizedBox.shrink();
+    if (now.hour < _PlannerTimeline.startHour ||
+        now.hour > _PlannerTimeline.endHour)
+      return const SizedBox.shrink();
 
     return Positioned(
       top: _getTopOffset(now),
@@ -356,11 +382,12 @@ class _DayColumn extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(color: theme.anchor, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: theme.anchor,
+              shape: BoxShape.circle,
+            ),
           ),
-          Expanded(
-            child: Divider(color: theme.anchor, thickness: 2),
-          ),
+          Expanded(child: Divider(color: theme.anchor, thickness: 2)),
         ],
       ),
     );

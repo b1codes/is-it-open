@@ -79,34 +79,39 @@ void main() {
       expect(decoded['home_lat'], 45.67);
     });
 
-    test('emits Authenticated when Auth0LoginRequested is successful', () async {
-      SharedPreferences.setMockInitialValues({});
-      final mockUser = User(
-        id: 2,
-        username: 'auth0|mock_123',
-        email: 'auth0@example.com',
-        token: 'mock_jwt_token',
-      );
-      
-      when(() => mockApiService.setAuthToken(any())).thenReturn(null);
-      when(() => mockApiService.getProfile()).thenAnswer((_) async => mockUser);
+    test(
+      'emits Authenticated when Auth0LoginRequested is successful',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final mockUser = User(
+          id: 2,
+          username: 'auth0|mock_123',
+          email: 'auth0@example.com',
+          token: 'mock_jwt_token',
+        );
 
-      authBloc.add(const Auth0LoginRequested(token: 'mock_jwt_token'));
+        when(() => mockApiService.setAuthToken(any())).thenReturn(null);
+        when(
+          () => mockApiService.getProfile(),
+        ).thenAnswer((_) async => mockUser);
 
-      await expectLater(
-        authBloc.stream,
-        emitsInOrder([
-          isA<AuthLoading>(),
-          isA<AuthAuthenticated>().having(
-            (state) => state.user.username,
-            'username',
-            'auth0|mock_123',
-          ),
-        ]),
-      );
+        authBloc.add(const Auth0LoginRequested(token: 'mock_jwt_token'));
 
-      verify(() => mockApiService.setAuthToken('mock_jwt_token')).called(1);
-      verify(() => mockApiService.getProfile()).called(1);
-    });
+        await expectLater(
+          authBloc.stream,
+          emitsInOrder([
+            isA<AuthLoading>(),
+            isA<AuthAuthenticated>().having(
+              (state) => state.user.username,
+              'username',
+              'auth0|mock_123',
+            ),
+          ]),
+        );
+
+        verify(() => mockApiService.setAuthToken('mock_jwt_token')).called(1);
+        verify(() => mockApiService.getProfile()).called(1);
+      },
+    );
   });
 }

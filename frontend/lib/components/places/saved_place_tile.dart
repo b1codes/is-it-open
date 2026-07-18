@@ -67,9 +67,7 @@ class SavedPlaceTile extends StatelessWidget {
               const SizedBox(height: PlacesSpacing.sm),
               Text(
                 address,
-                style: PlacesType.bodySmall(
-                  theme.inkMuted,
-                ),
+                style: PlacesType.bodySmall(theme.inkMuted),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -102,32 +100,29 @@ class _TodayIconToggle extends StatelessWidget {
     return Semantics(
       button: true,
       label: isOnToday ? 'Remove from today\'s route' : 'Add to today\'s route',
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Center(
-          child: SizedBox(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(PlacesRadius.pill),
+        child: Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          child: Container(
             width: 32,
             height: 32,
-            child: Material(
+            decoration: BoxDecoration(
               color: isOnToday
                   ? theme.anchor.withValues(alpha: 0.12)
                   : Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(PlacesRadius.pill),
-                side: isOnToday
-                    ? BorderSide.none
-                    : BorderSide(color: theme.anchor.withValues(alpha: 0.5)),
-              ),
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(PlacesRadius.pill),
-                child: Icon(
-                  isOnToday ? Icons.check_rounded : Icons.add_rounded,
-                  size: 18,
-                  color: theme.anchor,
-                ),
-              ),
+              shape: BoxShape.circle,
+              border: isOnToday
+                  ? null
+                  : Border.all(color: theme.anchor.withValues(alpha: 0.5)),
+            ),
+            child: Icon(
+              isOnToday ? Icons.check_rounded : Icons.add_rounded,
+              size: 18,
+              color: theme.anchor,
             ),
           ),
         ),

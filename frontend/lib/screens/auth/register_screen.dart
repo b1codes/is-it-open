@@ -22,7 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Scaffold(
       backgroundColor: AppColors.paperWarm,
       body: BlocListener<AuthBloc, AuthState>(
@@ -75,7 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               style: theme.textTheme.displayMedium,
                             ),
                             const SizedBox(height: 32),
-                            
+
                             // Username Field
                             TextFormField(
                               controller: _usernameController,
@@ -91,7 +91,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                             ),
                             const SizedBox(height: 16),
-                            
+
                             // Email Field
                             TextFormField(
                               controller: _emailController,
@@ -107,7 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                             ),
                             const SizedBox(height: 16),
-                            
+
                             // Password Field
                             TextFormField(
                               controller: _passwordController,
@@ -124,7 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               },
                             ),
                             const SizedBox(height: 32),
-                            
+
                             // Primary Action
                             BlocBuilder<AuthBloc, AuthState>(
                               builder: (context, state) {
@@ -151,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Secondary Navigation
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,

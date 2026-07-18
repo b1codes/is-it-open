@@ -21,7 +21,9 @@ class AppColors {
   static const Color thermalCorona = Color(0xFFFF9500);
 
   // Glass Material
-  static const Color glassSurface = Color(0x0DFFFFFF); // rgba(255, 255, 255, 0.05)
+  static const Color glassSurface = Color(
+    0x0DFFFFFF,
+  ); // rgba(255, 255, 255, 0.05)
   static const Color glassBorder = Color(0x1AFFFFFF); // semi-transparent white
 }
 
@@ -60,9 +62,15 @@ class AppEffects extends ThemeExtension<AppEffects> {
     if (other is! AppEffects) return this;
     return AppEffects(
       glassBlur: lerpDouble(glassBlur, other.glassBlur, t) ?? glassBlur,
-      glassOpacity: lerpDouble(glassOpacity, other.glassOpacity, t) ?? glassOpacity,
-      thermalGlowGradient: Gradient.lerp(thermalGlowGradient, other.thermalGlowGradient, t)!,
-      dragResistance: lerpDouble(dragResistance, other.dragResistance, t) ?? dragResistance,
+      glassOpacity:
+          lerpDouble(glassOpacity, other.glassOpacity, t) ?? glassOpacity,
+      thermalGlowGradient: Gradient.lerp(
+        thermalGlowGradient,
+        other.thermalGlowGradient,
+        t,
+      )!,
+      dragResistance:
+          lerpDouble(dragResistance, other.dragResistance, t) ?? dragResistance,
     );
   }
 
@@ -168,7 +176,9 @@ class AppTheme {
       ),
       contentPadding: const EdgeInsets.all(16),
       labelStyle: GoogleFonts.openSans(color: AppColors.inkWarmMuted),
-      hintStyle: GoogleFonts.openSans(color: AppColors.inkWarmMuted.withValues(alpha: 0.5)),
+      hintStyle: GoogleFonts.openSans(
+        color: AppColors.inkWarmMuted.withValues(alpha: 0.5),
+      ),
     ),
   );
 
@@ -176,17 +186,24 @@ class AppTheme {
   static final ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.terracotta,
+    colorScheme: const ColorScheme(
       brightness: Brightness.dark,
-      primary: AppColors.terracotta,
-      surface: const Color(0xFF1A1918), // Slightly lighter than pure black
-      onSurface: AppColors.paperWarm,
+      primary: Color(
+        0xFFD97A52,
+      ), // AppColors.terracotta brightened for dark surfaces
+      onPrimary: Color(0xFF1C1916), // Dark paper ink background
+      secondary: Color(0xFF26221E), // Elevated paper surface
+      onSecondary: Color(0xFFEDE6D9), // Cream text on secondary
+      error: AppColors.thermalCore,
+      onError: Colors.white,
+      surface: Color(0xFF1C1916), // Dark warm near-black background
+      onSurface: Color(0xFFEDE6D9), // Warm cream text color
+      outline: Color(0xFFAFA697), // Muted ink warm gray
     ),
-    scaffoldBackgroundColor: const Color(0xFF141312),
+    scaffoldBackgroundColor: const Color(0xFF1C1916),
     textTheme: _textTheme.apply(
-      bodyColor: AppColors.paperWarm,
-      displayColor: AppColors.paperWarm,
+      bodyColor: const Color(0xFFEDE6D9),
+      displayColor: const Color(0xFFEDE6D9),
     ),
     extensions: [_effects],
   );

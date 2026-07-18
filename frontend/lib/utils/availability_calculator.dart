@@ -20,7 +20,8 @@ class AvailabilityCalculator {
   /// Calculates consolidated windows where business hours and personal free time overlap.
   /// Uses [tz.local] for all time calculations to ensure consistency.
   static List<AvailabilityWindow> calculateAvailableWindows({
-    required List<Map<String, dynamic>> businessBlocks, // {id, startTime, endTime}
+    required List<Map<String, dynamic>>
+    businessBlocks, // {id, startTime, endTime}
     required List<Map<String, dynamic>> personalEvents, // {startTime, endTime}
   }) {
     if (businessBlocks.isEmpty) return [];

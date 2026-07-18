@@ -160,7 +160,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       end: Alignment.bottomRight,
                       colors: [
                         Theme.of(context).scaffoldBackgroundColor,
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.08),
                       ],
                     ),
                   ),

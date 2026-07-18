@@ -71,95 +71,100 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
         padding: const EdgeInsets.all(PlacesSpacing.lg),
         child: SafeArea(
           top: false,
-          child: Form(
-            key: _form,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.ash,
-                      borderRadius: BorderRadius.circular(2),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _form,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: theme.ash,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: PlacesSpacing.lg),
-                Text('Add a place', style: PlacesType.headline(theme.ink)),
-                const SizedBox(height: PlacesSpacing.xs),
-                Text(
-                  "Save somewhere you go. Hours and map location can be filled in later.",
-                  style: PlacesType.bodySmall(theme.inkMuted),
-                ),
-                const SizedBox(height: PlacesSpacing.lg),
-                _SheetField(
-                  controller: _name,
-                  label: 'Name',
-                  hint: 'Dad\'s house, the trailhead, etc.',
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Give the place a name.'
-                      : null,
-                  autofocus: true,
-                ),
-                const SizedBox(height: PlacesSpacing.md),
-                _SheetField(
-                  controller: _address,
-                  label: 'Address',
-                  hint: 'Street and city',
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Add an address.' : null,
-                ),
-                const SizedBox(height: PlacesSpacing.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Material(
-                        color: theme.anchor,
-                        borderRadius: BorderRadius.circular(PlacesRadius.md),
-                        child: InkWell(
+                  const SizedBox(height: PlacesSpacing.lg),
+                  Text('Add a place', style: PlacesType.headline(theme.ink)),
+                  const SizedBox(height: PlacesSpacing.xs),
+                  Text(
+                    "Save somewhere you go. Hours and map location can be filled in later.",
+                    style: PlacesType.bodySmall(theme.inkMuted),
+                  ),
+                  const SizedBox(height: PlacesSpacing.lg),
+                  _SheetField(
+                    controller: _name,
+                    label: 'Name',
+                    hint: 'Dad\'s house, the trailhead, etc.',
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Give the place a name.'
+                        : null,
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: PlacesSpacing.md),
+                  _SheetField(
+                    controller: _address,
+                    label: 'Address',
+                    hint: 'Street and city',
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Add an address.'
+                        : null,
+                  ),
+                  const SizedBox(height: PlacesSpacing.lg),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Material(
+                          color: theme.anchor,
                           borderRadius: BorderRadius.circular(PlacesRadius.md),
-                          onTap: _submitting ? null : _submit,
-                          child: SizedBox(
-                            height: 48,
-                            child: Center(
-                              child: _submitting
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation(
-                                          theme.anchorOnContrast,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(
+                              PlacesRadius.md,
+                            ),
+                            onTap: _submitting ? null : _submit,
+                            child: SizedBox(
+                              height: 48,
+                              child: Center(
+                                child: _submitting
+                                    ? SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation(
+                                            theme.anchorOnContrast,
+                                          ),
+                                        ),
+                                      )
+                                    : Text(
+                                        'Save place',
+                                        style: TextStyle(
+                                          color: theme.anchorOnContrast,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                    )
-                                  : Text(
-                                      'Save place',
-                                      style: TextStyle(
-                                        color: theme.anchorOnContrast,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: PlacesSpacing.sm),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.inkMuted,
+                      const SizedBox(width: PlacesSpacing.sm),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: theme.inkMuted,
+                        ),
+                        child: const Text('Cancel'),
                       ),
-                      child: const Text('Cancel'),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

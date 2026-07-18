@@ -13,9 +13,9 @@ void main() {
     } catch (e) {
       print("Error getting timezone: \$e");
     }
-    
+
     final service = IcalParserService();
-    
+
     const icsZ = '''BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test Product//EN
@@ -38,7 +38,7 @@ END:VCALENDAR''';
 
     final eventsZ = service.parse(icsZ);
     print("Z Event Start: ${eventsZ.first.startTime}");
-    
+
     final eventsTzid = service.parse(icsTzid);
     print("TZID Event Start: ${eventsTzid.first.startTime}");
   });

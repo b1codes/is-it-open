@@ -7,9 +7,9 @@ void main() {
   test('test wkst removal', () async {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('America/New_York'));
-    
+
     final service = IcalParserService();
-    
+
     const icsWkst = '''BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test Product//EN

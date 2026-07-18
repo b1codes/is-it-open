@@ -20,7 +20,14 @@ enum _VisitFilter { all, wantToVisit, visited }
 enum _ViewMode { list, grid }
 
 class MyPlacesScreen extends StatefulWidget {
-  const MyPlacesScreen({super.key});
+  final bool embedded;
+  final ScrollController? scrollController;
+
+  const MyPlacesScreen({
+    super.key,
+    this.embedded = false,
+    this.scrollController,
+  });
 
   @override
   State<MyPlacesScreen> createState() => _MyPlacesScreenState();
@@ -32,15 +39,22 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   _VisitFilter _filter = _VisitFilter.all;
   Timer? _ticker;
 
+  int _lastRebuildMinute = DateTime.now().minute;
+
   @override
   void initState() {
     super.initState();
     _loadBookmarks();
-    // Minute ticker: triggers a rebuild so status pills update from
-    // open → closing-soon → closed without a manual refresh. Cheap because
-    // the data future itself doesn't reload.
-    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+    // Minute ticker: triggers a rebuild only when the minute boundary rolls over
+    // so status pills update from open → closing-soon → closed without redundant rebuilds.
+    _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      final currentMinute = DateTime.now().minute;
+      if (currentMinute != _lastRebuildMinute) {
+        setState(() {
+          _lastRebuildMinute = currentMinute;
+        });
+      }
     });
     // Re-check the cubit in case the app stayed open through midnight.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,6 +83,34 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
+
+    final bodyContent = FutureBuilder<List<SavedPlace>>(
+      future: _bookmarksFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _SkeletonList();
+        }
+        if (snapshot.hasError) {
+          return _ErrorState(onRetry: _refresh);
+        }
+        final allPlaces = snapshot.data ?? const <SavedPlace>[];
+        if (allPlaces.isEmpty) {
+          return const _EmptyState();
+        }
+        return _PlacesBody(
+          allPlaces: allPlaces,
+          filter: _filter,
+          viewMode: _viewMode,
+          onFilterChanged: (f) => setState(() => _filter = f),
+          onRefresh: _refresh,
+          scrollController: widget.scrollController,
+        );
+      },
+    );
+
+    if (widget.embedded) {
+      return SafeArea(child: bodyContent);
+    }
 
     return Scaffold(
       backgroundColor: theme.paper,
@@ -101,30 +143,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: FutureBuilder<List<SavedPlace>>(
-          future: _bookmarksFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _SkeletonList();
-            }
-            if (snapshot.hasError) {
-              return _ErrorState(onRetry: _refresh);
-            }
-            final allPlaces = snapshot.data ?? const <SavedPlace>[];
-            if (allPlaces.isEmpty) {
-              return const _EmptyState();
-            }
-            return _PlacesBody(
-              allPlaces: allPlaces,
-              filter: _filter,
-              viewMode: _viewMode,
-              onFilterChanged: (f) => setState(() => _filter = f),
-              onRefresh: _refresh,
-            );
-          },
-        ),
-      ),
+      body: SafeArea(child: bodyContent),
     );
   }
 }
@@ -140,6 +159,7 @@ class _PlacesBody extends StatelessWidget {
     required this.viewMode,
     required this.onFilterChanged,
     required this.onRefresh,
+    this.scrollController,
   });
 
   final List<SavedPlace> allPlaces;
@@ -147,6 +167,7 @@ class _PlacesBody extends StatelessWidget {
   final _ViewMode viewMode;
   final ValueChanged<_VisitFilter> onFilterChanged;
   final Future<void> Function() onRefresh;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +202,7 @@ class _PlacesBody extends StatelessWidget {
       color: context.places.anchor,
       backgroundColor: context.places.paperRaised,
       child: CustomScrollView(
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           const SliverToBoxAdapter(child: _TodayStrip()),

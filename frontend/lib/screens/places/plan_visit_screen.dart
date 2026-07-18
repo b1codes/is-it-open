@@ -171,10 +171,9 @@ class _SectionLabel extends StatelessWidget {
     final theme = context.places;
     return Text(
       text,
-      style: PlacesType.label(theme.inkMuted).copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-      ),
+      style: PlacesType.label(
+        theme.inkMuted,
+      ).copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
     );
   }
 }

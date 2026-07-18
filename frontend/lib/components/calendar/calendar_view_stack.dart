@@ -237,7 +237,10 @@ class CalendarViewStackWidget extends StatelessWidget {
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
         weekDayBuilder: (date) {
-          final isToday = DateUtils.isSameDay(date, tz.TZDateTime.now(tz.local));
+          final isToday = DateUtils.isSameDay(
+            date,
+            tz.TZDateTime.now(tz.local),
+          );
           final dayEvents = controller.getEventsOnDay(date);
           final allDayEvents = dayEvents
               .where((e) => e.startTime == null || e.endTime == null)
@@ -295,7 +298,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                             style:
                                 PlacesType.title(
                                   isToday ? Colors.white : textColor,
-                               ).copyWith(
+                                ).copyWith(
                                   fontSize: 15,
                                   fontWeight: isToday
                                       ? FontWeight.w700

@@ -11,7 +11,10 @@ import '../../components/search/search_result_list_card.dart';
 import '../../components/search/search_result_grid_card.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final bool embedded;
+  final ScrollController? scrollController;
+
+  const SearchScreen({super.key, this.embedded = false, this.scrollController});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -67,8 +70,12 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadSuggestions(context);
   }
 
-  Widget _buildSuggestionsSection(SearchState state) {
+  Widget _buildSuggestionsSection(
+    SearchState state,
+    ScrollController? scrollController,
+  ) {
     return SingleChildScrollView(
+      controller: scrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -157,10 +164,9 @@ class _SearchScreenState extends State<SearchScreen> {
         _loadSuggestions(context);
         return bloc;
       },
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Column(
+      child: Builder(
+        builder: (context) {
+          final mainColumn = Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -226,7 +232,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     } else if (state.status == SearchStatus.failure) {
                       return Center(child: Text('Error: ${state.error}'));
                     } else if (state.status == SearchStatus.initial) {
-                      return _buildSuggestionsSection(state);
+                      return _buildSuggestionsSection(
+                        state,
+                        widget.scrollController,
+                      );
                     } else if (state.status == SearchStatus.success) {
                       if (state.places.isEmpty) {
                         return Center(
@@ -253,6 +262,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       }
                       return _isGridView
                           ? GridView.builder(
+                              controller: widget.scrollController,
                               padding: const EdgeInsets.all(8),
                               gridDelegate:
                                   const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -295,6 +305,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               },
                             )
                           : ListView.builder(
+                              controller: widget.scrollController,
                               itemCount: state.places.length + 1,
                               itemBuilder: (context, index) {
                                 if (index == state.places.length) {
@@ -326,8 +337,17 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
             ],
-          ),
-        ),
+          );
+
+          if (widget.embedded) {
+            return mainColumn;
+          }
+
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(child: mainColumn),
+          );
+        },
       ),
     );
   }

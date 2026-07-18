@@ -11,7 +11,8 @@ class Auth0UniversalLoginDialog extends StatefulWidget {
   const Auth0UniversalLoginDialog({super.key, this.connection});
 
   @override
-  State<Auth0UniversalLoginDialog> createState() => _Auth0UniversalLoginDialogState();
+  State<Auth0UniversalLoginDialog> createState() =>
+      _Auth0UniversalLoginDialogState();
 }
 
 class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
@@ -28,12 +29,8 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
     String? givenName,
     String? familyName,
   }) {
-    final header = {
-      "alg": "RS256",
-      "typ": "JWT",
-      "kid": "mock_kid_123"
-    };
-    
+    final header = {"alg": "RS256", "typ": "JWT", "kid": "mock_kid_123"};
+
     final payload = {
       "iss": "https://${EnvConfig.auth0Domain}/",
       "sub": sub,
@@ -47,22 +44,28 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       if (givenName != null) "given_name": givenName,
       if (familyName != null) "family_name": familyName,
     };
-    
-    final headerBase64 = base64Url.encode(utf8.encode(json.encode(header))).replaceAll('=', '');
-    final payloadBase64 = base64Url.encode(utf8.encode(json.encode(payload))).replaceAll('=', '');
-    final signatureBase64 = base64Url.encode(utf8.encode("mock_signature")).replaceAll('=', '');
-    
+
+    final headerBase64 = base64Url
+        .encode(utf8.encode(json.encode(header)))
+        .replaceAll('=', '');
+    final payloadBase64 = base64Url
+        .encode(utf8.encode(json.encode(payload)))
+        .replaceAll('=', '');
+    final signatureBase64 = base64Url
+        .encode(utf8.encode("mock_signature"))
+        .replaceAll('=', '');
+
     return "$headerBase64.$payloadBase64.$signatureBase64";
   }
 
   void _loginWithSocial(String provider, String name, String email) {
     final cleanProvider = provider.toLowerCase();
     final sub = "$cleanProvider|mock_${cleanProvider}_${email.hashCode.abs()}";
-    
+
     final parts = name.split(' ');
     final givenName = parts.isNotEmpty ? parts.first : name;
     final familyName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-    
+
     final token = _generateMockJwt(
       sub: sub,
       email: email,
@@ -70,17 +73,19 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       givenName: givenName,
       familyName: familyName,
     );
-    
+
     Navigator.of(context).pop(token);
   }
 
   void _submitEmailAuth() {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final email = _emailController.text.trim();
-    final name = _isSignUp ? _nameController.text.trim() : email.split('@').first;
+    final name = _isSignUp
+        ? _nameController.text.trim()
+        : email.split('@').first;
     final sub = "auth0|mock_email_${email.hashCode.abs()}";
-    
+
     final token = _generateMockJwt(
       sub: sub,
       email: email,
@@ -88,14 +93,14 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       givenName: name,
       familyName: '',
     );
-    
+
     Navigator.of(context).pop(token);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: Center(
@@ -107,13 +112,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
             decoration: BoxDecoration(
               color: AppColors.paperWarm,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.inkWarm.withValues(alpha: 0.1), width: 1.0),
+              border: Border.all(
+                color: AppColors.inkWarm.withValues(alpha: 0.1),
+                width: 1.0,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 30,
                   offset: const Offset(0, 10),
-                )
+                ),
               ],
             ),
             child: Material(
@@ -150,7 +158,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   Text(
                     _isSignUp ? 'Create your account' : 'Welcome',
                     textAlign: TextAlign.center,
@@ -168,7 +176,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Social Login Section
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -194,13 +202,17 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Divider
                   Row(
                     children: [
-                      Expanded(child: Divider(color: AppColors.inkWarm.withValues(alpha: 0.1))),
+                      Expanded(
+                        child: Divider(
+                          color: AppColors.inkWarm.withValues(alpha: 0.1),
+                        ),
+                      ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
@@ -212,12 +224,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                           ),
                         ),
                       ),
-                      Expanded(child: Divider(color: AppColors.inkWarm.withValues(alpha: 0.1))),
+                      Expanded(
+                        child: Divider(
+                          color: AppColors.inkWarm.withValues(alpha: 0.1),
+                        ),
+                      ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Email/Password Form
                   Form(
                     key: _formKey,
@@ -282,7 +298,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                           },
                         ),
                         const SizedBox(height: 20),
-                        
+
                         // Submit Button
                         ElevatedButton(
                           onPressed: _submitEmailAuth,
@@ -305,15 +321,17 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Toggle Signup/Login
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        _isSignUp ? 'Already have an account?' : 'Don\'t have an account?',
+                        _isSignUp
+                            ? 'Already have an account?'
+                            : 'Don\'t have an account?',
                         style: theme.textTheme.bodyMedium,
                       ),
                       TextButton(
@@ -332,7 +350,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                       ),
                     ],
                   ),
-                  
+
                   // Cancel / Close
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -359,11 +377,12 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.inkWarm,
-        side: BorderSide(color: AppColors.inkWarm.withValues(alpha: 0.15), width: 1.0),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: AppColors.inkWarm.withValues(alpha: 0.15),
+          width: 1.0,
         ),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -372,10 +391,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
           const SizedBox(width: 12),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
         ],
       ),

@@ -12,7 +12,16 @@ import '../../services/api_service.dart';
 import '../../utils/places_theme.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  final bool embedded;
+  final Function(SavedPlace)? onPlaceTapped;
+  final MapController? mapController;
+
+  const MapScreen({
+    super.key,
+    this.embedded = false,
+    this.onPlaceTapped,
+    this.mapController,
+  });
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -31,7 +40,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _showPinnedLocations = true;
 
   // Map Controller for dynamic panning
-  final MapController _mapController = MapController();
+  late final MapController _mapController;
 
   static const List<Color> _defaultPalette = [
     Color(0xFFB14E27), // Anchor
@@ -59,6 +68,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _mapController = widget.mapController ?? MapController();
 
     // Initialize map center with home address if available
     final authState = context.read<AuthBloc>().state;
@@ -238,7 +248,9 @@ class _MapScreenState extends State<MapScreen> {
                   _checkedPlaceIds.add(sp.place.tomtomId);
                   final allPinnedChecked = _savedPlaces
                       .where((p) => p.isPinned)
-                      .every((p) => _checkedPlaceIds.contains(p.place.tomtomId));
+                      .every(
+                        (p) => _checkedPlaceIds.contains(p.place.tomtomId),
+                      );
                   if (allPinnedChecked) {
                     _showPinnedLocations = true;
                   }
@@ -481,26 +493,33 @@ class _MapScreenState extends State<MapScreen> {
             point: LatLng(lat, lon),
             width: 40,
             height: 40,
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
+            child: GestureDetector(
+              onTap: () {
+                if (widget.onPlaceTapped != null) {
+                  widget.onPlaceTapped!(sp);
+                }
+              },
+              child: Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  Positioned(
+                    top: 6,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
-                ),
-                Icon(Icons.location_on, color: color, size: 40),
-                Positioned(
-                  top: 8,
-                  child: Icon(iconData, color: Colors.white, size: 16),
-                ),
-              ],
+                  Icon(Icons.location_on, color: color, size: 40),
+                  Positioned(
+                    top: 8,
+                    child: Icon(iconData, color: Colors.white, size: 16),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -549,6 +568,9 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return _buildMap();
+    }
     return BlocProvider<MapUiCubit>(
       create: (context) => MapUiCubit(),
       child: BlocBuilder<MapUiCubit, MapUiState>(
@@ -598,13 +620,18 @@ class _MapScreenState extends State<MapScreen> {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                 ),
                               ),
                               const Spacer(),
                               if (_checkedPlaceIds.isNotEmpty)
                                 IconButton(
-                                  icon: const Icon(Icons.layers_clear, size: 18),
+                                  icon: const Icon(
+                                    Icons.layers_clear,
+                                    size: 18,
+                                  ),
                                   tooltip: 'Hide All',
                                   onPressed: () {
                                     setState(() {

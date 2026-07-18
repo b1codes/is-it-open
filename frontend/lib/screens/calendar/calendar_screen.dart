@@ -18,21 +18,30 @@ import '../../utils/places_theme.dart';
 import '../../components/core/refractive_glass.dart';
 
 class CalendarScreen extends StatelessWidget {
-  const CalendarScreen({super.key});
+  final bool embedded;
+  final ScrollController? scrollController;
+
+  const CalendarScreen({
+    super.key,
+    this.embedded = false,
+    this.scrollController,
+  });
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final defaultCollapsed = width >= 600 && width < 1024;
     return BlocProvider<CalendarUiCubit>(
-      create: (context) => CalendarUiCubit(initialSidebarCollapsed: defaultCollapsed),
-      child: const _CalendarScreenView(),
+      create: (context) =>
+          CalendarUiCubit(initialSidebarCollapsed: defaultCollapsed),
+      child: _CalendarScreenView(embedded: embedded),
     );
   }
 }
 
 class _CalendarScreenView extends StatelessWidget {
-  const _CalendarScreenView();
+  final bool embedded;
+  const _CalendarScreenView({required this.embedded});
 
   @override
   Widget build(BuildContext context) {
@@ -47,13 +56,14 @@ class _CalendarScreenView extends StatelessWidget {
           ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
         }
       },
-      child: const _CalendarScreenContent(),
+      child: _CalendarScreenContent(embedded: embedded),
     );
   }
 }
 
 class _CalendarScreenContent extends StatelessWidget {
-  const _CalendarScreenContent();
+  final bool embedded;
+  const _CalendarScreenContent({required this.embedded});
 
   static const List<Color> _defaultPalette = [
     Color(0xFFB14E27), // Anchor
@@ -96,13 +106,15 @@ class _CalendarScreenContent extends StatelessWidget {
 
     return allEvents
         .where((e) => e.startTime != null && e.endTime != null)
-        .map((e) => {
-              'id': e.title,
-              'title': e.title,
-              'startTime': e.startTime!,
-              'endTime': e.endTime!,
-              'originalEvent': e,
-            })
+        .map(
+          (e) => {
+            'id': e.title,
+            'title': e.title,
+            'startTime': e.startTime!,
+            'endTime': e.endTime!,
+            'originalEvent': e,
+          },
+        )
         .toList();
   }
 
@@ -111,7 +123,12 @@ class _CalendarScreenContent extends StatelessWidget {
     DateTime baseDate,
   ) {
     final List<Map<String, dynamic>> blocks = [];
-    final startOfRange = tz.TZDateTime(tz.local, baseDate.year, baseDate.month, baseDate.day).subtract(const Duration(days: 14));
+    final startOfRange = tz.TZDateTime(
+      tz.local,
+      baseDate.year,
+      baseDate.month,
+      baseDate.day,
+    ).subtract(const Duration(days: 14));
 
     for (final sp in dataState.savedPlaces) {
       if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
@@ -207,7 +224,9 @@ class _CalendarScreenContent extends StatelessWidget {
     CalendarDataState dataState,
     PlacesTheme theme,
   ) {
-    final availablePlaces = dataState.savedPlaces.where((sp) => window.placeIds.contains(sp.place.tomtomId)).toList();
+    final availablePlaces = dataState.savedPlaces
+        .where((sp) => window.placeIds.contains(sp.place.tomtomId))
+        .toList();
 
     showModalBottomSheet(
       context: context,
@@ -296,8 +315,11 @@ class _CalendarScreenContent extends StatelessWidget {
         return BlocBuilder<CalendarDataBloc, CalendarDataState>(
           builder: (context, dataState) {
             final personalEvents = _preparePersonalEvents(dataState);
-            final businessBlocks = _prepareBusinessBlocks(dataState, uiState.baseDate);
-            
+            final businessBlocks = _prepareBusinessBlocks(
+              dataState,
+              uiState.baseDate,
+            );
+
             // Calculate windows using toggled state
             final windows = AvailabilityCalculator.calculateAvailableWindows(
               businessBlocks: businessBlocks,
@@ -309,9 +331,9 @@ class _CalendarScreenContent extends StatelessWidget {
               mainContent = CalendarViewStackWidget(
                 uiState: uiState,
                 controller: _buildLegacyController(
-                  dataState, 
-                  uiState, 
-                  windows, 
+                  dataState,
+                  uiState,
+                  windows,
                   theme.inkMuted.withValues(alpha: 0.5),
                 ),
                 checkedPlacesCount: dataState.checkedPlaceIds.length,
@@ -322,26 +344,41 @@ class _CalendarScreenContent extends StatelessWidget {
             } else {
               mainContent = PlannerView(
                 baseDate: uiState.baseDate,
-                dayCount: uiState.currentView == CalendarViewType.threeDay ? 3 : 1,
+                dayCount: uiState.currentView == CalendarViewType.threeDay
+                    ? 3
+                    : 1,
                 windows: windows,
-                personalEvents: uiState.showPersonalEvents ? personalEvents : [],
+                personalEvents: uiState.showPersonalEvents
+                    ? personalEvents
+                    : [],
                 onNavigateLeft: () {
-                  final days = uiState.currentView == CalendarViewType.threeDay ? 3 : 1;
+                  final days = uiState.currentView == CalendarViewType.threeDay
+                      ? 3
+                      : 1;
                   context.read<CalendarUiCubit>().navigateDate(
                     uiState.baseDate.subtract(Duration(days: days)),
                   );
                 },
                 onNavigateRight: () {
-                  final days = uiState.currentView == CalendarViewType.threeDay ? 3 : 1;
+                  final days = uiState.currentView == CalendarViewType.threeDay
+                      ? 3
+                      : 1;
                   context.read<CalendarUiCubit>().navigateDate(
                     uiState.baseDate.add(Duration(days: days)),
                   );
                 },
                 onNavigateToday: () {
-                  context.read<CalendarUiCubit>().navigateDate(tz.TZDateTime.now(tz.local));
+                  context.read<CalendarUiCubit>().navigateDate(
+                    tz.TZDateTime.now(tz.local),
+                  );
                 },
-                onWindowTap: (window) => _showSchedulingSheet(context, window, dataState, theme),
+                onWindowTap: (window) =>
+                    _showSchedulingSheet(context, window, dataState, theme),
               );
+            }
+
+            if (embedded) {
+              return Container(color: theme.paper, child: mainContent);
             }
 
             return Scaffold(
@@ -359,7 +396,8 @@ class _CalendarScreenContent extends StatelessWidget {
                     icon: Icons.business_center,
                     label: 'Places',
                     activeColor: theme.anchor,
-                    onTap: () => context.read<CalendarUiCubit>().toggleBusinessHours(),
+                    onTap: () =>
+                        context.read<CalendarUiCubit>().toggleBusinessHours(),
                   ),
                   const SizedBox(width: 8),
                   _buildToggleAction(
@@ -368,7 +406,8 @@ class _CalendarScreenContent extends StatelessWidget {
                     icon: Icons.person,
                     label: 'Personal',
                     activeColor: theme.inkMuted,
-                    onTap: () => context.read<CalendarUiCubit>().togglePersonalEvents(),
+                    onTap: () =>
+                        context.read<CalendarUiCubit>().togglePersonalEvents(),
                   ),
                   if (isMobile) ...[
                     const SizedBox(width: 8),
@@ -382,11 +421,16 @@ class _CalendarScreenContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     IconButton(
                       icon: Icon(
-                        uiState.isSidebarCollapsed ? Icons.menu_open : Icons.menu,
+                        uiState.isSidebarCollapsed
+                            ? Icons.menu_open
+                            : Icons.menu,
                         color: theme.ink,
                       ),
-                      onPressed: () => context.read<CalendarUiCubit>().toggleSidebar(),
-                      tooltip: uiState.isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar',
+                      onPressed: () =>
+                          context.read<CalendarUiCubit>().toggleSidebar(),
+                      tooltip: uiState.isSidebarCollapsed
+                          ? 'Expand Sidebar'
+                          : 'Collapse Sidebar',
                     ),
                   ],
                 ],
@@ -446,32 +490,46 @@ class _CalendarScreenContent extends StatelessWidget {
       label: label,
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive ? activeColor.withValues(alpha: 0.1) : Colors.transparent,
-            borderRadius: BorderRadius.circular(PlacesRadius.lg),
-            border: Border.all(
-              color: isActive ? activeColor.withValues(alpha: 0.3) : theme.ash,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: isActive ? activeColor : theme.inkMuted),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: PlacesType.label(
-                  isActive ? activeColor : theme.ink,
-                ).copyWith(
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  letterSpacing: 0,
-                ),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? activeColor.withValues(alpha: 0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(PlacesRadius.lg),
+              border: Border.all(
+                color: isActive
+                    ? activeColor.withValues(alpha: 0.3)
+                    : theme.ash,
+                width: 1,
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isActive ? activeColor : theme.inkMuted,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: PlacesType.label(isActive ? activeColor : theme.ink)
+                      .copyWith(
+                        fontWeight: isActive
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        letterSpacing: 0,
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
