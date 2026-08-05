@@ -161,7 +161,8 @@ class IcalParserService {
       try {
         final rule = RecurrenceRule.fromString('RRULE:$sanitizedRrule');
         final nowLocal = DateTime.now();
-        final rangeStart = nowLocal.subtract(const Duration(days: 30));
+        final defaultRangeStart = nowLocal.subtract(const Duration(days: 30));
+        final rangeStart = start.isBefore(defaultRangeStart) ? start : defaultRangeStart;
         final rangeEnd = nowLocal.add(const Duration(days: 180));
 
         final instances = rule

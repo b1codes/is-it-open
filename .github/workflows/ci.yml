@@ -6,9 +6,15 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
 jobs:
   ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +27,7 @@ jobs:
         run: |
           docker compose up -d db
           docker compose build backend
-          docker compose run backend python manage.py test
+          docker compose run --rm backend python manage.py test
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
