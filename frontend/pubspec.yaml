@@ -43,7 +43,7 @@ dependencies:
   shared_preferences: ^2.5.5
   device_calendar: ^4.3.0
   geolocator: ^10.1.0
-  intl: ^0.19.0
+  intl: ^0.20.2
   icalendar_parser: ^2.1.0
   file_picker: ^8.0.0
   rrule: ^0.2.18
