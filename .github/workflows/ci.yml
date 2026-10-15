@@ -44,3 +44,11 @@ jobs:
         run: |
           cd frontend
           flutter test
+
+      - name: Verify Widgetbook Catalog
+        run: |
+          cd frontend/widgetbook
+          flutter pub get
+          dart run build_runner build --force-jit
+          flutter analyze
+          flutter test
