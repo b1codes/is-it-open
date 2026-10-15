@@ -44,8 +44,8 @@ class WidgetbookApp extends StatelessWidget {
         ZoomAddon(),
         GridAddon(),
         InspectorAddon(),
-        // Experimental from widgetbook 3.24, which CI resolves; local Flutter
-        // pins 3.23 where it is stable.
+        // Marked experimental in the newer widgetbook CI resolves (3.25); local
+        // Flutter 3.38 resolves 3.23, where it is not.
         // ignore: experimental_member_use
         SemanticsAddon(),
       ],
