@@ -179,6 +179,15 @@ class ImportPostgresTest(FirestoreTestCase):
         )
         self.assertTrue(saved[0]["is_check_it_out"])
 
+        # Same document shape the repository writes
+        new = places.update_or_create_place(
+            {"tomtom_id": "new", "name": "New", "address": "x", "location": {"lat": 1.0, "lng": 2.0}}
+        )
+        places.save_place(alice, new)
+        new_doc = places._saved_places(alice).document(doc_id("new")).get().to_dict()
+        imported_doc = places._saved_places(alice).document(doc_id("tt-12")).get().to_dict()
+        self.assertEqual(set(imported_doc), set(new_doc))
+
     def test_new_ids_continue_after_the_largest_imported_id(self):
         _import()
 

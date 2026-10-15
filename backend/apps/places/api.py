@@ -2,6 +2,7 @@ from ninja import Query, Router, Schema
 from ninja.errors import HttpError
 from typing import List, Optional
 
+from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 from . import repository
 
@@ -99,7 +100,10 @@ def search_places(request, query: str):
 
 @router.post("/", response=PlaceSchema)
 def create_place(request, payload: PlaceCreateSchema):
-    return repository.update_or_create_place(payload.dict())
+    try:
+        return repository.update_or_create_place(payload.dict())
+    except InvalidDocumentKey:
+        raise HttpError(400, "Invalid tomtom_id")
 
 @router.post("/bookmark", response=SavedPlaceSchema)
 def bookmark_place(request, payload: SavePlaceInput):
@@ -112,8 +116,7 @@ def get_bookmarks(request):
 
 @router.delete("/bookmarks/{tomtom_id}", response={204: None, 404: dict})
 def delete_bookmark(request, tomtom_id: str):
-    place = _get_place_or_404(tomtom_id)
-    if repository.delete_saved_place(request.auth, place):
+    if repository.delete_saved_place(request.auth, tomtom_id):
         return 204, None
     return 404, {"detail": "Bookmark not found"}
 
@@ -174,6 +177,9 @@ def get_place_details(request, tomtom_id: str):
     details = client.get_place_details(tomtom_id)
     
     if not details:
-        return 404, {"detail": "Place not found in TomTom"}
-        
-    return repository.update_or_create_place(details)
+        raise HttpError(404, "Place not found in TomTom")
+
+    try:
+        return repository.update_or_create_place(details)
+    except InvalidDocumentKey:
+        raise HttpError(404, "Place not found in TomTom")

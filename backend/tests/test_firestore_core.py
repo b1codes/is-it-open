@@ -3,6 +3,7 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 import jwt
+from google.cloud.firestore_v1.document import DocumentReference
 
 from apps.users import repository
 from apps.users.auth import GlobalAuth
@@ -254,14 +255,22 @@ class InvalidKeyApiTest(FirestoreTestCase):
         with self.settings(AUTH0_MOCK=True):
             self.assertIsNone(GlobalAuth().authenticate(None, token))
 
-    def test_token_documents_are_keyed_by_doc_id(self):
+    def test_token_lookup_is_one_query_on_the_user_document(self):
         user = repository.create_user("tokenuser", "pw")
         token = repository.get_or_create_token(user)
 
-        snapshot = get_client().collection(repository.AUTH_TOKENS).document(doc_id(token)).get()
-        self.assertTrue(snapshot.exists)
-        self.assertEqual(snapshot.get("username"), "tokenuser")
-        self.assertEqual(repository.get_user_by_token(token), user)
+        snapshot = get_client().collection(repository.USERS).document(user.doc_id).get()
+        self.assertEqual(snapshot.get("token"), token)
+        with patch.object(DocumentReference, "get", autospec=True, side_effect=DocumentReference.get) as get:
+            self.assertEqual(repository.get_user_by_token(token), user)
+        get.assert_not_called()
+        self.assertIsNone(repository.get_user_by_token(token[:-1]))
+        self.assertIsNone(repository.get_user_by_token("x" * 1501))
+
+    def test_register_rejects_auth0_style_usernames(self):
+        response = self._post("/api/auth/register", {"username": "google-oauth2|123", "password": "pw"})
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIsNone(repository.get_user("google-oauth2|123"))
 
 
 class Auth0ReadPathTest(FirestoreTestCase):

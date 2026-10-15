@@ -47,12 +47,19 @@ class SearchPlacesTest(FirestoreTestCase):
             self.assertEqual(len(places.search_places("pizza hut", limit=3)), 3)
             self.assertEqual(len(places.search_places("pizza", limit=20)), 16)
 
-    def test_respects_limit(self):
+    def test_returns_every_match_unless_limited(self):
         for i in range(30):
             places.update_or_create_place(_place_data(f"p{i:02}", f"Pizza {i}"))
 
-        self.assertEqual(len(places.search_places("pizza")), 20)
+        self.assertEqual(len(places.search_places("pizza")), 30)  # unbounded, like icontains
         self.assertEqual(len(places.search_places("pizza", limit=5)), 5)
+
+    def test_candidate_cap_bounds_reads(self):
+        for i in range(12):
+            places.update_or_create_place(_place_data(f"p{i:02}", f"Pizza {i}"))
+
+        with patch.object(places, "_SEARCH_PAGE_SIZE", 5), patch.object(places, "_MAX_SEARCH_CANDIDATES", 7):
+            self.assertEqual(len(places.search_places("pizza")), 7)
 
     def test_matches_inside_words(self):
         places.update_or_create_place(_place_data("1", "Joe's Pizza"))
@@ -91,9 +98,21 @@ class SearchPlacesTest(FirestoreTestCase):
         self.assertEqual(places.search_places("ben and jerry"), [])
         # Surrounding and repeated whitespace is ignored.
         self.assertEqual(_ids(places.search_places("  joe's   pizza ")), {"1"})
-        # Nothing to look up in the index.
-        self.assertEqual(places.search_places("&"), [])
+        # Punctuation-only queries are indexed too.
+        self.assertEqual(_ids(places.search_places("&")), {"2"})
+        self.assertEqual(_ids(places.search_places("'s")), {"1", "2"})
+        # A blank query has nothing to look up.
         self.assertEqual(places.search_places("   "), [])
+
+    def test_punctuation_inside_words(self):
+        places.update_or_create_place(_place_data("aw", "A&W Restaurant"))
+        places.update_or_create_place(_place_data("7", "7-Eleven"))
+
+        self.assertEqual(_ids(places.search_places("&")), {"aw"})
+        self.assertEqual(_ids(places.search_places("a&w")), {"aw"})
+        self.assertEqual(_ids(places.search_places("&w rest")), {"aw"})
+        self.assertEqual(_ids(places.search_places("-")), {"7"})
+        self.assertEqual(_ids(places.search_places("7-e")), {"7"})
 
     def test_case_folding(self):
         places.update_or_create_place(_place_data("1", "CAFÉ ΟΔΟΣ"))
@@ -121,7 +140,10 @@ class SearchPlacesTest(FirestoreTestCase):
         self.assertEqual(places.reindex_search_terms(), 0)
 
     def test_search_terms_are_substrings_of_words(self):
-        self.assertEqual(places._search_terms("Ab-c"), ["a", "ab", "b", "c"])
+        self.assertEqual(
+            places._search_terms("Ab-c d"),
+            ["-", "-c", "a", "ab", "ab-", "ab-c", "b", "b-", "b-c", "c", "d"],
+        )
         terms = places._search_terms("x" * 5 + "abcdefghijklmnopqrstuvwxyz")
         self.assertIn("abcdefghijklmnopqrst", terms)
         self.assertIn("ghijklmnopqrstuvwxyz", terms)
@@ -268,7 +290,7 @@ class SavedPlaceUpdateTest(FirestoreTestCase):
 
     def test_update_after_delete_returns_none(self):
         places.save_place(self.user, self.place)
-        self.assertTrue(places.delete_saved_place(self.user, self.place))
+        self.assertTrue(places.delete_saved_place(self.user, self.place["tomtom_id"]))
 
         self.assertIsNone(places.update_saved_place(self.user, self.place, is_pinned=True))
 
@@ -289,7 +311,86 @@ class SavedPlaceUpdateTest(FirestoreTestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_delete_missing_bookmark(self):
-        self.assertFalse(places.delete_saved_place(self.user, self.place))
+        self.assertFalse(places.delete_saved_place(self.user, self.place["tomtom_id"]))
         places.save_place(self.user, self.place)
-        self.assertTrue(places.delete_saved_place(self.user, self.place))
-        self.assertFalse(places.delete_saved_place(self.user, self.place))
+        self.assertTrue(places.delete_saved_place(self.user, self.place["tomtom_id"]))
+        self.assertFalse(places.delete_saved_place(self.user, self.place["tomtom_id"]))
+
+    def test_delete_with_unstorable_tomtom_id(self):
+        self.assertFalse(places.delete_saved_place(self.user, ""))
+
+    def test_delete_bookmark_whose_place_is_gone(self):
+        places.save_place(self.user, self.place)
+        places._places().document(doc_id("p1")).delete()
+        self.assertEqual(places.list_saved_places(self.user), [])  # hidden from the list ...
+
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {users.get_or_create_token(self.user)}"}
+        response = self.client.delete("/api/places/bookmarks/p1", **headers)
+        self.assertEqual(response.status_code, 204)  # ... but still removable
+        self.assertEqual(self.client.delete("/api/places/bookmarks/p1", **headers).status_code, 404)
+
+
+class ListSavedPlacesTest(FirestoreTestCase):
+    def test_ordered_by_creation_time_not_id(self):
+        user = users.create_user("testuser", "password")
+        for tomtom_id in ("first", "second", "third"):
+            places.save_place(user, places.update_or_create_place(_place_data(tomtom_id)))
+        # IDs come from per-process blocks, so an older bookmark can hold a larger ID.
+        ref = places._saved_places(user).document(doc_id("first"))
+        ref.update({"id": ref.get().get("id") + 1000})
+
+        self.assertEqual(
+            [s["place"]["tomtom_id"] for s in places.list_saved_places(user)], ["first", "second", "third"]
+        )
+
+    def test_same_creation_time_falls_back_to_id(self):
+        user = users.create_user("testuser", "password")
+        for tomtom_id in ("a", "b"):
+            places.save_place(user, places.update_or_create_place(_place_data(tomtom_id)))
+        same = places._saved_places(user).document(doc_id("a")).get().get("created_at")
+        places._saved_places(user).document(doc_id("b")).update({"created_at": same, "id": 1})
+        places._saved_places(user).document(doc_id("a")).update({"id": 2})
+
+        self.assertEqual([s["place"]["tomtom_id"] for s in places.list_saved_places(user)], ["b", "a"])
+
+
+class InvalidTomTomIdTest(FirestoreTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = users.create_user("testuser", "password")
+        self.headers = {"HTTP_AUTHORIZATION": f"Bearer {users.get_or_create_token(self.user)}"}
+
+    def _post(self, path, payload):
+        return self.client.post(path, data=payload, content_type="application/json", **self.headers)
+
+    def test_get_place_returns_none(self):
+        self.assertIsNone(places.get_place(""))
+        self.assertIsNone(places.get_place("\ud800"))
+
+    def test_bookmark_with_empty_tomtom_id_is_404(self):
+        self.assertEqual(self._post("/api/places/bookmark", {"tomtom_id": ""}).status_code, 404)
+
+    def test_create_place_with_empty_tomtom_id_is_400(self):
+        payload = {**_place_data(""), "address": "1 Main St"}
+        self.assertEqual(self._post("/api/places/", payload).status_code, 400)
+
+
+class PlaceDetailsTest(FirestoreTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = users.create_user("testuser", "password")
+        self.headers = {"HTTP_AUTHORIZATION": f"Bearer {users.get_or_create_token(self.user)}"}
+
+    @patch("apps.places.api.TomTomClient.get_place_details", return_value=None)
+    def test_unknown_place_is_404(self, get_place_details):
+        response = self.client.get("/api/places/missing", **self.headers)
+        self.assertEqual(response.status_code, 404, response.content)
+        self.assertEqual(response.json(), {"detail": "Place not found in TomTom"})
+        get_place_details.assert_called_once_with("missing")
+
+    @patch("apps.places.api.TomTomClient.get_place_details")
+    def test_fetched_place_is_stored(self, get_place_details):
+        get_place_details.return_value = _place_data("fresh", "Fresh Place")
+        response = self.client.get("/api/places/fresh", **self.headers)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(places.get_place("fresh")["name"], "Fresh Place")

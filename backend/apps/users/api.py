@@ -78,8 +78,14 @@ def login(request, data: LoginInput):
 
     return _auth_output(user, repository.get_or_create_token(user))
 
+# Auth0 subs ("provider|id") share the users/ namespace with local usernames, and Auth0 sign-in
+# looks users up by sub, so a local account must never be able to claim one.
+AUTH0_SUB_SEPARATOR = "|"
+
 @router.post("/register", response=AuthOutput)
 def register(request, data: RegisterInput):
+    if AUTH0_SUB_SEPARATOR in data.username:
+        raise HttpError(400, "Invalid username")
     try:
         user = repository.create_user(data.username, data.password, email=data.email or "")
     except InvalidDocumentKey:
@@ -116,14 +122,19 @@ class ProfileUpdateInput(Schema):
 @router.put("/me", response=AuthOutput, auth=GlobalAuth())
 def update_me(request, data: ProfileUpdateInput):
     user = request.auth
+    # Only the fields this request changes are written, so a concurrent update to other fields
+    # (e.g. during the geocode call below) isn't overwritten with the values loaded at auth time.
+    changed = set()
 
-    user_updated = False
+    def set_field(field, value):
+        if value != getattr(user, field):
+            setattr(user, field, value)
+            changed.add(field)
+
     if data.first_name is not None:
-        user.first_name = data.first_name
-        user_updated = True
+        set_field('first_name', data.first_name)
     if data.last_name is not None:
-        user.last_name = data.last_name
-        user_updated = True
+        set_field('last_name', data.last_name)
 
     # We will track if address fields changed to determine if we need to geocode
     home_address_changed = False
@@ -132,80 +143,51 @@ def update_me(request, data: ProfileUpdateInput):
     # Define fields that trigger geocoding
     home_geo_fields = ['home_street', 'home_city', 'home_state', 'home_zip']
     work_geo_fields = ['work_street', 'work_city', 'work_state', 'work_zip']
-    
-    # Update profile fields if provided
-    profile_updated = False
-    
+
     # Handle home address fields
     for field in ['home_address'] + home_geo_fields:
         val = getattr(data, field)
-        if val is not None:
-            if val != getattr(user, field):
-                setattr(user, field, val)
-                profile_updated = True
-                if field in home_geo_fields or field == 'home_address':
-                    home_address_changed = True
-                    
+        if val is not None and val != getattr(user, field):
+            set_field(field, val)
+            home_address_changed = True
+
     # Handle work address fields
     for field in ['work_address'] + work_geo_fields:
         val = getattr(data, field)
+        if val is not None and val != getattr(user, field):
+            set_field(field, val)
+            work_address_changed = True
+
+    # Allow explicit lat/lng overrides from frontend. Don't re-geocode if coordinates are
+    # provided, even if they're the same values.
+    for field in ('home_lat', 'home_lng'):
+        val = getattr(data, field)
         if val is not None:
-            if val != getattr(user, field):
-                setattr(user, field, val)
-                profile_updated = True
-                if field in work_geo_fields or field == 'work_address':
-                    work_address_changed = True
+            set_field(field, val)
+            home_address_changed = False
+    for field in ('work_lat', 'work_lng'):
+        val = getattr(data, field)
+        if val is not None:
+            set_field(field, val)
+            work_address_changed = False
 
-    # Allow explicit lat/lng overrides from frontend
-    if data.home_lat is not None and data.home_lat != user.home_lat:
-        user.home_lat = data.home_lat
-        profile_updated = True
-        home_address_changed = False # Don't re-geocode if explicitly provided
-    elif data.home_lat is not None:
-        home_address_changed = False # Still override if same value provided
-
-    if data.home_lng is not None and data.home_lng != user.home_lng:
-        user.home_lng = data.home_lng
-        profile_updated = True
-        home_address_changed = False
-    elif data.home_lng is not None:
-        home_address_changed = False
-
-    if data.work_lat is not None and data.work_lat != user.work_lat:
-        user.work_lat = data.work_lat
-        profile_updated = True
-        work_address_changed = False
-    elif data.work_lat is not None:
-        work_address_changed = False
-
-    if data.work_lng is not None and data.work_lng != user.work_lng:
-        user.work_lng = data.work_lng
-        profile_updated = True
-        work_address_changed = False
-    elif data.work_lng is not None:
-        work_address_changed = False
-        
-    if data.use_current_location is not None and data.use_current_location != user.use_current_location:
-        user.use_current_location = data.use_current_location
-        profile_updated = True
-
-    if data.calendar_subscription_url is not None and data.calendar_subscription_url != user.calendar_subscription_url:
-        user.calendar_subscription_url = data.calendar_subscription_url
-        profile_updated = True
+    if data.use_current_location is not None:
+        set_field('use_current_location', data.use_current_location)
+    if data.calendar_subscription_url is not None:
+        set_field('calendar_subscription_url', data.calendar_subscription_url)
 
     # Perform geocoding if needed
     if home_address_changed or work_address_changed:
         client = TomTomClient()
-        
+
         if home_address_changed:
             address_parts = [p for p in [user.home_street, user.home_city, user.home_state, user.home_zip] if p]
             full_address = ", ".join(address_parts)
             if full_address:
                 coords = client.geocode_address(full_address)
                 if coords:
-                    user.home_lat = coords['lat']
-                    user.home_lng = coords['lon']
-                    profile_updated = True
+                    set_field('home_lat', coords['lat'])
+                    set_field('home_lng', coords['lon'])
 
         if work_address_changed:
             address_parts = [p for p in [user.work_street, user.work_city, user.work_state, user.work_zip] if p]
@@ -213,11 +195,10 @@ def update_me(request, data: ProfileUpdateInput):
             if full_address:
                 coords = client.geocode_address(full_address)
                 if coords:
-                    user.work_lat = coords['lat']
-                    user.work_lng = coords['lon']
-                    profile_updated = True
-        
-    if user_updated or profile_updated:
-        repository.save_user(user)
+                    set_field('work_lat', coords['lat'])
+                    set_field('work_lng', coords['lon'])
+
+    if changed:
+        repository.save_user(user, changed)
 
     return _auth_output(user, _request_token(request, user))

@@ -57,3 +57,35 @@ class ProfileApiTest(FirestoreTestCase):
         # Credentials are untouched by profile saves
         self.assertTrue(user.check_password("password"))
         self.assertEqual(user.token, self.token)
+
+    @patch("apps.users.api.TomTomClient.geocode_address")
+    def test_update_me_keeps_concurrent_changes_to_other_fields(self, mock_geocode):
+        """A profile update only writes the fields it changed."""
+
+        def concurrent_rename(address):
+            # Another request renames the user while this one waits on the geocoder.
+            other = repository.get_user("testuser")
+            other.first_name = "Renamed"
+            repository.save_user(other, {"first_name"})
+            return {"lat": 34.0522, "lon": -118.2437}
+
+        mock_geocode.side_effect = concurrent_rename
+
+        response = self.client.put(
+            "/api/auth/me",
+            data=json.dumps({"home_city": "Los Angeles"}),
+            content_type="application/json",
+            **self.auth_headers
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user = repository.get_user("testuser")
+        self.assertEqual(user.first_name, "Renamed")
+        self.assertEqual(user.home_city, "Los Angeles")
+        self.assertEqual(user.home_lat, 34.0522)
+        self.assertEqual(user.home_address, "123 Home St")
+
+    def test_save_user_rejects_unknown_or_protected_fields(self):
+        for field in ("token", "password", "nonexistent"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                repository.save_user(self.user, {field})

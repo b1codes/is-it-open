@@ -2,23 +2,23 @@
 Firestore persistence for users, their profile, and API tokens.
 
 Layout:
-    users/{doc_id(username)}   account + profile fields (the old User and UserProfile)
-    auth_tokens/{doc_id(key)}  token -> user lookup (the old AuthToken)
+    users/{doc_id(username)}   account + profile fields (the old User and UserProfile), plus the
+                               API token (the old AuthToken), looked up with an equality query
 
-Lookups by username or token return None for keys that can't be document IDs (see
+Lookups by username or token return None for keys that can't be stored (see
 services.firestore.doc_id); create_user() raises InvalidDocumentKey for them.
 """
 import secrets
 from dataclasses import asdict, dataclass, fields
 from typing import Optional
 
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password, is_password_usable, make_password
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
 
 USERS = "users"
-AUTH_TOKENS = "auth_tokens"
 
 
 @dataclass
@@ -57,6 +57,10 @@ class User:
     def check_password(self, raw_password: str) -> bool:
         return check_password(raw_password, self.password)
 
+    def has_usable_password(self) -> bool:
+        """False for accounts created by Auth0 sign-in, which can't log in with a password."""
+        return is_password_usable(self.password)
+
     @classmethod
     def from_dict(cls, data: dict) -> "User":
         names = {f.name for f in fields(cls)}
@@ -67,8 +71,9 @@ def _users():
     return get_client().collection(USERS)
 
 
-def _tokens():
-    return get_client().collection(AUTH_TOKENS)
+def user_document(user: User, created_at=firestore.SERVER_TIMESTAMP) -> dict:
+    """The users/{doc} document for `user`. Shared with the Postgres import so the shapes match."""
+    return {**asdict(user), "created_at": created_at}
 
 
 def get_user(username: str) -> Optional[User]:
@@ -119,20 +124,34 @@ def _get_or_create_user(username, password, extra):
             password=make_password(password),
             **extra,
         )
-        transaction.set(ref, {**asdict(user), "created_at": firestore.SERVER_TIMESTAMP})
+        transaction.set(ref, user_document(user))
         return user, True
 
     return get_or_create(client.transaction())
 
 
+# Firestore's limit on an indexed (and so queried) string value, in UTF-8 bytes. Tokens are 40 hex
+# characters (Postgres-era ones included).
+_MAX_TOKEN_BYTES = 1500
+
 # Identity and credential fields are only written on creation / token issue, never by save_user().
 _PROTECTED_FIELDS = ("id", "username", "password", "token")
 
 
-def save_user(user: User):
-    """Persist `user`'s account and profile fields."""
+def save_user(user: User, field_names=None):
+    """
+    Persist `user`'s account and profile fields, or only those in `field_names`. Passing just the
+    fields a request changed keeps concurrent requests that change other fields from undoing
+    each other's writes with stale values.
+    """
     data = {k: v for k, v in asdict(user).items() if k not in _PROTECTED_FIELDS}
-    _users().document(user.doc_id).update(data)
+    if field_names is not None:
+        unknown = set(field_names) - set(data)
+        if unknown:
+            raise ValueError(f"Not saveable user fields: {sorted(unknown)}")
+        data = {k: data[k] for k in field_names}
+    if data:
+        _users().document(user.doc_id).update(data)
 
 
 def authenticate(username: str, password: str) -> Optional[User]:
@@ -156,7 +175,6 @@ def get_or_create_token(user: User) -> str:
         if existing:
             return existing
         key = secrets.token_hex(20)
-        transaction.set(_tokens().document(doc_id(key)), {"username": user.username, "created_at": firestore.SERVER_TIMESTAMP})
         transaction.update(user_ref, {"token": key})
         return key
 
@@ -165,11 +183,19 @@ def get_or_create_token(user: User) -> str:
 
 
 def get_user_by_token(key: str) -> Optional[User]:
+    """
+    One equality query on `token` (served by the automatic single-field index), so a
+    token-authenticated request costs a single round trip.
+    """
+    if not isinstance(key, str) or not key:
+        return None
     try:
-        ref = _tokens().document(doc_id(key))
-    except InvalidDocumentKey:
+        size = len(key.encode("utf-8"))
+    except UnicodeEncodeError:
         return None
-    snapshot = ref.get()
-    if not snapshot.exists:
+    if size > _MAX_TOKEN_BYTES:  # Firestore rejects larger query values; no stored token is one
         return None
-    return get_user(snapshot.get("username"))
+    query = _users().where(filter=FieldFilter("token", "==", key)).limit(1)
+    for snapshot in query.stream():
+        return User.from_dict(snapshot.to_dict())
+    return None

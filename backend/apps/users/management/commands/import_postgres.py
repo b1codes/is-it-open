@@ -7,11 +7,11 @@ Firestore. See backend/README_DEPLOY.md, "Upgrading from the Postgres version".
 
 Reads the old tables
 
-    auth_user + users_userprofile + users_authtoken   ->  users/{doc}, auth_tokens/{doc}
+    auth_user + users_userprofile + users_authtoken   ->  users/{doc} (token embedded)
     places_place + hours_businesshours                ->  places/{doc} (hours embedded)
     places_savedplace                                 ->  users/{doc}/saved_places/{doc}
 
-and writes documents in the same shapes as apps.users.repository and apps.places.repository,
+and writes documents with the same builders as apps.users.repository and apps.places.repository,
 keeping the original integer IDs (the Flutter app caches them), the Django password hashes and the
 API token keys. The ID counters are moved up to the largest Postgres ID (skipped rows included) so new
 records continue the old sequences and no ID a client has seen is handed out again.
@@ -25,16 +25,20 @@ The Postgres half (read_postgres) is separate from the Firestore half (build_pla
 apply_plan) so the latter can be tested against the emulator with fixture rows.
 """
 import datetime
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 from decouple import config
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from apps.places import repository as places_repo
 from apps.users import repository as users_repo
 from services.firestore import COUNTERS, InvalidDocumentKey, doc_id, get_client
+
+# Report row for the users that have an API token (stored on the user document).
+TOKENS = "auth_tokens"
 
 # Firestore's limit on writes in one batch.
 BATCH_SIZE = 500
@@ -126,7 +130,7 @@ class Plan:
     writes: list = field(default_factory=list)  # (DocumentReference, data)
     # kind -> {document path: integer ID}, for the conflict check and the counters
     ids: dict = field(default_factory=lambda: {kind: {} for kind in KINDS})
-    tokens: int = 0  # token documents planned
+    tokens: int = 0  # users planned with a token
     tokens_read: int = 0
     read: dict = field(default_factory=lambda: dict.fromkeys(KINDS, 0))
     skipped: dict = field(default_factory=lambda: dict.fromkeys(KINDS, 0))
@@ -193,13 +197,8 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
             continue
         users_by_id[row["id"]] = user
 
-        plan.add(users_repo.USERS, ref, {**asdict(user), "created_at": _or_server_timestamp(row.get("date_joined"))})
+        plan.add(users_repo.USERS, ref, users_repo.user_document(user, _or_server_timestamp(row.get("date_joined"))))
         if user.token:
-            token_ref = client.collection(users_repo.AUTH_TOKENS).document(doc_id(user.token))
-            plan.writes.append((
-                token_ref,
-                {"username": user.username, "created_at": _or_server_timestamp(row.get("token_created_at"))},
-            ))
             plan.tokens += 1
 
     hours_by_place = {}
@@ -219,19 +218,15 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
             plan.skipped[places_repo.PLACES] += 1
             plan.warnings.append(f"Skipped place {row['id']} ({row['tomtom_id']!r}): {exc}")
             continue
-        place = {
-            "id": row["id"],
-            "tomtom_id": row["tomtom_id"],
-            "name": row["name"],
-            "search_terms": places_repo._search_terms(row["name"]),
-            "address": row["address"],
-            "phone": row.get("phone"),
-            "website": row.get("website"),
-            "categories": row.get("categories") or [],
-            "hours": places_repo._normalize_hours(hours_by_place.get(row["id"], [])),
-            "created_at": created_at[row["id"]],
-            **places_repo._location_fields(row["lat"], row["lng"]),
-        }
+        place = places_repo.place_document(
+            row["id"],
+            {
+                **row,
+                "location": {"lat": row["lat"], "lng": row["lng"]},
+                "hours": hours_by_place.get(row["id"], []),
+            },
+            created_at=created_at[row["id"]],
+        )
         places_by_id[row["id"]] = place
         plan.add(places_repo.PLACES, ref, place)
 
@@ -240,15 +235,12 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
         if user is None or place is None:
             plan.skipped[places_repo.SAVED_PLACES] += 1
             continue
-        saved = {
-            "id": row["id"],
-            "place_id": place["id"],
-            "tomtom_id": place["tomtom_id"],
-            **{f: row.get(f) for f in places_repo._SAVED_PLACE_FIELDS},
-            "is_pinned": bool(row.get("is_pinned")),
-            "is_check_it_out": bool(row.get("is_check_it_out")),
-            "created_at": _or_server_timestamp(row.get("created_at")),
-        }
+        fields = {f: row.get(f) for f in places_repo._SAVED_PLACE_FIELDS}
+        fields["is_pinned"] = bool(fields["is_pinned"])
+        fields["is_check_it_out"] = bool(fields["is_check_it_out"])
+        saved = places_repo.saved_place_document(
+            row["id"], place, created_at=_or_server_timestamp(row.get("created_at")), **fields
+        )
         ref = places_repo._saved_places(user).document(doc_id(place["tomtom_id"]))
         plan.add(places_repo.SAVED_PLACES, ref, saved)
 
@@ -308,7 +300,8 @@ def firestore_counts() -> dict:
 
     return {
         users_repo.USERS: count(client.collection(users_repo.USERS)),
-        users_repo.AUTH_TOKENS: count(client.collection(users_repo.AUTH_TOKENS)),
+        # Users whose token is a string; a range filter skips the null (no token) ones.
+        TOKENS: count(client.collection(users_repo.USERS).where(filter=FieldFilter("token", ">", ""))),
         places_repo.PLACES: count(client.collection(places_repo.PLACES)),
         places_repo.SAVED_PLACES: count(client.collection_group(places_repo.SAVED_PLACES)),
     }
@@ -375,13 +368,13 @@ class Command(BaseCommand):
 
     def _report(self, plan, counts):
         planned = {kind: len(plan.ids[kind]) for kind in KINDS}
-        planned[users_repo.AUTH_TOKENS] = plan.tokens
-        read = {**plan.read, users_repo.AUTH_TOKENS: plan.tokens_read}
-        skipped = {**plan.skipped, users_repo.AUTH_TOKENS: plan.tokens_read - plan.tokens}
+        planned[TOKENS] = plan.tokens
+        read = {**plan.read, TOKENS: plan.tokens_read}
+        skipped = {**plan.skipped, TOKENS: plan.tokens_read - plan.tokens}
         written = "written" if counts is not None else "to write"
 
         rows = [("", "postgres", "skipped", written, "firestore", "counter")]
-        for kind in (users_repo.USERS, users_repo.AUTH_TOKENS, places_repo.PLACES, places_repo.SAVED_PLACES):
+        for kind in (users_repo.USERS, TOKENS, places_repo.PLACES, places_repo.SAVED_PLACES):
             rows.append((
                 kind,
                 read[kind],

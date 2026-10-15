@@ -5,17 +5,20 @@ Layout:
     places/{doc_id(tomtom_id)}                  place data, with business hours embedded
     users/{user_doc}/saved_places/{place_doc}   a user's bookmark of a place
 
-Functions return plain dicts shaped like the API schemas.
+Functions return plain dicts shaped like the API schemas. Lookups by TomTom ID return None (or
+False) for keys that can't be document IDs (see services.firestore.doc_id); writes raise
+InvalidDocumentKey for them.
 """
+import datetime
 import math
-import re
+from concurrent.futures import ThreadPoolExecutor
 
 from google.api_core.exceptions import NotFound
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud.firestore_v1.field_path import FieldPath
 
-from services.firestore import allocate_id, doc_id, get_client
+from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
 from services.geo import MAX_RADIUS_KM, distance_km, encode_geohash, geohash_query_prefixes
 
 PLACES = "places"
@@ -30,6 +33,11 @@ _SEARCH_PAGE_SIZE = 100
 _MAX_SEARCH_CANDIDATES = 2000
 
 MAX_NEARBY_RADIUS_KM = MAX_RADIUS_KM
+
+# Runs a nearby search's geohash prefix queries concurrently (up to MAX_QUERY_CELLS_FALLBACK of
+# them), so the request waits about one round trip instead of one per prefix. Shared across
+# requests; threads start on first use, so a forking server creates them in each worker.
+_query_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="firestore-query")
 
 
 def _places():
@@ -46,13 +54,15 @@ def _normalize_text(text: str) -> str:
 
 
 def _words(text: str):
-    return re.findall(r"\w+", _normalize_text(text))
+    """Whitespace-separated words, punctuation included ("A&W" is one word)."""
+    return _normalize_text(text).split()
 
 
 def _search_terms(name: str):
     """
     Every substring (up to _MAX_SEARCH_TERM_LENGTH characters) of every word in the name, so a
-    query word can be found with array_contains wherever it falls inside a word.
+    query word can be found with array_contains wherever it falls inside a word. Words keep
+    their punctuation, so a query that is only punctuation (e.g. "&") is indexed too.
     """
     terms = set()
     for word in _words(name):
@@ -96,13 +106,41 @@ def _to_place(data: dict) -> dict:
     }
 
 
+def place_document(id: int, data: dict, created_at=firestore.SERVER_TIMESTAMP) -> dict:
+    """
+    The places/{doc} document for TomTom (or user-supplied) place `data`, shaped like
+    PlaceCreateSchema. Shared with the Postgres import so the shapes match.
+    """
+    location = data.get("location") or {}
+    return {
+        "id": id,
+        "tomtom_id": data["tomtom_id"],
+        "name": data.get("name"),
+        "search_terms": _search_terms(data.get("name")),
+        "address": data.get("address"),
+        "phone": data.get("phone"),
+        "website": data.get("website"),
+        "categories": data.get("categories") or [],
+        "hours": _normalize_hours(data.get("hours") or []),
+        "created_at": created_at,
+        **_location_fields(location.get("lat"), location.get("lng")),
+    }
+
+
 def get_place(tomtom_id: str):
-    snapshot = _places().document(doc_id(tomtom_id)).get()
+    try:
+        ref = _places().document(doc_id(tomtom_id))
+    except InvalidDocumentKey:
+        return None
+    snapshot = ref.get()
     return _to_place(snapshot.to_dict()) if snapshot.exists else None
 
 
 def update_or_create_place(data: dict) -> dict:
-    """Upsert TomTom (or user-supplied) place data. Mirrors the old get_or_create + update logic."""
+    """
+    Upsert TomTom (or user-supplied) place data. Mirrors the old get_or_create + update logic.
+    Raises InvalidDocumentKey if the TomTom ID can't be stored.
+    """
     client = get_client()
     ref = _places().document(doc_id(data["tomtom_id"]))
     location = data.get("location") or {}
@@ -114,19 +152,7 @@ def update_or_create_place(data: dict) -> dict:
         snapshot = ref.get(transaction=transaction)
 
         if not snapshot.exists:
-            place = {
-                "id": allocate_id(PLACES),
-                "tomtom_id": data["tomtom_id"],
-                "name": data.get("name"),
-                "search_terms": _search_terms(data.get("name")),
-                "address": data.get("address"),
-                "phone": data.get("phone"),
-                "website": data.get("website"),
-                "categories": data.get("categories") or [],
-                "hours": hours,
-                "created_at": firestore.SERVER_TIMESTAMP,
-                **_location_fields(lat, lng),
-            }
+            place = place_document(allocate_id(PLACES), data)
             transaction.set(ref, place)
             return place
 
@@ -154,24 +180,25 @@ def update_or_create_place(data: dict) -> dict:
     return _to_place(upsert(client.transaction()))
 
 
-def search_places(query: str, limit: int = 20):
+def search_places(query: str, limit=None):
     """
     Case-insensitive substring search on place names, like the old `name__icontains=query`
-    (except that whitespace runs are collapsed and the query is trimmed). Queries without any
-    word character return nothing, since they can't be looked up in the index.
+    (except that whitespace runs are collapsed and the query is trimmed, so a blank query
+    returns nothing). Returns every match, like the old query, unless `limit` is given; either
+    way at most _MAX_SEARCH_CANDIDATES candidates are read.
 
     Candidates come from an array_contains on one query word, then the full query is checked
     in memory. Any name containing the query contains every one of its words inside one of its
-    own words (a run of word characters in the query is a run of word characters in the name,
-    so it can't cross a word boundary there). _search_terms indexes every substring of every
-    word up to _MAX_SEARCH_TERM_LENGTH characters, so each query word, truncated to that length,
-    is indexed on every matching name, whether it's a whole word, a word's prefix or suffix
+    own words (a run of non-whitespace in the query is a run of non-whitespace in the name, so
+    it can't cross a word boundary there). _search_terms indexes every substring of every word
+    up to _MAX_SEARCH_TERM_LENGTH characters, so each query word, truncated to that length, is
+    indexed on every matching name, whether it's a whole word, a word's prefix or suffix
     (first/last query word) or a fragment from mid-word. Using the longest word just narrows
     the candidates.
     """
     needle = _normalize_text(query)
     words = _words(query)
-    if not words or limit <= 0:
+    if not words or (limit is not None and limit <= 0):
         return []
     term = max(words, key=len)[:_MAX_SEARCH_TERM_LENGTH]
 
@@ -204,7 +231,8 @@ def search_places(query: str, limit: int = 20):
 def reindex_search_terms(batch_size: int = 400) -> int:
     """
     Rewrite `search_terms` on every place whose index is out of date (e.g. written before the
-    index switched from word prefixes to substrings). Returns the number of places updated.
+    index switched from word prefixes to substrings, or from runs of word characters to
+    whitespace-separated words). Returns the number of places updated.
 
     For local/dev data; run with
     `uv run python manage.py shell -c "from apps.places.repository import reindex_search_terms; print(reindex_search_terms())"`.
@@ -241,13 +269,17 @@ def nearby_places(lat: float, lng: float, radius_km: float):
         raise ValueError(f"lng must be within [-180, 180], got {lng}")
     prefixes = geohash_query_prefixes(lat, lng, radius_km)  # validates lat and radius_km
 
-    seen = {}
-    for prefix in prefixes:
+    def fetch(prefix):
         query = _places().where(filter=FieldFilter("geohash", ">=", prefix)).where(
             filter=FieldFilter("geohash", "<", prefix + "~")
         )
-        for snapshot in query.stream():
-            seen[snapshot.id] = snapshot.to_dict()
+        return list(query.stream())
+
+    if len(prefixes) == 1:
+        results = [fetch(prefixes[0])]
+    else:
+        results = list(_query_pool.map(fetch, prefixes))
+    seen = {snapshot.id: snapshot.to_dict() for snapshots in results for snapshot in snapshots}
 
     places = []
     for data in seen.values():
@@ -265,7 +297,33 @@ def recent_places(limit: int = 10):
 
 # Saved places
 
-_SAVED_PLACE_FIELDS = ("custom_name", "icon", "color", "is_pinned", "is_check_it_out", "average_visit_length")
+_SAVED_PLACE_DEFAULTS = {
+    "custom_name": None,
+    "icon": None,
+    "color": None,
+    "is_pinned": False,
+    "is_check_it_out": False,
+    "average_visit_length": None,
+}
+_SAVED_PLACE_FIELDS = tuple(_SAVED_PLACE_DEFAULTS)
+
+
+def saved_place_document(id: int, place: dict, created_at=firestore.SERVER_TIMESTAMP, **fields) -> dict:
+    """
+    The users/{doc}/saved_places/{doc} document bookmarking `place`. `fields` override the
+    defaults in _SAVED_PLACE_DEFAULTS. Shared with the Postgres import so the shapes match.
+    """
+    unknown = set(fields) - set(_SAVED_PLACE_DEFAULTS)
+    if unknown:
+        raise ValueError(f"Not saved place fields: {sorted(unknown)}")
+    return {
+        "id": id,
+        "place_id": place["id"],
+        "tomtom_id": place["tomtom_id"],
+        **_SAVED_PLACE_DEFAULTS,
+        **fields,
+        "created_at": created_at,
+    }
 
 
 def _to_saved_place(data: dict, place: dict) -> dict:
@@ -292,18 +350,7 @@ def save_place(user, place: dict, custom_name=None) -> dict:
                 transaction.update(ref, {"custom_name": custom_name})
             return data
 
-        data = {
-            "id": allocate_id(SAVED_PLACES),
-            "place_id": place["id"],
-            "tomtom_id": place["tomtom_id"],
-            "custom_name": custom_name,
-            "icon": None,
-            "color": None,
-            "is_pinned": False,
-            "is_check_it_out": False,
-            "average_visit_length": None,
-            "created_at": firestore.SERVER_TIMESTAMP,
-        }
+        data = saved_place_document(allocate_id(SAVED_PLACES), place, custom_name=custom_name)
         transaction.set(ref, data)
         return data
 
@@ -331,9 +378,15 @@ def update_saved_place(user, place: dict, **fields):
     return _to_saved_place(data, place) if data is not None else None
 
 
-def delete_saved_place(user, place: dict) -> bool:
-    """Delete the user's bookmark of `place`. Returns False if it wasn't bookmarked."""
-    ref = _saved_places(user).document(doc_id(place["tomtom_id"]))
+def delete_saved_place(user, tomtom_id: str) -> bool:
+    """
+    Delete the user's bookmark of the place with `tomtom_id`. Returns False if it wasn't
+    bookmarked. Doesn't read the place, so a bookmark whose place is gone can still be removed.
+    """
+    try:
+        ref = _saved_places(user).document(doc_id(tomtom_id))
+    except InvalidDocumentKey:
+        return False
     # One atomic call: the precondition fails with NotFound if the bookmark is already gone,
     # so concurrent deletes can't both report success.
     try:
@@ -343,8 +396,17 @@ def delete_saved_place(user, place: dict) -> bool:
     return True
 
 
+# Sorts documents whose server timestamp is somehow missing first.
+_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+
+
 def list_saved_places(user):
-    saved = [s.to_dict() for s in _saved_places(user).order_by("id").stream()]
+    """
+    The user's bookmarks, oldest first. Ordered by creation time, since IDs aren't allocated in
+    order. Sorted in memory (with the ID as a tiebreak) because every bookmark is read anyway.
+    """
+    saved = [s.to_dict() for s in _saved_places(user).stream()]
+    saved.sort(key=lambda s: (s.get("created_at") or _EPOCH, s["id"]))
     refs = [_places().document(doc_id(s["tomtom_id"])) for s in saved]
     places = {s.id: _to_place(s.to_dict()) for s in get_client().get_all(refs) if s.exists}
     return [

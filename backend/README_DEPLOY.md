@@ -164,7 +164,8 @@ for steps 1 to 3.
    log in again. Pass `--include-inactive` to import them anyway.
 6. **Import**, using the same command without `--dry-run`. Then verify the output:
    - `firestore` equals `written` for every row. The command fails if Firestore ends up with fewer
-     documents.
+     documents. Tokens are stored on the user documents, so the `auth_tokens` row counts users
+     that have one.
    - `written` equals `postgres` minus `skipped`.
    - `ID counters` shows the largest old IDs (or higher).
 
@@ -186,9 +187,9 @@ for steps 1 to 3.
    only when you no longer need to roll back, and keep the dump.
 
 Not imported: the old profile's unused `city`, `state`, `country` and `street` columns (the app uses
-the `home_*` and `work_*` fields), `is_staff`/`is_superuser`/`last_login`, and Django admin and
-session data. Places get a stand-in `created_at` that keeps their old ID order for the "recent
-places" list.
+the `home_*` and `work_*` fields), `is_staff`/`is_superuser`/`last_login`, token creation times
+(the tokens themselves are kept, on the user documents), and Django admin and session data.
+Places get a stand-in `created_at` that keeps their old ID order for the "recent places" list.
 
 **Rolling back**: check out the previous release and run its `docker compose -f docker-compose.prod.yml up -d`.
 The Postgres volume is untouched by the import, but anything written to Firestore after the switch

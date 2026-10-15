@@ -73,3 +73,13 @@ class Auth0BackendTest(FirestoreTestCase):
         with self.settings(AUTH0_MOCK=True):
             user = self.auth.authenticate(None, token)
             self.assertIsNone(user)
+
+    def test_auth0_sign_in_never_opens_a_locally_registered_account(self):
+        # Someone registered the victim's Auth0 sub as a local username with their own password
+        # (registration now refuses this; the check below also covers older accounts).
+        squatter = repository.create_user("google-oauth2|victim", "attacker-password")
+        token = jwt.encode({"sub": "google-oauth2|victim", "email": "victim@example.com"}, "secret", algorithm="HS256")
+
+        with self.settings(AUTH0_MOCK=True):
+            self.assertIsNone(self.auth.authenticate(None, token))
+        self.assertEqual(repository.get_user("google-oauth2|victim"), squatter)  # untouched

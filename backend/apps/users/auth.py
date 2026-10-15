@@ -35,6 +35,12 @@ class GlobalAuth(HttpBearer):
             except InvalidDocumentKey:
                 return None
 
+            # Auth0 sign-in creates accounts without a password. One that has a password was
+            # registered locally under this sub, so it belongs to whoever registered it, not to
+            # the Auth0 user.
+            if user.has_usable_password():
+                return None
+
             # Store the token in the request object if request is present
             if request is not None:
                 request.auth_token = token
