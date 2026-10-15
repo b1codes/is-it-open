@@ -65,15 +65,6 @@ class _CalendarScreenContent extends StatelessWidget {
   final bool embedded;
   const _CalendarScreenContent({required this.embedded});
 
-  static const List<Color> _defaultPalette = [
-    Color(0xFFB14E27), // Anchor
-    Color(0xFFD99B52), // Ochre
-    Color(0xFF8F7A6A), // Taupe
-    Color(0xFF6B5344), // Chestnut
-    Color(0xFFB57D65), // Dusty Rose
-    Color(0xFF9E8B7E), // Mushroom
-  ];
-
   static const Map<String, IconData> _availableIcons = {
     'restaurant': Icons.restaurant,
     'local_cafe': Icons.local_cafe,
@@ -87,15 +78,6 @@ class _CalendarScreenContent extends StatelessWidget {
     'home': Icons.home,
     'work': Icons.work,
   };
-
-  Color _colorForPlace(SavedPlace sp, int index) {
-    if (sp.color != null && sp.color!.isNotEmpty) {
-      try {
-        return Color(int.parse(sp.color!, radix: 16));
-      } catch (_) {}
-    }
-    return _defaultPalette[index % _defaultPalette.length];
-  }
 
   List<Map<String, dynamic>> _preparePersonalEvents(CalendarDataState state) {
     final allEvents = [
@@ -441,7 +423,7 @@ class _CalendarScreenContent extends StatelessWidget {
                       child: SafeArea(
                         child: CalendarSidebarWidget(
                           dataState: dataState,
-                          colorForPlace: _colorForPlace,
+                          colorForPlace: GraphicsHelper.colorForSavedPlace,
                           availableIcons: _availableIcons,
                           isCollapsed: false,
                         ),
@@ -460,7 +442,7 @@ class _CalendarScreenContent extends StatelessWidget {
                       color: theme.paperRaised,
                       child: CalendarSidebarWidget(
                         dataState: dataState,
-                        colorForPlace: _colorForPlace,
+                        colorForPlace: GraphicsHelper.colorForSavedPlace,
                         availableIcons: _availableIcons,
                         isCollapsed: uiState.isSidebarCollapsed,
                       ),

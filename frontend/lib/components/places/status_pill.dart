@@ -71,14 +71,18 @@ class StatusPill extends StatelessWidget {
             ),
           ),
           SizedBox(width: gap),
-          Text(
-            '$leading$supporting',
-            style: TextStyle(
-              color: fg,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
-              height: 1.0,
+          Flexible(
+            child: Text(
+              '$leading$supporting',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fg,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+                height: 1.0,
+              ),
             ),
           ),
         ],

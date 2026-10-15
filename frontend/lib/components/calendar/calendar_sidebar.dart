@@ -358,17 +358,21 @@ class CalendarSidebarWidget extends StatelessWidget {
                       size: 16,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      displayName(sp),
-                      style:
-                          PlacesType.label(
-                            isChecked ? Colors.white : theme.ink,
-                          ).copyWith(
-                            fontWeight: isChecked
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            letterSpacing: 0,
-                          ),
+                    Flexible(
+                      child: Text(
+                        displayName(sp),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            PlacesType.label(
+                              isChecked ? Colors.white : theme.ink,
+                            ).copyWith(
+                              fontWeight: isChecked
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              letterSpacing: 0,
+                            ),
+                      ),
                     ),
                   ],
                 ),

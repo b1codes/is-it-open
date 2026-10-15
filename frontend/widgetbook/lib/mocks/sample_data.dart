@@ -134,7 +134,7 @@ final sampleSavedPlaces = <SavedPlace>[
     id: 101,
     place: coffeePlace,
     icon: 'local_cafe',
-    color: 'b14e27',
+    color: 'ffb14e27',
     isPinned: true,
     averageVisitLength: 30,
   ),
@@ -143,7 +143,7 @@ final sampleSavedPlaces = <SavedPlace>[
     place: bistroPlace,
     customName: 'Friday burger spot',
     icon: 'restaurant',
-    color: 'd99b52',
+    color: 'ffd99b52',
     isPinned: true,
     averageVisitLength: 90,
   ),
@@ -151,21 +151,21 @@ final sampleSavedPlaces = <SavedPlace>[
     id: 103,
     place: gymPlace,
     icon: 'fitness_center',
-    color: '6b5344',
+    color: 'ff6b5344',
     averageVisitLength: 60,
   ),
   SavedPlace(
     id: 104,
     place: libraryPlace,
     icon: 'star',
-    color: '8f7a6a',
+    color: 'ff8f7a6a',
     isCheckItOut: true,
   ),
   SavedPlace(
     id: 105,
     place: hardwarePlace,
     icon: 'store',
-    color: '9e8b7e',
+    color: 'ff9e8b7e',
     isCheckItOut: true,
   ),
 ];
@@ -280,9 +280,21 @@ List<CalendarEventData<Object?>> sampleCalendarEvents(DateTime anchor) {
   ];
 }
 
-// Built once so scopes keyed on calendar state stay stable across rebuilds
-// (CalendarEventData has identity equality).
-final currentWeekEvents = sampleCalendarEvents(DateTime.now());
+DateTime? _currentWeekEventsDay;
+List<CalendarEventData<Object?>> _currentWeekEvents = const [];
+
+// Cached per calendar day so scopes keyed on calendar state stay stable
+// across rebuilds (CalendarEventData has identity equality), while still
+// moving with the other DateTime.now()-anchored fixtures past midnight.
+List<CalendarEventData<Object?>> get currentWeekEvents {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (_currentWeekEventsDay != today) {
+    _currentWeekEventsDay = today;
+    _currentWeekEvents = sampleCalendarEvents(now);
+  }
+  return _currentWeekEvents;
+}
 
 // Personal events in the {title, startTime, endTime} map shape PlannerView
 // and AvailabilityCalculator consume.

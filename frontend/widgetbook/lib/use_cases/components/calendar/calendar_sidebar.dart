@@ -4,7 +4,6 @@ import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
 import 'package:frontend/components/calendar/calendar_sidebar.dart';
-import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/utils/graphics_helper.dart';
 import 'package:frontend/utils/places_theme.dart';
 import 'package:widgetbook/widgetbook.dart';
@@ -12,23 +11,6 @@ import 'package:widgetbook_annotation/widgetbook_annotation.dart' as widgetbook;
 
 import '../../../mocks/mock_app_scope.dart';
 import '../../../mocks/sample_data.dart';
-
-const _palette = [
-  Color(0xFFB14E27),
-  Color(0xFFD99B52),
-  Color(0xFF8F7A6A),
-  Color(0xFF6B5344),
-];
-
-// Same rule CalendarScreen uses: the saved hex color, else a palette slot.
-Color _colorForPlace(SavedPlace sp, int index) {
-  final hex = sp.color;
-  if (hex != null && hex.isNotEmpty) {
-    final value = int.tryParse(hex, radix: 16);
-    if (value != null) return Color(value);
-  }
-  return _palette[index % _palette.length];
-}
 
 enum _SidebarData { loaded, loading, empty }
 
@@ -80,7 +62,7 @@ Widget buildCalendarSidebarUseCase(BuildContext context) {
               child: BlocBuilder<CalendarDataBloc, CalendarDataState>(
                 builder: (context, state) => CalendarSidebarWidget(
                   dataState: state,
-                  colorForPlace: _colorForPlace,
+                  colorForPlace: GraphicsHelper.colorForSavedPlace,
                   availableIcons: GraphicsHelper.availableIcons,
                   isCollapsed: collapsed,
                 ),

@@ -50,5 +50,6 @@ jobs:
           cd frontend/widgetbook
           flutter pub get
           dart run build_runner build --force-jit
+          git diff --exit-code -- lib/main.directories.g.dart || { echo "::error::main.directories.g.dart is stale; run 'dart run build_runner build' in frontend/widgetbook and commit the result."; exit 1; }
           flutter analyze
           flutter test

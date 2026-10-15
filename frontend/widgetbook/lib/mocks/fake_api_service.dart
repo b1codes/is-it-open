@@ -76,7 +76,7 @@ class FakeApiService extends ApiService {
           (p) =>
               p.name.toLowerCase().contains(q) ||
               p.address.toLowerCase().contains(q) ||
-              p.categories.any((c) => c.contains(q)),
+              p.categories.any((c) => c.toLowerCase().contains(q)),
         )
         .toList();
   });
@@ -156,9 +156,18 @@ class FakeApiService extends ApiService {
     String? color, {
     String? customName,
   }) => _respond(
+    // Mirrors the real endpoint: null fields are omitted from the PATCH and
+    // left unchanged, while a blank custom name clears it.
     () => _replace(
       tomtomId,
-      (sp) => _copy(sp, icon: icon, color: color, customName: customName),
+      (sp) => _copy(
+        sp,
+        icon: icon ?? _keep,
+        color: color ?? _keep,
+        customName: customName == null
+            ? _keep
+            : (customName.trim().isEmpty ? null : customName),
+      ),
     ),
   );
 
@@ -172,24 +181,32 @@ class FakeApiService extends ApiService {
   Future<String> getCalendarFromUrl(String url) =>
       _respond(() => sampleIcs(DateTime.now()));
 
+  /// Marks a nullable [_copy] argument as "leave unchanged", so an explicit
+  /// null can clear the field (e.g. `updateVisitLength(id, null)`).
+  static const Object _keep = Object();
+
   static SavedPlace _copy(
     SavedPlace sp, {
-    String? customName,
-    String? icon,
-    String? color,
+    Object? customName = _keep,
+    Object? icon = _keep,
+    Object? color = _keep,
     bool? isPinned,
     bool? isCheckItOut,
-    int? averageVisitLength,
+    Object? averageVisitLength = _keep,
   }) {
     return SavedPlace(
       id: sp.id,
       place: sp.place,
-      customName: customName ?? sp.customName,
-      icon: icon ?? sp.icon,
-      color: color ?? sp.color,
+      customName: identical(customName, _keep)
+          ? sp.customName
+          : customName as String?,
+      icon: identical(icon, _keep) ? sp.icon : icon as String?,
+      color: identical(color, _keep) ? sp.color : color as String?,
       isPinned: isPinned ?? sp.isPinned,
       isCheckItOut: isCheckItOut ?? sp.isCheckItOut,
-      averageVisitLength: averageVisitLength ?? sp.averageVisitLength,
+      averageVisitLength: identical(averageVisitLength, _keep)
+          ? sp.averageVisitLength
+          : averageVisitLength as int?,
     );
   }
 }

@@ -47,8 +47,12 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   static const _idsKey = 'today_route_ids';
   static const _dateKey = 'today_route_date';
 
-  TodayRouteCubit()
-    : super(
+  /// [prefs] overrides the store the route is read from and written to.
+  /// Defaults to the app-wide [SharedPreferences.getInstance]; pass an
+  /// isolated instance to keep fixtures and tests from sharing state.
+  TodayRouteCubit({SharedPreferences? prefs})
+    : _injectedPrefs = prefs,
+      super(
         TodayRouteState(
           tomtomIds: const [],
           touchedOn: _dateOnly(DateTime.now()),
@@ -57,8 +61,19 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     _hydrate();
   }
 
+  final SharedPreferences? _injectedPrefs;
+
+  Future<SharedPreferences> _prefs() async =>
+      _injectedPrefs ?? await SharedPreferences.getInstance();
+
+  /// The SharedPreferences entries that persist [ids] as the route for
+  /// [date]. Exposed so fixtures can seed a route in the exact persisted
+  /// format.
+  static Map<String, String> persistedValues(List<String> ids, DateTime date) =>
+      {_idsKey: jsonEncode(ids), _dateKey: _dateString(date)};
+
   Future<void> _hydrate() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
     final raw = prefs.getString(_idsKey);
     final storedDateString = prefs.getString(_dateKey);
     final today = _dateOnly(DateTime.now());
@@ -141,9 +156,10 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   }
 
   Future<void> _persist(List<String> ids, DateTime date) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_idsKey, jsonEncode(ids));
-    await prefs.setString(_dateKey, _dateString(date));
+    final prefs = await _prefs();
+    for (final entry in persistedValues(ids, date).entries) {
+      await prefs.setString(entry.key, entry.value);
+    }
   }
 
   static DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
