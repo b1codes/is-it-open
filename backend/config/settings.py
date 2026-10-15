@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import dj_database_url
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -36,18 +35,11 @@ CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=boo
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
     'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
-    'django.contrib.gis',  # Don't forget GeoDjango!
-    
+
     # Your Apps
     'apps.places',
-    'apps.hours',
     'apps.users',
     'corsheaders',
 ]
@@ -55,12 +47,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -74,18 +63,12 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 
 TOMTOM_API_KEY = config('TOMTOM_API_KEY', default='')
@@ -95,31 +78,16 @@ AUTH0_DOMAIN = config('AUTH0_DOMAIN', default='')
 AUTH0_AUDIENCE = config('AUTH0_AUDIENCE', default='')
 AUTH0_MOCK = config('AUTH0_MOCK', default=True, cast=bool)
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
-        conn_max_age=600
-    )
-}
+# Database
+# All app data lives in Google Cloud Firestore (see services/firestore.py), so Django's ORM
+# is unused. Locally FIRESTORE_EMULATOR_HOST points at the emulator in docker/firestore-emulator;
+# in production leave it unset and authenticate with Application Default Credentials.
 
+DATABASES = {}
 
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
+GOOGLE_CLOUD_PROJECT = config('GOOGLE_CLOUD_PROJECT', default='demo-is-it-open')
+FIRESTORE_DATABASE = config('FIRESTORE_DATABASE', default='(default)')
+FIRESTORE_EMULATOR_HOST = config('FIRESTORE_EMULATOR_HOST', default='')
 
 
 # Internationalization
@@ -149,20 +117,3 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-import platform
-
-# GDAL Settings
-if platform.system() == 'Darwin':
-    GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH', default='/opt/homebrew/opt/gdal/lib/libgdal.dylib')
-    GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH', default='/opt/homebrew/opt/geos/lib/libgeos_c.dylib')
-else:
-    if config('GDAL_LIBRARY_PATH', default=''):
-        GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH')
-    if config('GEOS_LIBRARY_PATH', default=''):
-        GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH')

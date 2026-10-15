@@ -183,3 +183,10 @@ DESIGN.md
 PRODUCT.md
 gha-creds-*.json
 skills-lock.json
+
+# GCP service account keys
+backend/gcp-service-account.json
+*service-account*.json
+
+# Database dumps (e.g. the pre-Firestore Postgres backup, see backend/README_DEPLOY.md)
+*.dump

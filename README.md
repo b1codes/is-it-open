@@ -1,6 +1,6 @@
 # Is It Open
 
-**Is It Open** is a full-stack application designed to help users determine business hours and availability for various places. It features a robust Django backend with PostgreSQL/PostGIS for geospatial data and a responsive Flutter frontend for map-based interaction.
+**Is It Open** is a full-stack application designed to help users determine business hours and availability for various places. It features a robust Django backend backed by Google Cloud Firestore and a responsive Flutter frontend for map-based interaction.
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### Backend
 *   **Framework**: [Django](https://www.djangoproject.com/) + [Django Ninja](https://django-ninja.rest-framework.com/) (FastAPI-like syntax for Django)
-*   **Database**: [PostgreSQL](https://www.postgresql.org/) with [PostGIS](https://postgis.net/) (Geospatial data support)
+*   **Database**: [Google Cloud Firestore](https://cloud.google.com/firestore) (geohash-indexed locations), run locally with the [Firestore emulator](https://firebase.google.com/docs/emulator-suite/connect_firestore)
 *   **Dependency Management**: [uv](https://github.com/astral-sh/uv)
 *   **Containerization**: [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 *   **Utilities**: `python-decouple` (Config), `gunicorn` (WSGI Server)
@@ -28,12 +28,12 @@ graph TD
     
     subgraph "Docker Containerized Backend"
         API["Django Ninja API"]
-        DB[("PostgreSQL + PostGIS")]
+        DB[("Firestore Emulator")]
     end
     
     UI -->|"REST Requests (Dio)"| API
     UI -->|"Tile Requests"| OSM["OpenStreetMap"]
-    API -->|"Spatial Queries"| DB
+    API -->|"Geohash Queries"| DB
 ```
 
 ---
@@ -42,7 +42,7 @@ graph TD
 
 *   **Modern UI**: Fully overhauled **Glassmorphism** design with vibrant gradient backgrounds and frosted glass elements.
 *   **Navigation**: Centralized **Side Menu** for quick access to Map, Search, Saved Places, Profile, and Settings.
-*   **Geospatial Search**: Find places and business hours based on location (powered by PostGIS).
+*   **Geospatial Search**: Find places and business hours based on location (geohash queries on Firestore).
 *   **Map Integration**: Interactive maps using OpenStreetMap tiles.
 *   **Theme Control**: Light/Dark mode toggles with system reference.
 
@@ -78,15 +78,18 @@ We use `make` commands to simplify Docker interactions.
 make up
 ```
 This will:
-1.  Build the backend container.
-2.  Start the PostgreSQL/PostGIS database.
-3.  Start the Django development server on port `8000`.
+1.  Build the backend and Firestore emulator containers.
+2.  Start the Firestore emulator (data persists in a Docker volume between restarts).
+3.  Start the Django development server on port `8001`.
 
-**Run Migrations:**
-Once the containers are up, apply the database schema:
+Firestore is schemaless, so there are no migrations to run. Browse local data in the
+Emulator UI at <http://localhost:4000/firestore>. See [`docker/firestore-emulator/README.md`](docker/firestore-emulator/README.md) for details.
+
+**Run Tests:**
 ```bash
-make migrate
+make test
 ```
+Tests use a separate emulator project, so they never touch your local data.
 
 ### 4. Run the Frontend (Flutter)
 Open a new terminal tab and navigate to the frontend directory:
@@ -113,9 +116,10 @@ See [`frontend/widgetbook/README.md`](frontend/widgetbook/README.md) for adding 
 is-it-open/
 ├── backend/                # Django Project
 │   ├── apps/               # Django Apps (Feature modules)
-│   │   ├── users/          # User management & Auth
-│   │   ├── places/         # Place/POI data & Geospatial models
-│   │   └── hours/          # Business hours logic
+│   │   ├── users/          # User management & Auth (Firestore repository)
+│   │   ├── places/         # Places, hours & bookmarks (Firestore repository)
+│   │   └── calendar/       # iCal proxy
+│   ├── services/           # TomTom client, Firestore client, geohash helpers
 │   ├── config/             # Project settings (settings.py, urls.py)
 │   ├── Dockerfile          # Backend container definition
 │   └── pyproject.toml      # uv dependencies
@@ -127,6 +131,9 @@ is-it-open/
 │   │   └── main.dart       # Entry point
 │   ├── widgetbook/         # Widgetbook component catalog
 │   └── pubspec.yaml        # Flutter dependencies
+│
+├── docker/
+│   └── firestore-emulator/ # Local Firestore emulator + Emulator UI container
 │
 ├── docker-compose.yml      # Service orchestration
 └── Makefile                # Shortcut commands
@@ -145,8 +152,7 @@ Use these commands from the root directory to manage the project:
 | `make build` | Rebuild the containers (run after adding new uv packages) |
 | `make logs` | View backend logs in follow mode |
 | `make shell` | Access the backend container's shell (`bash`) |
-| `make migrate` | Run Django database migrations |
-| `make makemigrations` | Create new migrations based on model changes |
-| `make superuser` | Create a superuser for the Django Admin |
+| `make test` | Run the backend tests against the Firestore emulator |
+| `make firestore-reset` | Stop everything and wipe local Firestore emulator data |
 
 ---

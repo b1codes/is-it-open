@@ -1,11 +1,9 @@
 from ninja import Router, Schema
-from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
-from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
-from .models import AuthToken, UserProfile
+from . import repository
 from .auth import GlobalAuth
 from typing import Optional
+from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
 router = Router()
@@ -43,125 +41,63 @@ class RegisterInput(Schema):
     password: str
     email: Optional[str] = None
 
-@router.post("/login", response=AuthOutput)
-def login(request, data: LoginInput):
-    user = authenticate(username=data.username, password=data.password)
-    if not user:
-        raise HttpError(401, "Invalid credentials")
-    
-    token, created = AuthToken.objects.get_or_create(user=user)
-    # Ensure profile exists
-    if not hasattr(user, 'profile'):
-        UserProfile.objects.create(user=user)
-    
+def _auth_output(user, token):
     return {
-        "token": token.key,
+        "token": token,
         "username": user.username,
         "id": user.id,
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "home_address": user.profile.home_address,
-        "home_street": user.profile.home_street,
-        "home_city": user.profile.home_city,
-        "home_state": user.profile.home_state,
-        "home_zip": user.profile.home_zip,
-        "home_lat": user.profile.home_lat,
-        "home_lng": user.profile.home_lng,
-        "work_address": user.profile.work_address,
-        "work_street": user.profile.work_street,
-        "work_city": user.profile.work_city,
-        "work_state": user.profile.work_state,
-        "work_zip": user.profile.work_zip,
-        "work_lat": user.profile.work_lat,
-        "work_lng": user.profile.work_lng,
-        "use_current_location": user.profile.use_current_location,
-        "calendar_subscription_url": user.profile.calendar_subscription_url
+        "home_address": user.home_address,
+        "home_street": user.home_street,
+        "home_city": user.home_city,
+        "home_state": user.home_state,
+        "home_zip": user.home_zip,
+        "home_lat": user.home_lat,
+        "home_lng": user.home_lng,
+        "work_address": user.work_address,
+        "work_street": user.work_street,
+        "work_city": user.work_city,
+        "work_state": user.work_state,
+        "work_zip": user.work_zip,
+        "work_lat": user.work_lat,
+        "work_lng": user.work_lng,
+        "use_current_location": user.use_current_location,
+        "calendar_subscription_url": user.calendar_subscription_url
     }
+
+def _request_token(request, user):
+    return getattr(request, 'auth_token', None) or repository.get_or_create_token(user)
+
+@router.post("/login", response=AuthOutput)
+def login(request, data: LoginInput):
+    user = repository.authenticate(data.username, data.password)
+    if not user:
+        raise HttpError(401, "Invalid credentials")
+
+    return _auth_output(user, repository.get_or_create_token(user))
+
+# Auth0 subs ("provider|id") share the users/ namespace with local usernames, and Auth0 sign-in
+# looks users up by sub, so a local account must never be able to claim one.
+AUTH0_SUB_SEPARATOR = "|"
 
 @router.post("/register", response=AuthOutput)
 def register(request, data: RegisterInput):
-    if User.objects.filter(username=data.username).exists():
+    if AUTH0_SUB_SEPARATOR in data.username:
+        raise HttpError(400, "Invalid username")
+    try:
+        user = repository.create_user(data.username, data.password, email=data.email or "")
+    except InvalidDocumentKey:
+        raise HttpError(400, "Invalid username")
+    if not user:
         raise HttpError(400, "Username already taken")
-    
-    user = User.objects.create_user(
-        username=data.username,
-        password=data.password,
-        email=data.email
-    )
-    
-    token = AuthToken.objects.create(user=user)
-    # Create UserProfile
-    profile = UserProfile.objects.create(user=user)
-    
-    return {
-        "token": token.key,
-        "username": user.username,
-        "id": user.id,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "home_address": profile.home_address,
-        "home_street": profile.home_street,
-        "home_city": profile.home_city,
-        "home_state": profile.home_state,
-        "home_zip": profile.home_zip,
-        "home_lat": profile.home_lat,
-        "home_lng": profile.home_lng,
-        "work_address": profile.work_address,
-        "work_street": profile.work_street,
-        "work_city": profile.work_city,
-        "work_state": profile.work_state,
-        "work_zip": profile.work_zip,
-        "work_lat": profile.work_lat,
-        "work_lng": profile.work_lng,
-        "use_current_location": profile.use_current_location,
-        "calendar_subscription_url": profile.calendar_subscription_url
-    }
+
+    return _auth_output(user, repository.get_or_create_token(user))
 
 @router.get("/me", response=AuthOutput, auth=GlobalAuth())
 def me(request):
-    # This endpoint will require auth, handled by global or router level security
-    if not request.user.is_authenticated:
-        raise HttpError(401, "Unauthorized")
-    
-    token = getattr(request, 'auth_token', None)
-    if not token:
-        try:
-            token = request.user.auth_token.key
-        except AuthToken.DoesNotExist:
-            # Create one if missing for some reason
-            token_obj = AuthToken.objects.create(user=request.user)
-            token = token_obj.key
-
-    # Ensure profile exists
-    if not hasattr(request.user, 'profile'):
-        UserProfile.objects.create(user=request.user)
-
-    return {
-        "token": token,
-        "username": request.user.username,
-        "id": request.user.id,
-        "email": request.user.email,
-        "first_name": request.user.first_name,
-        "last_name": request.user.last_name,
-        "home_address": request.user.profile.home_address,
-        "home_street": request.user.profile.home_street,
-        "home_city": request.user.profile.home_city,
-        "home_state": request.user.profile.home_state,
-        "home_zip": request.user.profile.home_zip,
-        "home_lat": request.user.profile.home_lat,
-        "home_lng": request.user.profile.home_lng,
-        "work_address": request.user.profile.work_address,
-        "work_street": request.user.profile.work_street,
-        "work_city": request.user.profile.work_city,
-        "work_state": request.user.profile.work_state,
-        "work_zip": request.user.profile.work_zip,
-        "work_lat": request.user.profile.work_lat,
-        "work_lng": request.user.profile.work_lng,
-        "use_current_location": request.user.profile.use_current_location,
-        "calendar_subscription_url": request.user.profile.calendar_subscription_url
-    }
+    return _auth_output(request.auth, _request_token(request, request.auth))
 
 class ProfileUpdateInput(Schema):
     first_name: Optional[str] = None
@@ -185,29 +121,21 @@ class ProfileUpdateInput(Schema):
 
 @router.put("/me", response=AuthOutput, auth=GlobalAuth())
 def update_me(request, data: ProfileUpdateInput):
-    if not request.user.is_authenticated:
-        raise HttpError(401, "Unauthorized")
-    
-    user = request.user
-    
-    # ... (User update logic remains the same)
-    user_updated = False
+    user = request.auth
+    # Only the fields this request changes are written, so a concurrent update to other fields
+    # (e.g. during the geocode call below) isn't overwritten with the values loaded at auth time.
+    changed = set()
+
+    def set_field(field, value):
+        if value != getattr(user, field):
+            setattr(user, field, value)
+            changed.add(field)
+
     if data.first_name is not None:
-        user.first_name = data.first_name
-        user_updated = True
+        set_field('first_name', data.first_name)
     if data.last_name is not None:
-        user.last_name = data.last_name
-        user_updated = True
-        
-    if user_updated:
-        user.save()
-        
-    # Ensure profile exists
-    if not hasattr(user, 'profile'):
-        UserProfile.objects.create(user=user)
-        
-    profile = user.profile
-    
+        set_field('last_name', data.last_name)
+
     # We will track if address fields changed to determine if we need to geocode
     home_address_changed = False
     work_address_changed = False
@@ -215,123 +143,62 @@ def update_me(request, data: ProfileUpdateInput):
     # Define fields that trigger geocoding
     home_geo_fields = ['home_street', 'home_city', 'home_state', 'home_zip']
     work_geo_fields = ['work_street', 'work_city', 'work_state', 'work_zip']
-    
-    # Update UserProfile fields if provided
-    profile_updated = False
-    
+
     # Handle home address fields
     for field in ['home_address'] + home_geo_fields:
         val = getattr(data, field)
-        if val is not None:
-            if val != getattr(profile, field):
-                setattr(profile, field, val)
-                profile_updated = True
-                if field in home_geo_fields or field == 'home_address':
-                    home_address_changed = True
-                    
+        if val is not None and val != getattr(user, field):
+            set_field(field, val)
+            home_address_changed = True
+
     # Handle work address fields
     for field in ['work_address'] + work_geo_fields:
         val = getattr(data, field)
+        if val is not None and val != getattr(user, field):
+            set_field(field, val)
+            work_address_changed = True
+
+    # Allow explicit lat/lng overrides from frontend. Don't re-geocode if coordinates are
+    # provided, even if they're the same values.
+    for field in ('home_lat', 'home_lng'):
+        val = getattr(data, field)
         if val is not None:
-            if val != getattr(profile, field):
-                setattr(profile, field, val)
-                profile_updated = True
-                if field in work_geo_fields or field == 'work_address':
-                    work_address_changed = True
+            set_field(field, val)
+            home_address_changed = False
+    for field in ('work_lat', 'work_lng'):
+        val = getattr(data, field)
+        if val is not None:
+            set_field(field, val)
+            work_address_changed = False
 
-    # Allow explicit lat/lng overrides from frontend
-    if data.home_lat is not None and data.home_lat != profile.home_lat:
-        profile.home_lat = data.home_lat
-        profile_updated = True
-        home_address_changed = False # Don't re-geocode if explicitly provided
-    elif data.home_lat is not None:
-        home_address_changed = False # Still override if same value provided
-
-    if data.home_lng is not None and data.home_lng != profile.home_lng:
-        profile.home_lng = data.home_lng
-        profile_updated = True
-        home_address_changed = False
-    elif data.home_lng is not None:
-        home_address_changed = False
-
-    if data.work_lat is not None and data.work_lat != profile.work_lat:
-        profile.work_lat = data.work_lat
-        profile_updated = True
-        work_address_changed = False
-    elif data.work_lat is not None:
-        work_address_changed = False
-
-    if data.work_lng is not None and data.work_lng != profile.work_lng:
-        profile.work_lng = data.work_lng
-        profile_updated = True
-        work_address_changed = False
-    elif data.work_lng is not None:
-        work_address_changed = False
-        
-    if data.use_current_location is not None and data.use_current_location != profile.use_current_location:
-        profile.use_current_location = data.use_current_location
-        profile_updated = True
-
-    if data.calendar_subscription_url is not None and data.calendar_subscription_url != profile.calendar_subscription_url:
-        profile.calendar_subscription_url = data.calendar_subscription_url
-        profile_updated = True
+    if data.use_current_location is not None:
+        set_field('use_current_location', data.use_current_location)
+    if data.calendar_subscription_url is not None:
+        set_field('calendar_subscription_url', data.calendar_subscription_url)
 
     # Perform geocoding if needed
     if home_address_changed or work_address_changed:
         client = TomTomClient()
-        
+
         if home_address_changed:
-            address_parts = [p for p in [profile.home_street, profile.home_city, profile.home_state, profile.home_zip] if p]
+            address_parts = [p for p in [user.home_street, user.home_city, user.home_state, user.home_zip] if p]
             full_address = ", ".join(address_parts)
             if full_address:
                 coords = client.geocode_address(full_address)
                 if coords:
-                    profile.home_lat = coords['lat']
-                    profile.home_lng = coords['lon']
-                    profile_updated = True
+                    set_field('home_lat', coords['lat'])
+                    set_field('home_lng', coords['lon'])
 
         if work_address_changed:
-            address_parts = [p for p in [profile.work_street, profile.work_city, profile.work_state, profile.work_zip] if p]
+            address_parts = [p for p in [user.work_street, user.work_city, user.work_state, user.work_zip] if p]
             full_address = ", ".join(address_parts)
             if full_address:
                 coords = client.geocode_address(full_address)
                 if coords:
-                    profile.work_lat = coords['lat']
-                    profile.work_lng = coords['lon']
-                    profile_updated = True
-        
-    if profile_updated:
-        profile.save()
+                    set_field('work_lat', coords['lat'])
+                    set_field('work_lng', coords['lon'])
 
-    token = getattr(request, 'auth_token', None)
-    if not token:
-        try:
-            token = user.auth_token.key
-        except AuthToken.DoesNotExist:
-            token_obj = AuthToken.objects.create(user=user)
-            token = token_obj.key
+    if changed:
+        repository.save_user(user, changed)
 
-    return {
-        "token": token,
-        "username": user.username,
-        "id": user.id,
-        "email": user.email,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "home_address": profile.home_address,
-        "home_street": profile.home_street,
-        "home_city": profile.home_city,
-        "home_state": profile.home_state,
-        "home_zip": profile.home_zip,
-        "home_lat": profile.home_lat,
-        "home_lng": profile.home_lng,
-        "work_address": profile.work_address,
-        "work_street": profile.work_street,
-        "work_city": profile.work_city,
-        "work_state": profile.work_state,
-        "work_zip": profile.work_zip,
-        "work_lat": profile.work_lat,
-        "work_lng": profile.work_lng,
-        "use_current_location": profile.use_current_location,
-        "calendar_subscription_url": profile.calendar_subscription_url
-    }
+    return _auth_output(user, _request_token(request, user))

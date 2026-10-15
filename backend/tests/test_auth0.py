@@ -1,19 +1,18 @@
-from django.test import TestCase
-from django.contrib.auth.models import User
-from django.conf import settings
+from apps.users import repository
 from apps.users.auth import GlobalAuth
-from apps.users.models import AuthToken
+from tests.base import FirestoreTestCase
 import jwt
 
-class Auth0BackendTest(TestCase):
+class Auth0BackendTest(FirestoreTestCase):
     def setUp(self):
+        super().setUp()
         self.auth = GlobalAuth()
-        self.user = User.objects.create_user(username="localuser", password="password")
-        self.local_token = AuthToken.objects.create(user=self.user)
+        self.user = repository.create_user("localuser", "password")
+        self.local_token = repository.get_or_create_token(self.user)
 
     def test_local_token_validation(self):
         # Verify that normal local tokens still authenticate successfully
-        user = self.auth.authenticate(None, self.local_token.key)
+        user = self.auth.authenticate(None, self.local_token)
         self.assertEqual(user, self.user)
         self.assertEqual(user.username, "localuser")
 
@@ -42,15 +41,15 @@ class Auth0BackendTest(TestCase):
             self.assertEqual(user.email, "mockuser@example.com")
             self.assertEqual(user.first_name, "Mock")
             self.assertEqual(user.last_name, "User")
-            self.assertFalse(user.has_usable_password())
-            
-            # Check UserProfile is automatically created
-            self.assertTrue(hasattr(user, 'profile'))
+            self.assertFalse(user.check_password(""))
+
+            # Check the user (with its profile fields) was persisted
+            self.assertEqual(repository.get_user("auth0|mock_user_123"), user)
 
     def test_mock_auth0_token_existing_user(self):
         # Create an existing user with Auth0 sub username
         sub = "auth0|existing_user_456"
-        existing_user = User.objects.create_user(username=sub, email="old@example.com")
+        existing_user = repository.create_user(sub, email="old@example.com")
         
         payload = {
             "sub": sub,
@@ -65,6 +64,7 @@ class Auth0BackendTest(TestCase):
             # Check we retrieved the existing user (doesn't create a duplicate)
             self.assertEqual(user, existing_user)
             self.assertEqual(user.username, sub)
+            self.assertEqual(user.email, "old@example.com")
 
     def test_invalid_jwt_token(self):
         # An invalid JWT (starts with eyJ but malformed or invalid structure)
@@ -73,3 +73,13 @@ class Auth0BackendTest(TestCase):
         with self.settings(AUTH0_MOCK=True):
             user = self.auth.authenticate(None, token)
             self.assertIsNone(user)
+
+    def test_auth0_sign_in_never_opens_a_locally_registered_account(self):
+        # Someone registered the victim's Auth0 sub as a local username with their own password
+        # (registration now refuses this; the check below also covers older accounts).
+        squatter = repository.create_user("google-oauth2|victim", "attacker-password")
+        token = jwt.encode({"sub": "google-oauth2|victim", "email": "victim@example.com"}, "secret", algorithm="HS256")
+
+        with self.settings(AUTH0_MOCK=True):
+            self.assertIsNone(self.auth.authenticate(None, token))
+        self.assertEqual(repository.get_user("google-oauth2|victim"), squatter)  # untouched

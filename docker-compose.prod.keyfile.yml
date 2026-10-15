@@ -1,0 +1,21 @@
+# Override for hosts without a Google Cloud metadata server (e.g. AWS EC2): mounts a credentials
+# file and points Application Default Credentials at it.
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.keyfile.yml up -d
+#
+# The file is a service account key with the "Cloud Datastore User" role, or a workload identity
+# federation credential config. GCP_CREDENTIALS_FILE is a host path read by Docker Compose (from
+# your shell or a .env file next to this file, not backend/.env); it defaults to
+# ./backend/gcp-service-account.json. If the file doesn't exist, `up` fails instead of Docker
+# creating an empty directory in its place.
+services:
+  backend:
+    volumes:
+      - type: bind
+        source: ${GCP_CREDENTIALS_FILE:-./backend/gcp-service-account.json}
+        target: /secrets/gcp-credentials.json
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-credentials.json

@@ -1,15 +1,18 @@
 services:
-  # The Database Service
-  db:
-    image: postgis/postgis:15-3.4
+  # Local Google Cloud Firestore (emulator + UI at http://localhost:4000)
+  firestore:
+    build: ./docker/firestore-emulator
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - firestore_data:/data
     environment:
-      - POSTGRES_DB=isitopen_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - FIRESTORE_PROJECT_ID=demo-is-it-open
     ports:
-      - "5433:5432"
+      - "8080:8080"
+      - "4000:4000"
+      - "9150:9150"
+    # Give the emulator time to export its data to the volume on shutdown
+    stop_signal: SIGINT
+    stop_grace_period: 30s
 
   # The Django Backend
   backend:
@@ -20,10 +23,12 @@ services:
     ports:
       - "8001:8000"
     depends_on:
-      - db
+      firestore:
+        condition: service_healthy
     environment:
       - DEBUG=1
-      - DATABASE_URL=postgis://postgres:postgres@db:5432/isitopen_db
+      - GOOGLE_CLOUD_PROJECT=demo-is-it-open
+      - FIRESTORE_EMULATOR_HOST=firestore:8080
 
 volumes:
-  postgres_data:
+  firestore_data:

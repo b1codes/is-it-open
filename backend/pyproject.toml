@@ -9,20 +9,25 @@ requires-python = ">=3.11"
 dependencies = [
     "django (<6.0)",
     "django-ninja (>=1.5.3,<2.0.0)",
-    "psycopg[binary] (>=3.3.2,<4.0.0)",
     "gunicorn (>=25.1.0,<26.0.0)",
     "uvicorn[standard] (>=0.34.0,<0.35.0)",
     "whitenoise>=6.9.0,<7.0.0",
     "python-decouple (>=3.8,<4.0)",
-    "dj-database-url (>=2.1.0,<3.0.0)",
     "requests",
     "django-cors-headers",
     "pytest>=9.0.3",
     "pytest-django>=4.12.0",
     "pyjwt>=2.13.0",
     "cryptography>=49.0.0",
+    "google-cloud-firestore>=2.33.0,<3.0.0",
 ]
 
+[dependency-groups]
+# Only for the one-shot legacy import (`manage.py import_postgres`, see README_DEPLOY.md).
+# Not installed by default: use `uv sync --group postgres-import` or `uv run --group postgres-import`.
+postgres-import = [
+    "psycopg[binary] (>=3.3.2,<4.0.0)",
+]
 
 [build-system]
 requires = ["hatchling"]

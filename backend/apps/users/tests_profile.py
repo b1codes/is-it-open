@@ -1,23 +1,20 @@
-from django.test import TestCase, Client
-from django.contrib.auth.models import User
-from apps.users.models import AuthToken, UserProfile
+from apps.users import repository
+from tests.base import FirestoreTestCase
 import json
 from unittest.mock import patch
 
-class ProfileApiTest(TestCase):
+class ProfileApiTest(FirestoreTestCase):
     def setUp(self):
-        self.client = Client()
-        self.user = User.objects.create_user(username="testuser", password="password", email="test@example.com")
-        self.token = AuthToken.objects.create(user=self.user)
-        # Ensure profile exists with some data
-        self.profile = UserProfile.objects.create(
-            user=self.user,
-            home_address="123 Home St",
-            home_lat=40.7128,
-            home_lng=-74.0060,
-            calendar_subscription_url="https://example.com/cal.ics"
-        )
-        self.auth_headers = {"HTTP_AUTHORIZATION": f"Bearer {self.token.key}"}
+        super().setUp()
+        self.user = repository.create_user("testuser", "password", email="test@example.com")
+        # Ensure profile has some data
+        self.user.home_address = "123 Home St"
+        self.user.home_lat = 40.7128
+        self.user.home_lng = -74.0060
+        self.user.calendar_subscription_url = "https://example.com/cal.ics"
+        repository.save_user(self.user)
+        self.token = repository.get_or_create_token(self.user)
+        self.auth_headers = {"HTTP_AUTHORIZATION": f"Bearer {self.token}"}
 
     def test_get_me_returns_all_fields(self):
         """Verify GET /auth/me returns coordinates and calendar URL."""
@@ -53,6 +50,42 @@ class ProfileApiTest(TestCase):
         self.assertEqual(data["home_lat"], 34.0522)
         self.assertEqual(data["home_lng"], -118.2437)
         
-        # Verify DB update
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.home_lat, 34.0522)
+        # Verify Firestore update
+        user = repository.get_user("testuser")
+        self.assertEqual(user.home_lat, 34.0522)
+        self.assertEqual(user.home_city, "Los Angeles")
+        # Credentials are untouched by profile saves
+        self.assertTrue(user.check_password("password"))
+        self.assertEqual(user.token, self.token)
+
+    @patch("apps.users.api.TomTomClient.geocode_address")
+    def test_update_me_keeps_concurrent_changes_to_other_fields(self, mock_geocode):
+        """A profile update only writes the fields it changed."""
+
+        def concurrent_rename(address):
+            # Another request renames the user while this one waits on the geocoder.
+            other = repository.get_user("testuser")
+            other.first_name = "Renamed"
+            repository.save_user(other, {"first_name"})
+            return {"lat": 34.0522, "lon": -118.2437}
+
+        mock_geocode.side_effect = concurrent_rename
+
+        response = self.client.put(
+            "/api/auth/me",
+            data=json.dumps({"home_city": "Los Angeles"}),
+            content_type="application/json",
+            **self.auth_headers
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user = repository.get_user("testuser")
+        self.assertEqual(user.first_name, "Renamed")
+        self.assertEqual(user.home_city, "Los Angeles")
+        self.assertEqual(user.home_lat, 34.0522)
+        self.assertEqual(user.home_address, "123 Home St")
+
+    def test_save_user_rejects_unknown_or_protected_fields(self):
+        for field in ("token", "password", "nonexistent"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                repository.save_user(self.user, {field})
