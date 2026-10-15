@@ -9,6 +9,7 @@ import '../../bloc/map/map_ui_state.dart';
 import '../../models/user.dart';
 import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
+import '../../utils/graphics_helper.dart';
 import '../../utils/places_theme.dart';
 
 class MapScreen extends StatefulWidget {
@@ -41,15 +42,6 @@ class _MapScreenState extends State<MapScreen> {
 
   // Map Controller for dynamic panning
   late final MapController _mapController;
-
-  static const List<Color> _defaultPalette = [
-    Color(0xFFB14E27), // Anchor
-    Color(0xFFD99B52), // Ochre
-    Color(0xFF8F7A6A), // Taupe
-    Color(0xFF6B5344), // Chestnut
-    Color(0xFFB57D65), // Dusty Rose
-    Color(0xFF9E8B7E), // Mushroom
-  ];
 
   static const Map<String, IconData> _availableIcons = {
     'restaurant': Icons.restaurant,
@@ -176,15 +168,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Color _colorForPlace(SavedPlace sp, int index) {
-    if (sp.color != null && sp.color!.isNotEmpty) {
-      try {
-        return Color(int.parse(sp.color!, radix: 16));
-      } catch (_) {}
-    }
-    return _defaultPalette[index % _defaultPalette.length];
-  }
-
   String _displayName(SavedPlace sp) {
     if (sp.customName != null && sp.customName!.isNotEmpty) {
       return sp.customName!;
@@ -236,7 +219,7 @@ class _MapScreenState extends State<MapScreen> {
         itemBuilder: (context, index) {
           final sp = _savedPlaces[index];
           final isChecked = _checkedPlaceIds.contains(sp.place.tomtomId);
-          final color = _colorForPlace(sp, index);
+          final color = GraphicsHelper.colorForSavedPlace(sp, index);
           final iconName = sp.icon ?? 'star';
           final iconData = _availableIcons[iconName] ?? Icons.star;
 
@@ -363,7 +346,7 @@ class _MapScreenState extends State<MapScreen> {
             itemBuilder: (context, index) {
               final sp = _savedPlaces[index];
               final isChecked = _checkedPlaceIds.contains(sp.place.tomtomId);
-              final color = _colorForPlace(sp, index);
+              final color = GraphicsHelper.colorForSavedPlace(sp, index);
               final iconName = sp.icon ?? 'star';
               final iconData = _availableIcons[iconName] ?? Icons.star;
 
@@ -482,7 +465,7 @@ class _MapScreenState extends State<MapScreen> {
     int colorIndex = 0;
     for (final sp in _savedPlaces) {
       if (_checkedPlaceIds.contains(sp.place.tomtomId)) {
-        final color = _colorForPlace(sp, colorIndex);
+        final color = GraphicsHelper.colorForSavedPlace(sp, colorIndex);
         final iconName = sp.icon ?? 'star';
         final iconData = _availableIcons[iconName] ?? Icons.star;
         final lat = sp.place.location.latitude;

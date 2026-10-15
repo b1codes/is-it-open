@@ -1031,7 +1031,9 @@ class _EmptyState extends StatelessWidget {
                 style: PlacesType.body(theme.inkMuted),
               ),
               const SizedBox(height: PlacesSpacing.xl),
-              Row(
+              Wrap(
+                spacing: PlacesSpacing.sm,
+                runSpacing: PlacesSpacing.sm,
                 children: [
                   _PrimaryAction(
                     label: 'Find a place',
@@ -1050,7 +1052,6 @@ class _EmptyState extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(width: PlacesSpacing.sm),
                   _SecondaryAction(
                     label: 'Add a custom place',
                     icon: Icons.add_location_alt_outlined,

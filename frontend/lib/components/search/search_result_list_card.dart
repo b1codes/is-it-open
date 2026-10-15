@@ -20,29 +20,33 @@ class SearchResultListCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       color: isDarkTheme ? Colors.black : Colors.white,
       opacity: isDarkTheme ? 0.3 : 0.7,
-      child: ListTile(
-        title: Text(
-          place.name,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Text(
-          place.address,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        onTap: () {
-          context.read<SearchBloc>().add(AddRecentPlace(place));
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PlaceDetailScreen(place: place),
+      // Own Material so the tile's ink splash paints above the glass fill.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          title: Text(
+            place.name,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
             ),
-          );
-        },
+          ),
+          subtitle: Text(
+            place.address,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          onTap: () {
+            context.read<SearchBloc>().add(AddRecentPlace(place));
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PlaceDetailScreen(place: place),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -96,6 +96,15 @@ flutter pub get
 flutter run
 ```
 
+### 5. Browse the Component Catalog (Widgetbook)
+Every component and screen has [Widgetbook](https://www.widgetbook.io/) use cases backed by mock data, so no backend is needed:
+```bash
+cd frontend/widgetbook
+flutter pub get
+flutter run -d chrome
+```
+See [`frontend/widgetbook/README.md`](frontend/widgetbook/README.md) for adding use cases.
+
 ---
 
 ## 📂 Project Structure
@@ -116,6 +125,7 @@ is-it-open/
 │   │   ├── components/     # Reusable UI widgets
 │   │   ├── screens/        # App pages (Map, Me, etc.)
 │   │   └── main.dart       # Entry point
+│   ├── widgetbook/         # Widgetbook component catalog
 │   └── pubspec.yaml        # Flutter dependencies
 │
 ├── docker-compose.yml      # Service orchestration
