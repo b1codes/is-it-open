@@ -1,23 +1,45 @@
-version: '3.8'
-
+# Production stack. All app settings come from backend/.env (see backend/README_DEPLOY.md).
+#
+# Firestore credentials come from Application Default Credentials:
+#   - On Google Cloud (Compute Engine, GKE workload identity, ...), nothing to configure; the
+#     metadata server provides them.
+#   - Anywhere else (e.g. AWS EC2), add the key file override:
+#       docker compose -f docker-compose.prod.yml -f docker-compose.prod.keyfile.yml up -d
 services:
   # The Django Backend (data lives in Google Cloud Firestore)
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
-    # command: gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4 # Already in Dockerfile CMD
     ports:
       - "8000:8000"
-    volumes:
-      # Service account key with the "Cloud Datastore User" role
-      - ${GCP_CREDENTIALS_FILE:-./backend/gcp-service-account.json}:/secrets/gcp-service-account.json:ro
+    env_file:
+      - path: ./backend/.env
+        required: true
     environment:
-      - DEBUG=0
-      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
-      - FIRESTORE_DATABASE=${FIRESTORE_DATABASE:-(default)}
-      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-service-account.json
-      - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - TOMTOM_API_KEY=${TOMTOM_API_KEY}
+      DEBUG: "0"
+      # Never point production at an emulator, whatever backend/.env says.
+      FIRESTORE_EMULATOR_HOST: ""
+    # Refuse to start with settings that would otherwise fail silently: python-decouple accepts an
+    # empty value, and an unset GOOGLE_CLOUD_PROJECT falls back to the emulator-only demo project.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        fail() { echo "backend/.env: $$1" >&2; exit 1; }
+        [ -n "$${SECRET_KEY}" ] || fail "SECRET_KEY is not set"
+        [ -n "$${GOOGLE_CLOUD_PROJECT}" ] || fail "GOOGLE_CLOUD_PROJECT is not set (your GCP project ID)"
+        case "$${GOOGLE_CLOUD_PROJECT}" in
+          demo-*) fail "GOOGLE_CLOUD_PROJECT=$${GOOGLE_CLOUD_PROJECT} only exists in the emulator; use your GCP project ID" ;;
+        esac
+        if [ -n "$${FIRESTORE_DATABASE+set}" ] && [ -z "$${FIRESTORE_DATABASE}" ]; then
+          fail "FIRESTORE_DATABASE is empty; remove the line to use (default) or set a database ID"
+        fi
+        if [ -n "$${GOOGLE_APPLICATION_CREDENTIALS}" ] && [ ! -f "$${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
+          fail "GOOGLE_APPLICATION_CREDENTIALS=$${GOOGLE_APPLICATION_CREDENTIALS} is not a file in the container; use docker-compose.prod.keyfile.yml to mount a key"
+        fi
+        exec "$$@"
+      - entrypoint
+    # The Dockerfile's CMD (an entrypoint override clears it, so it is repeated here).
+    command: ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-log", "-"]

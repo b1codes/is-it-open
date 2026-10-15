@@ -3,6 +3,7 @@ from ninja.errors import HttpError
 from . import repository
 from .auth import GlobalAuth
 from typing import Optional
+from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
 router = Router()
@@ -79,7 +80,10 @@ def login(request, data: LoginInput):
 
 @router.post("/register", response=AuthOutput)
 def register(request, data: RegisterInput):
-    user = repository.create_user(data.username, data.password, email=data.email or "")
+    try:
+        user = repository.create_user(data.username, data.password, email=data.email or "")
+    except InvalidDocumentKey:
+        raise HttpError(400, "Invalid username")
     if not user:
         raise HttpError(400, "Username already taken")
 

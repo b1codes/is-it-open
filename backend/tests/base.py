@@ -1,10 +1,13 @@
+import os
+
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, override_settings
 
 from services.firestore import clear_emulator
 
-TEST_PROJECT = "demo-is-it-open-test"
+# Override to run several test suites against one emulator without them wiping each other.
+TEST_PROJECT = os.environ.get("FIRESTORE_TEST_PROJECT", "demo-is-it-open-test")
 
 
 @override_settings(GOOGLE_CLOUD_PROJECT=TEST_PROJECT)

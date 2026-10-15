@@ -3,7 +3,10 @@ Firestore persistence for users, their profile, and API tokens.
 
 Layout:
     users/{doc_id(username)}   account + profile fields (the old User and UserProfile)
-    auth_tokens/{key}          token -> user lookup (the old AuthToken)
+    auth_tokens/{doc_id(key)}  token -> user lookup (the old AuthToken)
+
+Lookups by username or token return None for keys that can't be document IDs (see
+services.firestore.doc_id); create_user() raises InvalidDocumentKey for them.
 """
 import secrets
 from dataclasses import asdict, dataclass, fields
@@ -12,7 +15,7 @@ from typing import Optional
 from django.contrib.auth.hashers import check_password, make_password
 from google.cloud import firestore
 
-from services.firestore import allocate_id, doc_id, get_client
+from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
 
 USERS = "users"
 AUTH_TOKENS = "auth_tokens"
@@ -69,24 +72,40 @@ def _tokens():
 
 
 def get_user(username: str) -> Optional[User]:
-    snapshot = _users().document(doc_id(username)).get()
+    try:
+        ref = _users().document(doc_id(username))
+    except InvalidDocumentKey:
+        return None
+    snapshot = ref.get()
     return User.from_dict(snapshot.to_dict()) if snapshot.exists else None
 
 
 def create_user(username: str, password: Optional[str] = None, **extra) -> Optional[User]:
-    """Create a user. Returns None if the username is already taken."""
+    """
+    Create a user. Returns None if the username is already taken.
+    Raises InvalidDocumentKey if the username can't be stored.
+    """
     user, created = _get_or_create_user(username, password, extra)
     return user if created else None
 
 
 def get_or_create_user(username: str, **defaults):
-    """Returns (user, created). `defaults` are only applied when the user is created."""
+    """
+    Returns (user, created). `defaults` are only applied when the user is created.
+    Raises InvalidDocumentKey if the username can't be stored.
+    """
     return _get_or_create_user(username, None, defaults)
 
 
 def _get_or_create_user(username, password, extra):
     client = get_client()
     ref = _users().document(doc_id(username))
+
+    # Almost every call (e.g. each Auth0-authenticated request) is for an existing user, so try a
+    # plain read first and only pay for a transaction when the user may need creating.
+    snapshot = ref.get()
+    if snapshot.exists:
+        return User.from_dict(snapshot.to_dict()), False
 
     @firestore.transactional
     def get_or_create(transaction):
@@ -95,7 +114,7 @@ def _get_or_create_user(username, password, extra):
             return User.from_dict(snapshot.to_dict()), False
 
         user = User(
-            id=allocate_id(transaction, USERS),
+            id=allocate_id(USERS),
             username=username,
             password=make_password(password),
             **extra,
@@ -137,7 +156,7 @@ def get_or_create_token(user: User) -> str:
         if existing:
             return existing
         key = secrets.token_hex(20)
-        transaction.set(_tokens().document(key), {"username": user.username, "created_at": firestore.SERVER_TIMESTAMP})
+        transaction.set(_tokens().document(doc_id(key)), {"username": user.username, "created_at": firestore.SERVER_TIMESTAMP})
         transaction.update(user_ref, {"token": key})
         return key
 
@@ -146,9 +165,11 @@ def get_or_create_token(user: User) -> str:
 
 
 def get_user_by_token(key: str) -> Optional[User]:
-    if not key:
+    try:
+        ref = _tokens().document(doc_id(key))
+    except InvalidDocumentKey:
         return None
-    snapshot = _tokens().document(doc_id(key)).get()
+    snapshot = ref.get()
     if not snapshot.exists:
         return None
     return get_user(snapshot.get("username"))

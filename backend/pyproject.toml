@@ -22,6 +22,12 @@ dependencies = [
     "google-cloud-firestore>=2.33.0,<3.0.0",
 ]
 
+[dependency-groups]
+# Only for the one-shot legacy import (`manage.py import_postgres`, see README_DEPLOY.md).
+# Not installed by default: use `uv sync --group postgres-import` or `uv run --group postgres-import`.
+postgres-import = [
+    "psycopg[binary] (>=3.3.2,<4.0.0)",
+]
 
 [build-system]
 requires = ["hatchling"]

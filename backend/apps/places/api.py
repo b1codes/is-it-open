@@ -1,4 +1,4 @@
-from ninja import Router, Schema
+from ninja import Query, Router, Schema
 from ninja.errors import HttpError
 from typing import List, Optional
 
@@ -144,7 +144,12 @@ def update_visit_length(request, tomtom_id: str, payload: UpdateVisitLengthInput
     return _update_saved_place_or_404(request, tomtom_id, average_visit_length=payload.visit_length)
 
 @router.get("/nearby", response=List[PlaceSchema])
-def get_nearby_places(request, lat: float, lng: float, radius_km: float = 5.0):
+def get_nearby_places(
+    request,
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    radius_km: float = Query(5.0, gt=0, le=repository.MAX_NEARBY_RADIUS_KM),
+):
     return repository.nearby_places(lat, lng, radius_km)
 
 @router.get("/suggestions", response=List[PlaceCreateSchema])

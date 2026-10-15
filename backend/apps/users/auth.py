@@ -4,6 +4,8 @@ from django.conf import settings
 from ninja.security import HttpBearer
 from jwt.algorithms import RSAAlgorithm
 
+from services.firestore import InvalidDocumentKey
+
 from . import repository
 
 # A simple cache for JWKS to avoid fetching it on every request
@@ -22,12 +24,16 @@ class GlobalAuth(HttpBearer):
                 return None
                 
             # Find or create user. Username will be set to Auth0 sub.
-            user, _ = repository.get_or_create_user(
-                sub,
-                email=user_data.get("email") or "",
-                first_name=user_data.get("given_name") or user_data.get("nickname") or user_data.get("name") or "",
-                last_name=user_data.get("family_name") or "",
-            )
+            # This is a plain read for existing users; a transaction only runs on first sign-in.
+            try:
+                user, _ = repository.get_or_create_user(
+                    sub,
+                    email=user_data.get("email") or "",
+                    first_name=user_data.get("given_name") or user_data.get("nickname") or user_data.get("name") or "",
+                    last_name=user_data.get("family_name") or "",
+                )
+            except InvalidDocumentKey:
+                return None
 
             # Store the token in the request object if request is present
             if request is not None:
