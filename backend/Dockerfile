@@ -1,9 +1,7 @@
 # backend/Dockerfile
 FROM python:3.11-slim
 
-# Install system libs for PostGIS
-RUN apt-get update && apt-get install -y \
-    binutils libproj-dev gdal-bin curl \
+RUN apt-get update && apt-get install -y curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -30,8 +28,8 @@ RUN uv sync --frozen --no-install-project --no-dev
 COPY . .
 
 # Run collectstatic for production (Whitenoise will serve these)
-# We set a dummy SECRET_KEY and DATABASE_URL for the build step
-RUN SECRET_KEY=build-time-only DATABASE_URL=sqlite:///db.sqlite3 python manage.py collectstatic --noinput
+# We set a dummy SECRET_KEY for the build step
+RUN SECRET_KEY=build-time-only python manage.py collectstatic --noinput
 
 EXPOSE 8000
 

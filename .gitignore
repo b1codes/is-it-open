@@ -183,3 +183,7 @@ DESIGN.md
 PRODUCT.md
 gha-creds-*.json
 skills-lock.json
+
+# GCP service account keys
+backend/gcp-service-account.json
+*service-account*.json

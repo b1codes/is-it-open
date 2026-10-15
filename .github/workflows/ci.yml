@@ -25,7 +25,7 @@ jobs:
 
       - name: Build and Run Backend Tests
         run: |
-          docker compose up -d db
+          docker compose up -d --wait firestore
           docker compose build backend
           docker compose run --rm backend python manage.py test
 

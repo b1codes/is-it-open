@@ -1,10 +1,10 @@
 import jwt
 import requests
-from django.contrib.auth.models import User
 from django.conf import settings
 from ninja.security import HttpBearer
-from .models import AuthToken, UserProfile
 from jwt.algorithms import RSAAlgorithm
+
+from . import repository
 
 # A simple cache for JWKS to avoid fetching it on every request
 _jwks_cache = {}
@@ -21,37 +21,24 @@ class GlobalAuth(HttpBearer):
             if not sub:
                 return None
                 
-            email = user_data.get("email")
-            
             # Find or create user. Username will be set to Auth0 sub.
-            user, created = User.objects.get_or_create(username=sub)
-            
-            if created:
-                user.email = email or ""
-                user.first_name = user_data.get("given_name") or user_data.get("nickname") or user_data.get("name") or ""
-                user.last_name = user_data.get("family_name") or ""
-                user.set_unusable_password()
-                user.save()
-                
-            # Ensure UserProfile exists
-            if not hasattr(user, 'profile'):
-                UserProfile.objects.create(user=user)
-                
-            # Store the token and user in the request object if request is present
+            user, _ = repository.get_or_create_user(
+                sub,
+                email=user_data.get("email") or "",
+                first_name=user_data.get("given_name") or user_data.get("nickname") or user_data.get("name") or "",
+                last_name=user_data.get("family_name") or "",
+            )
+
+            # Store the token in the request object if request is present
             if request is not None:
-                request.user = user
                 request.auth_token = token
             return user
         else:
-            # Validate via local database
-            try:
-                auth_token = AuthToken.objects.get(key=token)
-                if request is not None:
-                    request.user = auth_token.user
-                    request.auth_token = token
-                return auth_token.user
-            except AuthToken.DoesNotExist:
-                return None
+            # Validate via local token store
+            user = repository.get_user_by_token(token)
+            if user and request is not None:
+                request.auth_token = token
+            return user
 
     def verify_auth0_token(self, token):
         domain = getattr(settings, "AUTH0_DOMAIN", "")

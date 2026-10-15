@@ -1,6 +1,6 @@
 # Makefile
 
-.PHONY: up down build logs shell migrate makemigrations
+.PHONY: up down build logs shell test firestore-reset
 
 # Start the containers in the background
 up:
@@ -22,14 +22,10 @@ logs:
 shell:
 	docker compose exec backend bash
 
-# Run database migrations
-migrate:
-	docker compose exec backend python manage.py migrate
+# Run the backend test suite against the Firestore emulator
+test:
+	docker compose run --rm backend python manage.py test
 
-# Create new migrations (after changing models)
-makemigrations:
-	docker compose exec backend python manage.py makemigrations
-
-# Create a superuser for the Django Admin
-superuser:
-	docker compose exec backend python manage.py createsuperuser
+# Stop everything and wipe the local Firestore emulator data volume
+firestore-reset:
+	docker compose down -v

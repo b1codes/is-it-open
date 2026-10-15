@@ -1,21 +1,7 @@
 version: '3.8'
 
 services:
-  # The Database Service
-  db:
-    image: postgis/postgis:15-3.4
-    restart: always
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-isitopen_db}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-    # For production, you might want to expose this only to the backend or through a VPN
-    # ports:
-    #   - "5432:5432"
-
-  # The Django Backend
+  # The Django Backend (data lives in Google Cloud Firestore)
   backend:
     build: 
       context: ./backend
@@ -24,14 +10,14 @@ services:
     # command: gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4 # Already in Dockerfile CMD
     ports:
       - "8000:8000"
-    depends_on:
-      - db
+    volumes:
+      # Service account key with the "Cloud Datastore User" role
+      - ${GCP_CREDENTIALS_FILE:-./backend/gcp-service-account.json}:/secrets/gcp-service-account.json:ro
     environment:
       - DEBUG=0
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-isitopen_db}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - FIRESTORE_DATABASE=${FIRESTORE_DATABASE:-(default)}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-service-account.json
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
       - TOMTOM_API_KEY=${TOMTOM_API_KEY}
-
-volumes:
-  postgres_data:

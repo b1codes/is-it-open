@@ -23,7 +23,12 @@ git clone <your-repo-url>
 cd is-it-open
 ```
 
-## 3. Configure Environment Variables
+## 3. Set Up Firestore
+1. In the Google Cloud console, create (or pick) a project and create a Firestore database in **Native mode**.
+2. Create a service account with the **Cloud Datastore User** role and download a JSON key.
+3. Copy the key to the instance as `backend/gcp-service-account.json` (or set `GCP_CREDENTIALS_FILE` to its path). It is gitignored and excluded from the Docker image.
+
+## 4. Configure Environment Variables
 1. Copy the sample environment file:
    ```bash
    cp backend/sample.env backend/.env
@@ -33,19 +38,17 @@ cd is-it-open
    - `DEBUG`: Set to `0`
    - `ALLOWED_HOSTS`: Add your EC2 public IP or domain name
    - `TOMTOM_API_KEY`: Your TomTom API key
-   - `POSTGRES_PASSWORD`: Use a strong database password
+   - `GOOGLE_CLOUD_PROJECT`: Your GCP project ID
+   - `FIRESTORE_DATABASE`: Only if you aren't using the `(default)` database
+   - Leave `FIRESTORE_EMULATOR_HOST` unset in production
 
-## 4. Run with Docker Compose
+## 5. Run with Docker Compose
 Use the production-specific compose file:
 ```bash
 docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
-## 5. Database Migrations
-Once the containers are running, apply migrations:
-```bash
-docker-compose -f docker-compose.prod.yml exec backend python manage.py migrate
-```
+Firestore is schemaless, so there are no migrations to run.
 
 ## 6. (Optional) Reverse Proxy
 It is highly recommended to place an Nginx reverse proxy or an AWS ALB in front of port 8000.
