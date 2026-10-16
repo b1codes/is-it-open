@@ -9,6 +9,7 @@ Functions return plain dicts shaped like the API schemas. Lookups by TomTom ID r
 False) for keys that can't be document IDs (see services.firestore.doc_id); writes raise
 InvalidDocumentKey for them.
 """
+
 import datetime
 import math
 from concurrent.futures import ThreadPoolExecutor
@@ -204,9 +205,7 @@ def search_places(query: str, limit=None):
 
     # Only the implicit document-ID order, so the automatic single-field index serves this.
     candidates = (
-        _places()
-        .where(filter=FieldFilter("search_terms", "array_contains", term))
-        .order_by(FieldPath.document_id())
+        _places().where(filter=FieldFilter("search_terms", "array_contains", term)).order_by(FieldPath.document_id())
     )
     matches = []
     scanned = 0
@@ -235,7 +234,8 @@ def reindex_search_terms(batch_size: int = 400) -> int:
     whitespace-separated words). Returns the number of places updated.
 
     For local/dev data; run with
-    `uv run python manage.py shell -c "from apps.places.repository import reindex_search_terms; print(reindex_search_terms())"`.
+        uv run python manage.py shell -c \
+            "from apps.places.repository import reindex_search_terms; print(reindex_search_terms())"
     """
     client = get_client()
     query = _places().order_by(FieldPath.document_id())
@@ -270,8 +270,10 @@ def nearby_places(lat: float, lng: float, radius_km: float):
     prefixes = geohash_query_prefixes(lat, lng, radius_km)  # validates lat and radius_km
 
     def fetch(prefix):
-        query = _places().where(filter=FieldFilter("geohash", ">=", prefix)).where(
-            filter=FieldFilter("geohash", "<", prefix + "~")
+        query = (
+            _places()
+            .where(filter=FieldFilter("geohash", ">=", prefix))
+            .where(filter=FieldFilter("geohash", "<", prefix + "~"))
         )
         return list(query.stream())
 
@@ -397,7 +399,7 @@ def delete_saved_place(user, tomtom_id: str) -> bool:
 
 
 # Sorts documents whose server timestamp is somehow missing first.
-_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.UTC)
 
 
 def list_saved_places(user):
@@ -409,8 +411,4 @@ def list_saved_places(user):
     saved.sort(key=lambda s: (s.get("created_at") or _EPOCH, s["id"]))
     refs = [_places().document(doc_id(s["tomtom_id"])) for s in saved]
     places = {s.id: _to_place(s.to_dict()) for s in get_client().get_all(refs) if s.exists}
-    return [
-        _to_saved_place(s, places[doc_id(s["tomtom_id"])])
-        for s in saved
-        if doc_id(s["tomtom_id"]) in places
-    ]
+    return [_to_saved_place(s, places[doc_id(s["tomtom_id"])]) for s in saved if doc_id(s["tomtom_id"]) in places]

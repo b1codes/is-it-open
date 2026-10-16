@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -21,62 +22,61 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = config("SECRET_KEY")
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=lambda v: [s.strip() for s in v.split(",") if s.strip()])
 
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=True, cast=bool)
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'whitenoise.runserver_nostatic',
-    'django.contrib.staticfiles',
-
+    "whitenoise.runserver_nostatic",
+    "django.contrib.staticfiles",
     # Your Apps
-    'apps.places',
-    'apps.users',
-    'corsheaders',
+    "apps.places",
+    "apps.users",
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'config.urls'
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'config.wsgi.application'
+WSGI_APPLICATION = "config.wsgi.application"
 
 
-TOMTOM_API_KEY = config('TOMTOM_API_KEY', default='')
+TOMTOM_API_KEY = config("TOMTOM_API_KEY", default="")
 
 # Auth0 Configuration
-AUTH0_DOMAIN = config('AUTH0_DOMAIN', default='')
-AUTH0_AUDIENCE = config('AUTH0_AUDIENCE', default='')
-AUTH0_MOCK = config('AUTH0_MOCK', default=True, cast=bool)
+AUTH0_DOMAIN = config("AUTH0_DOMAIN", default="")
+AUTH0_AUDIENCE = config("AUTH0_AUDIENCE", default="")
+AUTH0_MOCK = config("AUTH0_MOCK", default=True, cast=bool)
 
 # Database
 # All app data lives in Google Cloud Firestore (see services/firestore.py), so Django's ORM
@@ -85,17 +85,17 @@ AUTH0_MOCK = config('AUTH0_MOCK', default=True, cast=bool)
 
 DATABASES = {}
 
-GOOGLE_CLOUD_PROJECT = config('GOOGLE_CLOUD_PROJECT', default='demo-is-it-open')
-FIRESTORE_DATABASE = config('FIRESTORE_DATABASE', default='(default)')
-FIRESTORE_EMULATOR_HOST = config('FIRESTORE_EMULATOR_HOST', default='')
+GOOGLE_CLOUD_PROJECT = config("GOOGLE_CLOUD_PROJECT", default="demo-is-it-open")
+FIRESTORE_DATABASE = config("FIRESTORE_DATABASE", default="(default)")
+FIRESTORE_EMULATOR_HOST = config("FIRESTORE_EMULATOR_HOST", default="")
 
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -105,8 +105,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # WhiteNoise storage to handle compression and unique names
 STORAGES = {

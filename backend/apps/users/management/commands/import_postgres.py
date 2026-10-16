@@ -24,6 +24,7 @@ clients hold.
 The Postgres half (read_postgres) is separate from the Firestore half (build_plan / find_conflicts /
 apply_plan) so the latter can be tested against the emulator with fixture rows.
 """
+
 import datetime
 from dataclasses import dataclass, field
 
@@ -55,9 +56,22 @@ class LegacyData:
 
 
 _PROFILE_COLUMNS = (
-    "home_address", "home_street", "home_city", "home_state", "home_zip", "home_lat", "home_lng",
-    "work_address", "work_street", "work_city", "work_state", "work_zip", "work_lat", "work_lng",
-    "use_current_location", "calendar_subscription_url",
+    "home_address",
+    "home_street",
+    "home_city",
+    "home_state",
+    "home_zip",
+    "home_lat",
+    "home_lng",
+    "work_address",
+    "work_street",
+    "work_city",
+    "work_state",
+    "work_zip",
+    "work_lat",
+    "work_lng",
+    "use_current_location",
+    "calendar_subscription_url",
 )
 
 USERS_SQL = f"""
@@ -105,7 +119,7 @@ def read_postgres(database_url: str) -> LegacyData:
 
     # dj-database-url spells PostGIS URLs postgis://; libpq only knows postgres(ql)://.
     if database_url.startswith("postgis://"):
-        database_url = "postgresql://" + database_url[len("postgis://"):]
+        database_url = "postgresql://" + database_url[len("postgis://") :]
 
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         conn.read_only = True
@@ -162,11 +176,15 @@ def _place_timestamps(data: LegacyData) -> dict:
     """
     stamps = [
         row.get(column)
-        for rows, column in ((data.users, "date_joined"), (data.users, "token_created_at"), (data.saved_places, "created_at"))
+        for rows, column in (
+            (data.users, "date_joined"),
+            (data.users, "token_created_at"),
+            (data.saved_places, "created_at"),
+        )
         for row in rows
     ]
     stamps = [s for s in stamps if isinstance(s, datetime.datetime)]
-    end = max(stamps) if stamps else datetime.datetime.now(datetime.timezone.utc)
+    end = max(stamps) if stamps else datetime.datetime.now(datetime.UTC)
     ids = sorted(row["id"] for row in data.places)
     return {place_id: end - datetime.timedelta(milliseconds=len(ids) - i) for i, place_id in enumerate(ids)}
 
@@ -203,11 +221,13 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
 
     hours_by_place = {}
     for row in data.hours:
-        hours_by_place.setdefault(row["place_id"], []).append({
-            "day_of_week": row["day_of_week"],
-            "open_time": _time(row["open_time"]),
-            "close_time": _time(row["close_time"]),
-        })
+        hours_by_place.setdefault(row["place_id"], []).append(
+            {
+                "day_of_week": row["day_of_week"],
+                "open_time": _time(row["open_time"]),
+                "close_time": _time(row["close_time"]),
+            }
+        )
 
     created_at = _place_timestamps(data)
     places_by_id = {}
@@ -268,7 +288,9 @@ def find_conflicts(plan: Plan) -> list:
                 if existing_id != planned[path]:
                     conflicts.append(f"{path} has id {existing_id} in Firestore but {planned[path]} in Postgres")
             elif existing_id in path_by_id:
-                conflicts.append(f"{path} already uses {kind} id {existing_id}, which belongs to {path_by_id[existing_id]}")
+                conflicts.append(
+                    f"{path} already uses {kind} id {existing_id}, which belongs to {path_by_id[existing_id]}"
+                )
     return conflicts
 
 
@@ -277,7 +299,7 @@ def apply_plan(plan: Plan):
     client = get_client()
     for start in range(0, len(plan.writes), BATCH_SIZE):
         batch = client.batch()
-        for ref, data in plan.writes[start:start + BATCH_SIZE]:
+        for ref, data in plan.writes[start : start + BATCH_SIZE]:
             batch.set(ref, data)
         batch.commit()
 
@@ -375,14 +397,16 @@ class Command(BaseCommand):
 
         rows = [("", "postgres", "skipped", written, "firestore", "counter")]
         for kind in (users_repo.USERS, TOKENS, places_repo.PLACES, places_repo.SAVED_PLACES):
-            rows.append((
-                kind,
-                read[kind],
-                skipped[kind],
-                planned[kind],
-                "-" if counts is None else counts[kind],
-                plan.counters.get(kind, "-"),
-            ))
+            rows.append(
+                (
+                    kind,
+                    read[kind],
+                    skipped[kind],
+                    planned[kind],
+                    "-" if counts is None else counts[kind],
+                    plan.counters.get(kind, "-"),
+                )
+            )
         for row in rows:
             self.stdout.write("  " + f"{row[0]:<14}" + "".join(f"{v!s:>11}" for v in row[1:]))
 

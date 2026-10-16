@@ -9,7 +9,9 @@ class AuthApiTests(FirestoreTestCase):
         return self.client.post(path, data=json.dumps(payload), content_type="application/json")
 
     def test_register_creates_user_with_default_profile(self):
-        response = self._post("/api/auth/register", {"username": "testuser", "password": "password", "email": "t@example.com"})
+        response = self._post(
+            "/api/auth/register", {"username": "testuser", "password": "password", "email": "t@example.com"}
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
 

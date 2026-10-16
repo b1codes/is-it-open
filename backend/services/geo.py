@@ -52,7 +52,7 @@ def _grid(precision: int):
     total_bits = precision * 5
     lat_bits = total_bits // 2
     lng_bits = total_bits - lat_bits
-    rows, cols = 2 ** lat_bits, 2 ** lng_bits
+    rows, cols = 2**lat_bits, 2**lng_bits
     return rows, cols, 180.0 / rows, 360.0 / cols
 
 

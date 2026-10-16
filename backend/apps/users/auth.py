@@ -1,8 +1,8 @@
 import jwt
 import requests
 from django.conf import settings
-from ninja.security import HttpBearer
 from jwt.algorithms import RSAAlgorithm
+from ninja.security import HttpBearer
 
 from services.firestore import InvalidDocumentKey
 
@@ -11,6 +11,7 @@ from . import repository
 # A simple cache for JWKS to avoid fetching it on every request
 _jwks_cache = {}
 
+
 class GlobalAuth(HttpBearer):
     def authenticate(self, request, token):
         if token.startswith("eyJ") and len(token.split(".")) == 3:
@@ -18,11 +19,11 @@ class GlobalAuth(HttpBearer):
             user_data = self.verify_auth0_token(token)
             if not user_data:
                 return None
-            
+
             sub = user_data.get("sub")
             if not sub:
                 return None
-                
+
             # Find or create user. Username will be set to Auth0 sub.
             # This is a plain read for existing users; a transaction only runs on first sign-in.
             try:
@@ -56,7 +57,7 @@ class GlobalAuth(HttpBearer):
         domain = getattr(settings, "AUTH0_DOMAIN", "")
         audience = getattr(settings, "AUTH0_AUDIENCE", "")
         mock = getattr(settings, "AUTH0_MOCK", True) or not domain
-        
+
         if mock:
             try:
                 # In mock mode, we decode without verification
@@ -64,7 +65,7 @@ class GlobalAuth(HttpBearer):
                 return payload
             except jwt.DecodeError:
                 return None
-                
+
         # Real verification using Auth0 JWKS
         try:
             # 1. Decode header to get kid
@@ -72,12 +73,12 @@ class GlobalAuth(HttpBearer):
             kid = unverified_header.get("kid")
             if not kid:
                 return None
-                
+
             # 2. Get JWKS (from cache or API)
             jwks = self.get_jwks(domain)
             if not jwks:
                 return None
-                
+
             # 3. Find matching key
             rsa_key = {}
             for key in jwks.get("keys", []):
@@ -87,21 +88,17 @@ class GlobalAuth(HttpBearer):
                         "kid": key.get("kid"),
                         "use": key.get("use"),
                         "n": key.get("n"),
-                        "e": key.get("e")
+                        "e": key.get("e"),
                     }
                     break
-            
+
             if not rsa_key:
                 return None
-                
+
             # 4. Construct public key and decode token
             public_key = RSAAlgorithm.from_jwk(rsa_key)
             payload = jwt.decode(
-                token,
-                public_key,
-                algorithms=["RS256"],
-                audience=audience,
-                issuer=f"https://{domain}/"
+                token, public_key, algorithms=["RS256"], audience=audience, issuer=f"https://{domain}/"
             )
             return payload
         except Exception:
@@ -111,7 +108,7 @@ class GlobalAuth(HttpBearer):
         global _jwks_cache
         if domain in _jwks_cache:
             return _jwks_cache[domain]
-            
+
         try:
             url = f"https://{domain}/.well-known/jwks.json"
             response = requests.get(url, timeout=5)
