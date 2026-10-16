@@ -112,6 +112,10 @@ def _get_or_create_user(username, password, extra):
     if snapshot.exists:
         return User.from_dict(snapshot.to_dict()), False
 
+    # Hashing is deliberately slow, so it happens before the transaction: a transaction held open
+    # that long makes concurrent sign-ups for the same username exhaust their retries.
+    password_hash = make_password(password)
+
     @firestore.transactional
     def get_or_create(transaction):
         snapshot = ref.get(transaction=transaction)
@@ -121,7 +125,7 @@ def _get_or_create_user(username, password, extra):
         user = User(
             id=allocate_id(USERS),
             username=username,
-            password=make_password(password),
+            password=password_hash,
             **extra,
         )
         transaction.set(ref, user_document(user))
