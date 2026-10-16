@@ -1,9 +1,28 @@
 import hashlib
+import math
 from datetime import datetime
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
 from django.core.cache import cache
+
+
+def _path_segment(text: str) -> str:
+    """`text` as one URL path segment, so '/', '?' or '#' in a query or address can't change the URL."""
+    return quote(text, safe="")
+
+
+def _is_coordinate(value) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _format_time(time: dict) -> str:
+    """HH:MM from a TomTom time ({"hour": 9, "minute": 0}). Missing parts are 0."""
+    hour, minute = time.get("hour", 0), time.get("minute", 0)
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in (hour, minute)):
+        raise ValueError(f"Not a time: {time!r}")
+    return f"{hour:02d}:{minute:02d}"
 
 
 class TomTomClient:
@@ -20,7 +39,7 @@ class TomTomClient:
         if not self.api_key:
             return []
 
-        url = f"{self.BASE_URL}/poiSearch/{query}.json"
+        url = f"{self.BASE_URL}/poiSearch/{_path_segment(query)}.json"
         params = {
             "key": self.api_key,
             "limit": 10,
@@ -30,7 +49,7 @@ class TomTomClient:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
-            return self._parse_results(data.get("results", []))
+            return self._parse_results(data.get("results") or [])
         except requests.RequestException:
             return []
 
@@ -54,7 +73,7 @@ class TomTomClient:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
-            return self._parse_results(data.get("results", []))
+            return self._parse_results(data.get("results") or [])
         except requests.RequestException:
             return []
 
@@ -67,27 +86,34 @@ class TomTomClient:
         return parsed
 
     def _parse_place(self, result):
-        poi = result.get("poi", {})
-        address = result.get("address", {})
-        position = result.get("position", {})
+        """
+        A TomTom result as PlaceCreateSchema data, or None if it lacks what a place needs (an ID,
+        a name, and a position). Missing or null optional fields get defaults.
+        """
+        if not isinstance(result, dict):
+            return None
+        poi = result.get("poi") or {}
+        address = result.get("address") or {}
+        position = result.get("position") or {}
+        lat, lng = position.get("lat"), position.get("lon")
+        if not (result.get("id") and poi.get("name") and _is_coordinate(lat) and _is_coordinate(lng)):
+            return None
 
-        hours = self._parse_opening_hours(poi.get("openingHours", {}))
+        hours = self._parse_opening_hours(poi.get("openingHours"))
 
         categories = []
-        for cset in poi.get("categorySet", []):
-            name = cset.get("name")
+        for cset in poi.get("categorySet") or []:
+            name = cset.get("name") if isinstance(cset, dict) else None
             if name:
                 categories.append(name)
 
         return {
-            "tomtom_id": result.get("id"),
-            "name": poi.get("name"),
+            "tomtom_id": result["id"],
+            "name": poi["name"],
             # Construct a readable address
-            "address": address.get(
-                "freeformAddress",
-                f"{address.get('streetNumber', '')} {address.get('streetName', '')}, {address.get('municipality', '')}",
-            ),
-            "location": {"lat": position.get("lat"), "lng": position.get("lon")},
+            "address": address.get("freeformAddress")
+            or f"{address.get('streetNumber', '')} {address.get('streetName', '')}, {address.get('municipality', '')}",
+            "location": {"lat": lat, "lng": lng},
             "phone": poi.get("phone"),
             "website": poi.get("url"),
             "categories": categories,
@@ -100,7 +126,7 @@ class TomTomClient:
         TomTom returns 'nextSevenDays' with specific dates.
         We map these dates to day of week (0-6).
         """
-        if not opening_hours_data or "timeRanges" not in opening_hours_data:
+        if not isinstance(opening_hours_data, dict):
             return []
 
         parsed_hours = []
@@ -108,29 +134,24 @@ class TomTomClient:
         # or we only want the first occurrence of each day.
         seen_days = set()
 
-        for time_range in opening_hours_data.get("timeRanges", []):
-            start = time_range.get("startTime", {})
-            end = time_range.get("endTime", {})
-
-            date_str = start.get("date")
-            if not date_str:
-                continue
-
+        # Malformed ranges (missing or null parts, bad dates or times) are skipped.
+        for time_range in opening_hours_data.get("timeRanges") or []:
             try:
-                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                start = time_range["startTime"]
+                end = time_range["endTime"]
+                date_obj = datetime.strptime(start["date"], "%Y-%m-%d")
                 day_of_week = date_obj.weekday()  # 0=Monday, 6=Sunday
 
                 if day_of_week in seen_days:
                     continue  # Already have hours for this day (from the 'next 7 days' window, first one is closest)
 
-                seen_days.add(day_of_week)
-
-                open_time = f"{start.get('hour', 0):02d}:{start.get('minute', 0):02d}"
-                close_time = f"{end.get('hour', 0):02d}:{end.get('minute', 0):02d}"
-
-                parsed_hours.append({"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time})
-            except ValueError:
+                open_time = _format_time(start)
+                close_time = _format_time(end)
+            except (AttributeError, KeyError, TypeError, ValueError):
                 continue
+
+            seen_days.add(day_of_week)
+            parsed_hours.append({"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time})
 
         return parsed_hours
 
@@ -176,7 +197,7 @@ class TomTomClient:
         if cached_result:
             return cached_result
 
-        url = f"{self.BASE_URL}/geocode/{address}.json"
+        url = f"{self.BASE_URL}/geocode/{_path_segment(address)}.json"
         params = {"key": self.api_key, "limit": 1}
         try:
             response = requests.get(url, params=params, timeout=5)
@@ -184,7 +205,7 @@ class TomTomClient:
             data = response.json()
             results = data.get("results", [])
             if results:
-                position = results[0].get("position", {})
+                position = results[0].get("position") or {}
                 lat = position.get("lat")
                 lon = position.get("lon")
                 if lat is not None and lon is not None:
