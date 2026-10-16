@@ -80,6 +80,10 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "DJ"]
 # Ternaries aren't always clearer than a short if/else.
 ignore = ["SIM108"]
 
+[tool.ruff.lint.isort]
+# Explicit so import sorting is the same whether ruff runs from backend/ or the repo root.
+known-first-party = ["apps", "config", "services", "tests"]
+
 [tool.ruff.lint.per-file-ignores]
 # Test fixtures assign throwaway values and use long literal payloads.
 "tests/**" = ["E501"]
