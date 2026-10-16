@@ -43,7 +43,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
   dart run tool/coverage.dart check --min=13     # per-file table; fails below the minimum
   ```
 
-- **Lint:** `dart format lib test tool` and `flutter analyze` (lints from `analysis_options.yaml`).
+- **Lint:** `dart format lib test tool` and `flutter analyze lib test tool` (lints from `analysis_options.yaml`). Scope it to those directories: plain `flutter analyze` also picks up the nested `widgetbook/` package.
 
 ## CI (`.github/workflows/`)
 

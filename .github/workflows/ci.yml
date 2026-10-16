@@ -143,7 +143,8 @@ jobs:
         run: dart format --output=none --set-exit-if-changed lib test tool
 
       - name: Analyze
-        run: flutter analyze
+        # Scoped so the nested widgetbook/ package (analyzed in its own job) isn't picked up without its deps.
+        run: flutter analyze lib test tool
 
       - name: Test
         run: |

@@ -49,7 +49,7 @@ lint-backend:
 	$(BACKEND_RUN) sh -c 'ruff check . && ruff format --check . && mypy .'
 
 lint-frontend:
-	cd frontend && dart format --output=none --set-exit-if-changed lib test tool && flutter analyze
+	cd frontend && dart format --output=none --set-exit-if-changed lib test tool && flutter analyze lib test tool
 	cd frontend/widgetbook && flutter analyze
 
 # Apply formatting and autofixable lint fixes
