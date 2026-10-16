@@ -23,6 +23,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-stubs>=6.1.2",
+    "mutmut>=3.8.0",
     "mypy>=2.4.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
@@ -100,3 +101,13 @@ django_settings_module = "config.settings"
 # Test bodies lean on Optional returns being non-None after assertions; only check their signatures.
 module = ["tests.*", "apps.*.tests", "apps.*.tests_profile"]
 check_untyped_defs = false
+
+[tool.mutmut]
+# Nightly, non-blocking mutation testing (see .github/workflows/nightly.yml): mutmut makes small
+# changes to the code and checks that some test fails. Surviving mutants point at weak tests.
+source_paths = ["apps/", "services/"]
+do_not_mutate = ["*/tests.py", "*/tests_*.py", "*/management/*", "*/views.py"]
+also_copy = ["config/", "tests/", "manage.py"]
+mutate_only_covered_lines = true
+# The Firestore client (gRPC) is not fork-safe: fork workers from a server that never opened a client.
+process_isolation = "forkserver"

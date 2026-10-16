@@ -1,0 +1,154 @@
+name: Nightly
+
+# Slow or non-blocking checks: quarantined (known-flaky) tests and mutation testing.
+# Results land in each run's summary and artifacts; nothing here blocks a merge.
+on:
+  schedule:
+    - cron: '0 7 * * *'  # 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quarantine-backend:
+    name: Quarantined backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Test
+        run: |
+          # Exit code 5 means no test is quarantined.
+          uv run pytest -p no:cacheprovider -m quarantine --junitxml=test-results/junit.xml || [ $? -eq 5 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  quarantine-frontend:
+    name: Quarantined frontend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - name: Test
+        run: |
+          mkdir -p test-results
+          # Exit code 79 means no test is quarantined.
+          flutter test -t quarantine --file-reporter json:test-results/flutter.json || [ $? -eq 79 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-frontend
+          path: frontend/test-results/
+          if-no-files-found: ignore
+
+  mutation-backend:
+    name: Backend mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Run mutmut
+        run: uv run mutmut run --max-children 4
+      - name: Summary
+        if: always()
+        run: |
+          uv run mutmut export-cicd-stats
+          {
+            echo "## Backend mutation testing"
+            echo
+            echo "Surviving mutants are code changes no test noticed. Inspect one with \`uv run mutmut show <name>\`."
+            echo
+            echo '```json'
+            cat mutants/mutmut-cicd-stats.json
+            echo '```'
+            echo
+            echo '<details><summary>Surviving mutants</summary>'
+            echo
+            echo '```'
+            uv run mutmut results 2>/dev/null | grep -v ': killed' || true
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-backend
+          path: backend/mutants/mutmut-cicd-stats.json
+          if-no-files-found: ignore
+
+  mutation-frontend:
+    name: Frontend mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - name: Collect coverage
+        # Lets mutation_test skip lines no test executes (they're reported as uncovered instead).
+        run: flutter test --coverage
+      - name: Run mutation_test
+        run: |
+          dart pub global activate mutation_test 1.8.0
+          dart pub global run mutation_test --exclude-strings -c coverage/lcov.info -f md -o mutation-test-report mutation_test.xml
+      - name: Summary
+        if: always()
+        run: |
+          { echo "## Frontend mutation testing"; echo; cat mutation-test-report/*.md 2>/dev/null || echo "No report produced."; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-frontend
+          path: frontend/mutation-test-report/
+          if-no-files-found: ignore
