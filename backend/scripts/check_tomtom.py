@@ -1,3 +1,12 @@
+"""
+Manual check against the live TomTom API: prints the raw POI search response for "pizza" near NYC.
+
+Not part of the test suite (it needs a real key and network access; the suite mocks TomTom). Run
+from backend/ with TOMTOM_API_KEY in .env:
+
+    uv run python scripts/check_tomtom.py
+"""
+
 import json
 
 import requests
@@ -19,7 +28,7 @@ params = {
     "limit": 1,
     "lat": 40.7128,  # NY
     "lon": -74.0060,
-    "openingHours": "nextSevenDays",  # Try to request hours? Documentation doesn't say we need to request it explicitly usually, but let's see.
+    "openingHours": "nextSevenDays",
 }
 
 response = requests.get(url, params=params)

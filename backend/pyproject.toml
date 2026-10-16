@@ -23,12 +23,15 @@ dependencies = [
 [dependency-groups]
 dev = [
     "django-stubs>=6.1.2",
+    "freezegun>=1.5.5",
+    "hypothesis>=6.170.0",
     "mutmut>=3.8.0",
     "mypy>=2.4.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-django>=4.12.0",
     "pytest-rerunfailures>=16.7",
+    "responses>=0.26.3",
     "ruff>=0.17.1",
 ]
 # Only for the one-shot legacy import (`manage.py import_postgres`, see README_DEPLOY.md).
@@ -95,8 +98,8 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
-# check_tomtom.py is a manual script against the live API, not part of the suite.
-exclude = ["^staticfiles/", "^tests/check_tomtom\\.py$"]
+# scripts/ holds manual one-off scripts (e.g. check_tomtom.py against the live API), not app code.
+exclude = ["^staticfiles/", "^scripts/"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings"
