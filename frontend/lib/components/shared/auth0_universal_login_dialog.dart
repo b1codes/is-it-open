@@ -41,8 +41,8 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       "email_verified": true,
       "name": name,
       "nickname": name.toLowerCase().replaceAll(' ', ''),
-      if (givenName != null) "given_name": givenName,
-      if (familyName != null) "family_name": familyName,
+      "given_name": ?givenName,
+      "family_name": ?familyName,
     };
 
     final headerBase64 = base64Url
