@@ -1,8 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/services/ical_parser_service.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 void main() {
   final service = IcalParserService();
+
+  // main.dart loads the timezone database at startup. Without it, TZID lookups fail and the
+  // parser falls back to reading the time in the machine's local zone.
+  setUpAll(tz.initializeTimeZones);
 
   test('should parse a single timed event', () {
     const ics = '''BEGIN:VCALENDAR
