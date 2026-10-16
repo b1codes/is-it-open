@@ -83,7 +83,7 @@ AUTH0_MOCK = config("AUTH0_MOCK", default=True, cast=bool)
 # is unused. Locally FIRESTORE_EMULATOR_HOST points at the emulator in docker/firestore-emulator;
 # in production leave it unset and authenticate with Application Default Credentials.
 
-DATABASES = {}
+DATABASES: dict[str, dict] = {}
 
 GOOGLE_CLOUD_PROJECT = config("GOOGLE_CLOUD_PROJECT", default="demo-is-it-open")
 FIRESTORE_DATABASE = config("FIRESTORE_DATABASE", default="(default)")

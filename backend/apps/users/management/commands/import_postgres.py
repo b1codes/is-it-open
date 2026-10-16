@@ -219,7 +219,7 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
         if user.token:
             plan.tokens += 1
 
-    hours_by_place = {}
+    hours_by_place: dict[int, list[dict]] = {}
     for row in data.hours:
         hours_by_place.setdefault(row["place_id"], []).append(
             {
@@ -251,17 +251,17 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
         plan.add(places_repo.PLACES, ref, place)
 
     for row in data.saved_places:
-        user, place = users_by_id.get(row["user_id"]), places_by_id.get(row["place_id"])
-        if user is None or place is None:
+        owner, saved_target = users_by_id.get(row["user_id"]), places_by_id.get(row["place_id"])
+        if owner is None or saved_target is None:
             plan.skipped[places_repo.SAVED_PLACES] += 1
             continue
         fields = {f: row.get(f) for f in places_repo._SAVED_PLACE_FIELDS}
         fields["is_pinned"] = bool(fields["is_pinned"])
         fields["is_check_it_out"] = bool(fields["is_check_it_out"])
         saved = places_repo.saved_place_document(
-            row["id"], place, created_at=_or_server_timestamp(row.get("created_at")), **fields
+            row["id"], saved_target, created_at=_or_server_timestamp(row.get("created_at")), **fields
         )
-        ref = places_repo._saved_places(user).document(doc_id(place["tomtom_id"]))
+        ref = places_repo._saved_places(owner).document(doc_id(saved_target["tomtom_id"]))
         plan.add(places_repo.SAVED_PLACES, ref, saved)
 
     return plan
@@ -395,7 +395,7 @@ class Command(BaseCommand):
         skipped = {**plan.skipped, TOKENS: plan.tokens_read - plan.tokens}
         written = "written" if counts is not None else "to write"
 
-        rows = [("", "postgres", "skipped", written, "firestore", "counter")]
+        rows: list[tuple] = [("", "postgres", "skipped", written, "firestore", "counter")]
         for kind in (users_repo.USERS, TOKENS, places_repo.PLACES, places_repo.SAVED_PLACES):
             rows.append(
                 (

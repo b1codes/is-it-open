@@ -82,3 +82,21 @@ ignore = ["SIM108"]
 [tool.ruff.lint.per-file-ignores]
 # Test fixtures assign throwaway values and use long literal payloads.
 "tests/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+# check_tomtom.py is a manual script against the live API, not part of the suite.
+exclude = ["^staticfiles/", "^tests/check_tomtom\\.py$"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[[tool.mypy.overrides]]
+# Test bodies lean on Optional returns being non-None after assertions; only check their signatures.
+module = ["tests.*", "apps.*.tests", "apps.*.tests_profile"]
+check_untyped_defs = false

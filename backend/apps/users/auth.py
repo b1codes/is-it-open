@@ -1,5 +1,6 @@
 import jwt
 import requests
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from django.conf import settings
 from jwt.algorithms import RSAAlgorithm
 from ninja.security import HttpBearer
@@ -9,7 +10,7 @@ from services.firestore import InvalidDocumentKey
 from . import repository
 
 # A simple cache for JWKS to avoid fetching it on every request
-_jwks_cache = {}
+_jwks_cache: dict[str, dict] = {}
 
 
 class GlobalAuth(HttpBearer):
@@ -97,6 +98,8 @@ class GlobalAuth(HttpBearer):
 
             # 4. Construct public key and decode token
             public_key = RSAAlgorithm.from_jwk(rsa_key)
+            if not isinstance(public_key, RSAPublicKey):
+                return None
             payload = jwt.decode(
                 token, public_key, algorithms=["RS256"], audience=audience, issuer=f"https://{domain}/"
             )

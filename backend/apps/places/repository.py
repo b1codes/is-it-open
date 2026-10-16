@@ -49,17 +49,17 @@ def _saved_places(user):
     return get_client().collection("users").document(user.doc_id).collection(SAVED_PLACES)
 
 
-def _normalize_text(text: str) -> str:
+def _normalize_text(text: str | None) -> str:
     """Case-fold and collapse whitespace. Shared by the index and the query so they agree."""
     return " ".join((text or "").casefold().split())
 
 
-def _words(text: str):
+def _words(text: str | None):
     """Whitespace-separated words, punctuation included ("A&W" is one word)."""
     return _normalize_text(text).split()
 
 
-def _search_terms(name: str):
+def _search_terms(name: str | None):
     """
     Every substring (up to _MAX_SEARCH_TERM_LENGTH characters) of every word in the name, so a
     query word can be found with array_contains wherever it falls inside a word. Words keep
@@ -410,5 +410,5 @@ def list_saved_places(user):
     saved = [s.to_dict() for s in _saved_places(user).stream()]
     saved.sort(key=lambda s: (s.get("created_at") or _EPOCH, s["id"]))
     refs = [_places().document(doc_id(s["tomtom_id"])) for s in saved]
-    places = {s.id: _to_place(s.to_dict()) for s in get_client().get_all(refs) if s.exists}
+    places = {s.id: _to_place(s.to_dict() or {}) for s in get_client().get_all(refs) if s.exists}
     return [_to_saved_place(s, places[doc_id(s["tomtom_id"])]) for s in saved if doc_id(s["tomtom_id"]) in places]
