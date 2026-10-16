@@ -55,6 +55,10 @@ addopts = "--strict-markers"
 markers = [
     "quarantine: known-flaky test; skipped by the required CI job and run in the nightly workflow",
 ]
+filterwarnings = [
+    # WhiteNoise warns on every request when collectstatic hasn't run, which tests never need.
+    "ignore:No directory at:UserWarning:django.core.handlers.base",
+]
 
 [tool.coverage.run]
 source = ["apps", "config", "services"]
