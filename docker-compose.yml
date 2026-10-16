@@ -16,7 +16,10 @@ services:
 
   # The Django Backend
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/code

@@ -21,8 +21,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install dependencies
 # Note: we copy pyproject.toml and uv.lock first for caching
+# INSTALL_DEV=true adds the test/lint tooling (docker-compose.yml sets it for local dev and CI).
+ARG INSTALL_DEV=false
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+        uv sync --frozen --no-install-project; \
+    else \
+        uv sync --frozen --no-install-project --no-dev; \
+    fi
 
 # Copy project code
 COPY . .
