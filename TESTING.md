@@ -19,8 +19,25 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 
 ## Backend (`backend/`)
 
-- **Runner:** pytest with pytest-django. Tests live in `backend/tests/` and `backend/apps/*/tests*.py`.
-- **Database:** every test case subclasses `tests.base.FirestoreTestCase`. It runs against the emulator under a separate `demo-is-it-open-test` project, which is wiped before each test, so your local dev data is never touched.
+- **Runner:** pytest with pytest-django. Tests live in `backend/tests/` and `backend/apps/*/tests*.py`:
+
+  | Directory | What it covers |
+  | --- | --- |
+  | `tests/api/` | Every route in `config/api.py` through the Django test client: happy path, 422, 401, 404 |
+  | `tests/repositories/` | `apps/*/repository.py` against the emulator: IDs, idempotency, transactions, per-user isolation |
+  | `tests/services/` | `services/`: TomTom (mocked HTTP), geo math, Firestore helpers |
+  | `tests/auth/` | `GlobalAuth`: local tokens, Auth0 JWT verification, the JWKS cache |
+  | `tests/property/` | Hypothesis property tests (hours parsing, geo, document IDs, the search index) |
+
+- **Database:** tests run against the emulator under a separate `demo-is-it-open-test` project, which is wiped before each test, so your local dev data is never touched. New tests use the `firestore_db` fixture (or a factory that depends on it); older ones subclass `tests.base.FirestoreTestCase`.
+- **Fixtures** (`tests/conftest.py`):
+  - Data: `make_user`, `make_place`, and `make_bookmark` factories, plus `user` and `place`. Payload builders are in `tests/factories.py`.
+  - Clients: `api_client` (anonymous), `auth_client` (local API token), `auth0_client` (mock-mode Auth0 JWT), and `any_auth_client`, which runs a test once with each.
+  - HTTP: `http_mock` ([responses](https://github.com/getsentry/responses)) fails any outbound request that isn't registered, so no test reaches a real service. `tomtom` enables `TomTomClient` with a test key. `auth0_tenant` turns off mock mode and serves an RS256 tenant's JWKS; sign tokens with `auth0_tenant.token(...)`.
+  - An autouse fixture blanks `TOMTOM_API_KEY` and the Auth0 settings and clears the caches, so a local `.env` can't leak into a test.
+- **Time:** use [freezegun](https://github.com/spulec/freezegun) (`freeze_time`), but keep Firestore calls outside the frozen block. The gRPC client hangs on a frozen clock.
+- **Property tests:** the `HYPOTHESIS_PROFILE` environment variable picks the profile. Locally, `dev` draws 100 new examples per run. CI uses `ci`, a fixed set of 200, so a PR can't fail on a newly drawn example. The nightly run uses `nightly`, with 5,000 random examples. A failure prints `@reproduce_failure(...)`; add it to the test to replay the example.
+- **Manual scripts** that hit live services (e.g. `scripts/check_tomtom.py`) live in `backend/scripts/`, outside the suite.
 - **Without Docker:** start the emulator (`docker compose up -d firestore`), then:
 
   ```sh
@@ -51,7 +68,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 | --- | --- | --- |
 | `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, and `widgetbook` run in parallel. Each runs only when its paths change. The `ci` job is the required check and passes only if every job passed or was skipped. |
 | `test-report.yml` | After CI or Nightly | Publishes test results as check runs on the commit |
-| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests and mutation testing (non-blocking) |
+| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, and mutation testing (non-blocking) |
 
 Each job writes a coverage table to its run summary. On PRs it also reports diff coverage, meaning coverage of just the changed lines. Diff coverage is informational for now.
 
@@ -59,7 +76,7 @@ Each job writes a coverage table to its run summary. On PRs it also reports diff
 
 | Suite | Minimum | Goal |
 | --- | --- | --- |
-| Backend | 80% | 85% |
+| Backend | 95% | 95% |
 | Frontend | 13% | 80% |
 
 The minimums are set in `ci.yml` (`BACKEND_MIN_COVERAGE`, `FRONTEND_MIN_COVERAGE`) and mirrored in the `Makefile`. **Ratchet them up** as coverage grows, and never lower them to get a PR through.
