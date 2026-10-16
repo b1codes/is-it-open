@@ -10,46 +10,220 @@ concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+# Minimum total line coverage. Raise these as the backend/frontend suites grow; never lower them.
+env:
+  BACKEND_MIN_COVERAGE: '80'
+  FRONTEND_MIN_COVERAGE: '13'
+
 jobs:
-  ci:
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - '.github/workflows/ci.yml'
+            backend:
+              - *shared
+              - 'backend/**'
+              - 'docker/**'
+              - 'docker-compose.yml'
+            frontend:
+              - *shared
+              - 'frontend/**'
 
-      - name: Setup Backend Environment
+  backend:
+    name: Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'  # matches the Dockerfile base image
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # diff-cover compares against the base branch
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
         run: |
-          cd backend
-          cp sample.env .env
+          uv run ruff check --output-format=github .
+          uv run ruff format --check .
 
-      - name: Build and Run Backend Tests
+      - name: Type check (mypy)
+        run: uv run mypy .
+
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+
+      - name: Test
+        run: >
+          uv run pytest -p no:cacheprovider
+          -m "not quarantine" --reruns 1
+          --cov --cov-report=xml --cov-report=term
+          --cov-fail-under="$BACKEND_MIN_COVERAGE"
+          --junitxml=test-results/junit.xml
+
+      - name: Coverage summary
+        if: always()
         run: |
-          docker compose up -d --wait firestore
-          docker compose build backend
-          docker compose run --rm backend python manage.py test
+          if [ -f .coverage ]; then
+            { echo "## Backend coverage (minimum ${BACKEND_MIN_COVERAGE}%)"; echo; uv run coverage report --format=markdown; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Diff coverage (informational)
+        if: github.event_name == 'pull_request'
+        run: |
+          uvx diff-cover==10.6.0 coverage.xml --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
+          { echo "## Backend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build production image
+        run: docker build -t is-it-open-backend .
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend
+          path: |
+            backend/test-results/
+            backend/coverage.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Install Frontend Dependencies
-        run: |
-          cd frontend
-          flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Run Frontend Tests
-        run: |
-          cd frontend
-          flutter test
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed lib test tool
 
-      - name: Verify Widgetbook Catalog
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
         run: |
-          cd frontend/widgetbook
-          flutter pub get
+          # Retry a failing test once in CI only; locally a flaky test fails on its first try.
+          echo "retry: 1" >> dart_test.yaml
+          dart run tool/coverage.dart imports
+          mkdir -p test-results
+          flutter test --coverage -x quarantine --file-reporter json:test-results/flutter.json
+
+      - name: Coverage gate
+        run: dart run tool/coverage.dart check --min="$FRONTEND_MIN_COVERAGE"
+
+      - name: Diff coverage (informational)
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          sed 's|^SF:|SF:frontend/|' frontend/coverage/lcov.info > lcov.repo.info
+          pipx run diff-cover==10.6.0 lcov.repo.info --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
+          { echo "## Frontend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-frontend
+          path: |
+            frontend/test-results/
+            frontend/coverage/lcov.info
+          if-no-files-found: ignore
+
+  widgetbook:
+    name: Widgetbook
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/widgetbook
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify generated catalog is current
+        run: |
           dart run build_runner build --force-jit
           git diff --exit-code -- lib/main.directories.g.dart || { echo "::error::main.directories.g.dart is stale; run 'dart run build_runner build' in frontend/widgetbook and commit the result."; exit 1; }
-          flutter analyze
-          flutter test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: |
+          mkdir -p test-results
+          flutter test -x quarantine --file-reporter json:test-results/flutter.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-widgetbook
+          path: frontend/widgetbook/test-results/
+          if-no-files-found: ignore
+
+  # Branch protection requires a check named "ci". It passes when every job above passed or was
+  # skipped because its paths didn't change.
+  ci:
+    name: ci
+    needs: [changes, backend, frontend, widgetbook]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null
