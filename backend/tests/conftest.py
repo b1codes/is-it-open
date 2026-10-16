@@ -252,8 +252,9 @@ class Auth0Tenant:
         return f"https://{self.domain}/.well-known/jwks.json"
 
     def claims(self, sub="auth0|alice", **overrides) -> dict:
+        """Auth0-style claims. An override of None leaves that claim out."""
         now = datetime.datetime.now(datetime.UTC)
-        return {
+        claims = {
             "sub": sub,
             "aud": self.audience,
             "iss": self.issuer,
@@ -263,6 +264,7 @@ class Auth0Tenant:
             "given_name": "Alice",
             **overrides,
         }
+        return {k: v for k, v in claims.items() if v is not None}
 
     def token(self, sub="auth0|alice", *, key=None, kid: str | None = "default", algorithm="RS256", **claims) -> str:
         """A signed token. Pass kid=None to leave the `kid` header out."""
