@@ -52,8 +52,9 @@ class PlannerView extends StatelessWidget {
     final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     for (int i = 0; i < dayCount; i++) {
       final date = baseDate.add(Duration(days: i));
-      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today)
+      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today) {
         return true;
+      }
     }
     return false;
   }
@@ -370,8 +371,9 @@ class _DayColumn extends StatelessWidget {
   Widget _buildNowIndicator(PlacesTheme theme) {
     final now = tz.TZDateTime.now(tz.local);
     if (now.hour < _PlannerTimeline.startHour ||
-        now.hour > _PlannerTimeline.endHour)
+        now.hour > _PlannerTimeline.endHour) {
       return const SizedBox.shrink();
+    }
 
     return Positioned(
       top: _getTopOffset(now),

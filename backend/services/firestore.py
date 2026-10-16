@@ -4,6 +4,7 @@ import random
 import re
 import threading
 import time
+from typing import cast
 from urllib.parse import quote
 
 import requests
@@ -12,7 +13,7 @@ from google.api_core import exceptions as api_exceptions
 from google.cloud import firestore
 from google.cloud.firestore_v1 import _helpers as firestore_helpers
 
-_clients = {}
+_clients: dict[tuple, firestore.Client] = {}
 
 COUNTERS = "counters"
 
@@ -98,7 +99,7 @@ class _IdBlock:
         self.last_id = 0
 
 
-_id_blocks = {}
+_id_blocks: dict[tuple, "_IdBlock"] = {}
 _id_blocks_lock = threading.Lock()
 
 
@@ -133,7 +134,7 @@ def reserve_id_block(name: str, size: int = ID_BLOCK_SIZE):
                 raise
             time.sleep(random.uniform(0, _RESERVE_BACKOFF_SECONDS * 2**attempt))
 
-    last = int(firestore_helpers.decode_value(result.transform_results[0], client))
+    last = int(cast(int, firestore_helpers.decode_value(result.transform_results[0], client)))
     first = last - size + 1
     if first > MAX_SAFE_ID:
         raise OverflowError(f"Counter {name!r} has exhausted the JavaScript-safe integer range")

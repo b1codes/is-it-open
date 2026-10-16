@@ -181,15 +181,14 @@ class DocIdTest(FirestoreTestCase):
         keys = [".", "..", "%2E", "%2E%2E", "__x__", "%5F_x__", "/", "%2F", "a b", "a%20b", "%sha256:x"]
         encoded = [doc_id(k) for k in keys]
         self.assertEqual(len(set(encoded)), len(keys))
-        for key, value in zip(keys, encoded):
+        for key, value in zip(keys, encoded, strict=True):
             with self.subTest(key=key):
                 self.assertEqual(unquote(value), key)
 
     def test_unstorable_keys_raise(self):
         for key in ("", None, 123, "\ud800"):
-            with self.subTest(key=key):
-                with self.assertRaises(InvalidDocumentKey):
-                    doc_id(key)
+            with self.subTest(key=key), self.assertRaises(InvalidDocumentKey):
+                doc_id(key)
 
     def test_edge_case_ids_are_accepted_by_firestore(self):
         keys = [".", "..", "/", "__x__", "____", "a" * 1501, "/" * 600, "__" + "x" * 2000 + "__"]
@@ -283,9 +282,7 @@ class Auth0ReadPathTest(FirestoreTestCase):
         return jwt.encode({"sub": sub, "email": "a@example.com"}, "secret", algorithm="HS256")
 
     def _patch_transactions(self):
-        return patch.object(
-            self.client_class, "transaction", autospec=True, side_effect=self.client_class.transaction
-        )
+        return patch.object(self.client_class, "transaction", autospec=True, side_effect=self.client_class.transaction)
 
     def test_existing_user_does_not_open_a_transaction(self):
         existing = repository.create_user("auth0|existing", email="old@example.com")

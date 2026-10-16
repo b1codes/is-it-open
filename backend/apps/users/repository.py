@@ -8,9 +8,9 @@ Layout:
 Lookups by username or token return None for keys that can't be stored (see
 services.firestore.doc_id); create_user() raises InvalidDocumentKey for them.
 """
+
 import secrets
 from dataclasses import asdict, dataclass, fields
-from typing import Optional
 
 from django.contrib.auth.hashers import check_password, is_password_usable, make_password
 from google.cloud import firestore
@@ -29,23 +29,23 @@ class User:
     first_name: str = ""
     last_name: str = ""
     password: str = ""
-    token: Optional[str] = None
+    token: str | None = None
 
     home_address: str = ""
     home_street: str = ""
     home_city: str = ""
     home_state: str = ""
     home_zip: str = ""
-    home_lat: Optional[float] = None
-    home_lng: Optional[float] = None
+    home_lat: float | None = None
+    home_lng: float | None = None
 
     work_address: str = ""
     work_street: str = ""
     work_city: str = ""
     work_state: str = ""
     work_zip: str = ""
-    work_lat: Optional[float] = None
-    work_lng: Optional[float] = None
+    work_lat: float | None = None
+    work_lng: float | None = None
 
     use_current_location: bool = False
     calendar_subscription_url: str = ""
@@ -76,7 +76,7 @@ def user_document(user: User, created_at=firestore.SERVER_TIMESTAMP) -> dict:
     return {**asdict(user), "created_at": created_at}
 
 
-def get_user(username: str) -> Optional[User]:
+def get_user(username: str) -> User | None:
     try:
         ref = _users().document(doc_id(username))
     except InvalidDocumentKey:
@@ -85,7 +85,7 @@ def get_user(username: str) -> Optional[User]:
     return User.from_dict(snapshot.to_dict()) if snapshot.exists else None
 
 
-def create_user(username: str, password: Optional[str] = None, **extra) -> Optional[User]:
+def create_user(username: str, password: str | None = None, **extra) -> User | None:
     """
     Create a user. Returns None if the username is already taken.
     Raises InvalidDocumentKey if the username can't be stored.
@@ -154,7 +154,7 @@ def save_user(user: User, field_names=None):
         _users().document(user.doc_id).update(data)
 
 
-def authenticate(username: str, password: str) -> Optional[User]:
+def authenticate(username: str, password: str) -> User | None:
     user = get_user(username)
     if user and user.check_password(password):
         return user
@@ -182,7 +182,7 @@ def get_or_create_token(user: User) -> str:
     return user.token
 
 
-def get_user_by_token(key: str) -> Optional[User]:
+def get_user_by_token(key: str) -> User | None:
     """
     One equality query on `token` (served by the automatic single-field index), so a
     token-authenticated request costs a single round trip.

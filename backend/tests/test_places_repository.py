@@ -8,9 +8,9 @@ from apps.places import repository as places
 from apps.users import repository as users
 from services.firestore import doc_id, get_client
 from services.geo import (
+    _EARTH_RADIUS_KM,
     MAX_QUERY_CELLS_FALLBACK,
     MAX_RADIUS_KM,
-    _EARTH_RADIUS_KM,
     distance_km,
     encode_geohash,
     geohash_query_prefixes,
@@ -250,7 +250,9 @@ class GeohashCoveringTest(SimpleTestCase):
             self.assertTrue(all(prefixes))
             self.assertLessEqual(len(prefixes), MAX_QUERY_CELLS_FALLBACK)
             for _ in range(20):
-                plat, plng = self._destination(lat, lng, rng.uniform(0, 360), radius * rng.choice([rng.random(), 0.9999999]))
+                plat, plng = self._destination(
+                    lat, lng, rng.uniform(0, 360), radius * rng.choice([rng.random(), 0.9999999])
+                )
                 if distance_km(lat, lng, plat, plng) > radius:
                     continue
                 geohash = encode_geohash(plat, plng)

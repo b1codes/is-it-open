@@ -15,14 +15,22 @@ dependencies = [
     "python-decouple (>=3.8,<4.0)",
     "requests",
     "django-cors-headers",
-    "pytest>=9.0.3",
-    "pytest-django>=4.12.0",
     "pyjwt>=2.13.0",
     "cryptography>=49.0.0",
     "google-cloud-firestore>=2.33.0,<3.0.0",
 ]
 
 [dependency-groups]
+dev = [
+    "django-stubs>=6.1.2",
+    "mutmut>=3.8.0",
+    "mypy>=2.4.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "pytest-django>=4.12.0",
+    "pytest-rerunfailures>=16.7",
+    "ruff>=0.17.1",
+]
 # Only for the one-shot legacy import (`manage.py import_postgres`, see README_DEPLOY.md).
 # Not installed by default: use `uv sync --group postgres-import` or `uv run --group postgres-import`.
 postgres-import = [
@@ -35,3 +43,75 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["apps", "config", "services"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "tests.py", "tests_*.py"]
+testpaths = ["tests", "apps"]
+addopts = "--strict-markers"
+markers = [
+    "quarantine: known-flaky test; skipped by the required CI job and run in the nightly workflow",
+]
+
+[tool.coverage.run]
+source = ["apps", "config", "services"]
+branch = true
+omit = [
+    "*/management/commands/import_postgres.py",
+    "config/asgi.py",
+    "config/wsgi.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["staticfiles"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "DJ"]
+# Ternaries aren't always clearer than a short if/else.
+ignore = ["SIM108"]
+
+[tool.ruff.lint.isort]
+# Explicit so import sorting is the same whether ruff runs from backend/ or the repo root.
+known-first-party = ["apps", "config", "services", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures assign throwaway values and use long literal payloads.
+"tests/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["mypy_django_plugin.main"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+# check_tomtom.py is a manual script against the live API, not part of the suite.
+exclude = ["^staticfiles/", "^tests/check_tomtom\\.py$"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings"
+
+[[tool.mypy.overrides]]
+# Test bodies lean on Optional returns being non-None after assertions; only check their signatures.
+module = ["tests.*", "apps.*.tests", "apps.*.tests_profile"]
+check_untyped_defs = false
+
+[tool.mutmut]
+# Nightly, non-blocking mutation testing (see .github/workflows/nightly.yml): mutmut makes small
+# changes to the code and checks that some test fails. Surviving mutants point at weak tests.
+source_paths = ["apps/", "services/"]
+do_not_mutate = ["*/tests.py", "*/tests_*.py", "*/management/*", "*/views.py"]
+also_copy = ["config/", "tests/", "manage.py"]
+mutate_only_covered_lines = true
+# The Firestore client (gRPC) is not fork-safe: fork workers from a server that never opened a client.
+process_isolation = "forkserver"

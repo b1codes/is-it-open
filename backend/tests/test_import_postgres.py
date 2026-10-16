@@ -5,16 +5,16 @@ from unittest.mock import patch
 
 from django.contrib.auth.hashers import make_password
 from django.core.management import CommandError, call_command
+from google.cloud.firestore_v1.batch import WriteBatch
 
 from apps.places import repository as places
 from apps.users import repository as users
 from apps.users.management.commands import import_postgres
 from apps.users.management.commands.import_postgres import LegacyData, apply_plan, build_plan, find_conflicts
-from google.cloud.firestore_v1.batch import WriteBatch
 from services.firestore import doc_id, get_client
 from tests.base import FirestoreTestCase
 
-JOINED = datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.timezone.utc)
+JOINED = datetime.datetime(2026, 3, 1, 12, 0, tzinfo=datetime.UTC)
 ALICE_TOKEN = "a" * 40
 ALICE_HASH = make_password("s3cret")
 MALLORY_HASH = make_password("x")
@@ -43,9 +43,18 @@ def _legacy_data():
     return LegacyData(
         users=[
             _user_row(
-                3, "alice", ALICE_HASH, token_key=ALICE_TOKEN,
-                home_address="1 Main St", home_city="Springfield", home_lat=40.0, home_lng=-75.0,
-                work_address="", work_lat=None, work_lng=None, use_current_location=True,
+                3,
+                "alice",
+                ALICE_HASH,
+                token_key=ALICE_TOKEN,
+                home_address="1 Main St",
+                home_city="Springfield",
+                home_lat=40.0,
+                home_lng=-75.0,
+                work_address="",
+                work_lat=None,
+                work_lng=None,
+                use_current_location=True,
                 calendar_subscription_url="https://example.com/cal.ics",
             ),
             _user_row(7, "google-oauth2|123", "!unusablehash"),  # Auth0 user, no profile row
@@ -53,12 +62,26 @@ def _legacy_data():
         ],
         places=[
             {
-                "id": 5, "tomtom_id": "tt/5", "name": "Blue Bottle Coffee", "address": "1 Market St",
-                "lat": 37.7936, "lng": -122.3950, "phone": "555-0100", "website": None, "categories": ["cafe"],
+                "id": 5,
+                "tomtom_id": "tt/5",
+                "name": "Blue Bottle Coffee",
+                "address": "1 Market St",
+                "lat": 37.7936,
+                "lng": -122.3950,
+                "phone": "555-0100",
+                "website": None,
+                "categories": ["cafe"],
             },
             {
-                "id": 12, "tomtom_id": "tt-12", "name": "Corner Library", "address": "2 Oak Ave",
-                "lat": 37.80, "lng": -122.40, "phone": None, "website": "https://lib.example.com", "categories": [],
+                "id": 12,
+                "tomtom_id": "tt-12",
+                "name": "Corner Library",
+                "address": "2 Oak Ave",
+                "lat": 37.80,
+                "lng": -122.40,
+                "phone": None,
+                "website": "https://lib.example.com",
+                "categories": [],
             },
         ],
         hours=[
@@ -68,16 +91,40 @@ def _legacy_data():
         ],
         saved_places=[
             {
-                "id": 21, "user_id": 3, "place_id": 12, "custom_name": "Library", "icon": "book", "color": "#ff0000",
-                "is_pinned": True, "is_check_it_out": False, "average_visit_length": 45, "created_at": JOINED,
+                "id": 21,
+                "user_id": 3,
+                "place_id": 12,
+                "custom_name": "Library",
+                "icon": "book",
+                "color": "#ff0000",
+                "is_pinned": True,
+                "is_check_it_out": False,
+                "average_visit_length": 45,
+                "created_at": JOINED,
             },
             {
-                "id": 4, "user_id": 3, "place_id": 5, "custom_name": None, "icon": None, "color": None,
-                "is_pinned": False, "is_check_it_out": True, "average_visit_length": None, "created_at": JOINED,
+                "id": 4,
+                "user_id": 3,
+                "place_id": 5,
+                "custom_name": None,
+                "icon": None,
+                "color": None,
+                "is_pinned": False,
+                "is_check_it_out": True,
+                "average_visit_length": None,
+                "created_at": JOINED,
             },
             {  # belongs to the inactive user, so it is skipped with them
-                "id": 30, "user_id": 9, "place_id": 5, "custom_name": None, "icon": None, "color": None,
-                "is_pinned": False, "is_check_it_out": False, "average_visit_length": None, "created_at": JOINED,
+                "id": 30,
+                "user_id": 9,
+                "place_id": 5,
+                "custom_name": None,
+                "icon": None,
+                "color": None,
+                "is_pinned": False,
+                "is_check_it_out": False,
+                "average_visit_length": None,
+                "created_at": JOINED,
             },
         ],
     )
@@ -173,8 +220,12 @@ class ImportPostgresTest(FirestoreTestCase):
         self.assertEqual(
             {k: library[k] for k in places._SAVED_PLACE_FIELDS},
             {
-                "custom_name": "Library", "icon": "book", "color": "#ff0000",
-                "is_pinned": True, "is_check_it_out": False, "average_visit_length": 45,
+                "custom_name": "Library",
+                "icon": "book",
+                "color": "#ff0000",
+                "is_pinned": True,
+                "is_check_it_out": False,
+                "average_visit_length": 45,
             },
         )
         self.assertTrue(saved[0]["is_check_it_out"])
@@ -202,7 +253,9 @@ class ImportPostgresTest(FirestoreTestCase):
         _import()
         users.create_user("newbie", "pw")  # reserves a block of user IDs, raising the counter past 9
         counters = import_postgres.counter_values()
-        before = {path: ref.get().to_dict() for path, ref in ((r.path, r) for r, _ in build_plan(_legacy_data()).writes)}
+        before = {
+            path: ref.get().to_dict() for path, ref in ((r.path, r) for r, _ in build_plan(_legacy_data()).writes)
+        }
 
         _import()
 
@@ -210,7 +263,9 @@ class ImportPostgresTest(FirestoreTestCase):
         self.assertEqual(after, before)
         self.assertGreater(counters["users"], 9)
         self.assertEqual(import_postgres.counter_values(), counters)
-        self.assertEqual(import_postgres.firestore_counts(), {"users": 3, "auth_tokens": 1, "places": 2, "saved_places": 2})
+        self.assertEqual(
+            import_postgres.firestore_counts(), {"users": 3, "auth_tokens": 1, "places": 2, "saved_places": 2}
+        )
 
     def test_conflicting_records_are_detected(self):
         users.create_user("alice", "pw")  # id 1 in Firestore, 3 in Postgres
@@ -226,10 +281,12 @@ class ImportPostgresTest(FirestoreTestCase):
         self.assertIn("users/alice has id 1 in Firestore but 3 in Postgres", conflicts)
 
     def test_batches_stay_within_the_firestore_limit(self):
-        data = LegacyData(places=[
-            {"id": i, "tomtom_id": f"p{i}", "name": f"Place {i}", "address": "x", "lat": 0.0, "lng": 0.0}
-            for i in range(1, 1202)
-        ])
+        data = LegacyData(
+            places=[
+                {"id": i, "tomtom_id": f"p{i}", "name": f"Place {i}", "address": "x", "lat": 0.0, "lng": 0.0}
+                for i in range(1, 1202)
+            ]
+        )
         sizes = []
         commit = WriteBatch.commit
 
@@ -254,14 +311,20 @@ class ImportPostgresCommandTest(FirestoreTestCase):
         read_postgres.assert_called_once_with("postgres://legacy")
         self.assertIn("Dry run", out.getvalue())
         self.assertIn("saved_places", out.getvalue())
-        self.assertEqual(import_postgres.firestore_counts(), {"users": 0, "auth_tokens": 0, "places": 0, "saved_places": 0})
+        self.assertEqual(
+            import_postgres.firestore_counts(), {"users": 0, "auth_tokens": 0, "places": 0, "saved_places": 0}
+        )
         self.assertEqual(import_postgres.counter_values(), {})
 
     def test_import_reports_counts(self, read_postgres):
         out = StringIO()
         call_command("import_postgres", "--database-url", "postgres://legacy", stdout=out)
 
-        lines = {line.split()[0]: line.split()[1:] for line in out.getvalue().splitlines() if line.startswith("  ") and line.split()}
+        lines = {
+            line.split()[0]: line.split()[1:]
+            for line in out.getvalue().splitlines()
+            if line.startswith("  ") and line.split()
+        }
         # postgres, skipped, written, firestore, counter
         self.assertEqual(lines["users"], ["3", "1", "2", "2", "9"])
         self.assertEqual(lines["auth_tokens"], ["2", "1", "1", "1", "-"])

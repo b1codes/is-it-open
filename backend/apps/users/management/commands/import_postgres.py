@@ -24,6 +24,7 @@ clients hold.
 The Postgres half (read_postgres) is separate from the Firestore half (build_plan / find_conflicts /
 apply_plan) so the latter can be tested against the emulator with fixture rows.
 """
+
 import datetime
 from dataclasses import dataclass, field
 
@@ -55,9 +56,22 @@ class LegacyData:
 
 
 _PROFILE_COLUMNS = (
-    "home_address", "home_street", "home_city", "home_state", "home_zip", "home_lat", "home_lng",
-    "work_address", "work_street", "work_city", "work_state", "work_zip", "work_lat", "work_lng",
-    "use_current_location", "calendar_subscription_url",
+    "home_address",
+    "home_street",
+    "home_city",
+    "home_state",
+    "home_zip",
+    "home_lat",
+    "home_lng",
+    "work_address",
+    "work_street",
+    "work_city",
+    "work_state",
+    "work_zip",
+    "work_lat",
+    "work_lng",
+    "use_current_location",
+    "calendar_subscription_url",
 )
 
 USERS_SQL = f"""
@@ -105,7 +119,7 @@ def read_postgres(database_url: str) -> LegacyData:
 
     # dj-database-url spells PostGIS URLs postgis://; libpq only knows postgres(ql)://.
     if database_url.startswith("postgis://"):
-        database_url = "postgresql://" + database_url[len("postgis://"):]
+        database_url = "postgresql://" + database_url[len("postgis://") :]
 
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         conn.read_only = True
@@ -162,11 +176,15 @@ def _place_timestamps(data: LegacyData) -> dict:
     """
     stamps = [
         row.get(column)
-        for rows, column in ((data.users, "date_joined"), (data.users, "token_created_at"), (data.saved_places, "created_at"))
+        for rows, column in (
+            (data.users, "date_joined"),
+            (data.users, "token_created_at"),
+            (data.saved_places, "created_at"),
+        )
         for row in rows
     ]
     stamps = [s for s in stamps if isinstance(s, datetime.datetime)]
-    end = max(stamps) if stamps else datetime.datetime.now(datetime.timezone.utc)
+    end = max(stamps) if stamps else datetime.datetime.now(datetime.UTC)
     ids = sorted(row["id"] for row in data.places)
     return {place_id: end - datetime.timedelta(milliseconds=len(ids) - i) for i, place_id in enumerate(ids)}
 
@@ -201,13 +219,15 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
         if user.token:
             plan.tokens += 1
 
-    hours_by_place = {}
+    hours_by_place: dict[int, list[dict]] = {}
     for row in data.hours:
-        hours_by_place.setdefault(row["place_id"], []).append({
-            "day_of_week": row["day_of_week"],
-            "open_time": _time(row["open_time"]),
-            "close_time": _time(row["close_time"]),
-        })
+        hours_by_place.setdefault(row["place_id"], []).append(
+            {
+                "day_of_week": row["day_of_week"],
+                "open_time": _time(row["open_time"]),
+                "close_time": _time(row["close_time"]),
+            }
+        )
 
     created_at = _place_timestamps(data)
     places_by_id = {}
@@ -231,17 +251,17 @@ def build_plan(data: LegacyData, include_inactive: bool = False) -> Plan:
         plan.add(places_repo.PLACES, ref, place)
 
     for row in data.saved_places:
-        user, place = users_by_id.get(row["user_id"]), places_by_id.get(row["place_id"])
-        if user is None or place is None:
+        owner, saved_target = users_by_id.get(row["user_id"]), places_by_id.get(row["place_id"])
+        if owner is None or saved_target is None:
             plan.skipped[places_repo.SAVED_PLACES] += 1
             continue
         fields = {f: row.get(f) for f in places_repo._SAVED_PLACE_FIELDS}
         fields["is_pinned"] = bool(fields["is_pinned"])
         fields["is_check_it_out"] = bool(fields["is_check_it_out"])
         saved = places_repo.saved_place_document(
-            row["id"], place, created_at=_or_server_timestamp(row.get("created_at")), **fields
+            row["id"], saved_target, created_at=_or_server_timestamp(row.get("created_at")), **fields
         )
-        ref = places_repo._saved_places(user).document(doc_id(place["tomtom_id"]))
+        ref = places_repo._saved_places(owner).document(doc_id(saved_target["tomtom_id"]))
         plan.add(places_repo.SAVED_PLACES, ref, saved)
 
     return plan
@@ -268,7 +288,9 @@ def find_conflicts(plan: Plan) -> list:
                 if existing_id != planned[path]:
                     conflicts.append(f"{path} has id {existing_id} in Firestore but {planned[path]} in Postgres")
             elif existing_id in path_by_id:
-                conflicts.append(f"{path} already uses {kind} id {existing_id}, which belongs to {path_by_id[existing_id]}")
+                conflicts.append(
+                    f"{path} already uses {kind} id {existing_id}, which belongs to {path_by_id[existing_id]}"
+                )
     return conflicts
 
 
@@ -277,7 +299,7 @@ def apply_plan(plan: Plan):
     client = get_client()
     for start in range(0, len(plan.writes), BATCH_SIZE):
         batch = client.batch()
-        for ref, data in plan.writes[start:start + BATCH_SIZE]:
+        for ref, data in plan.writes[start : start + BATCH_SIZE]:
             batch.set(ref, data)
         batch.commit()
 
@@ -373,16 +395,18 @@ class Command(BaseCommand):
         skipped = {**plan.skipped, TOKENS: plan.tokens_read - plan.tokens}
         written = "written" if counts is not None else "to write"
 
-        rows = [("", "postgres", "skipped", written, "firestore", "counter")]
+        rows: list[tuple] = [("", "postgres", "skipped", written, "firestore", "counter")]
         for kind in (users_repo.USERS, TOKENS, places_repo.PLACES, places_repo.SAVED_PLACES):
-            rows.append((
-                kind,
-                read[kind],
-                skipped[kind],
-                planned[kind],
-                "-" if counts is None else counts[kind],
-                plan.counters.get(kind, "-"),
-            ))
+            rows.append(
+                (
+                    kind,
+                    read[kind],
+                    skipped[kind],
+                    planned[kind],
+                    "-" if counts is None else counts[kind],
+                    plan.counters.get(kind, "-"),
+                )
+            )
         for row in rows:
             self.stdout.write("  " + f"{row[0]:<14}" + "".join(f"{v!s:>11}" for v in row[1:]))
 
