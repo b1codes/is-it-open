@@ -1,6 +1,7 @@
 name: Nightly
 
-# Slow or non-blocking checks: quarantined (known-flaky) tests and mutation testing.
+# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test runs, and
+# mutation testing.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
@@ -41,6 +42,34 @@ jobs:
         if: always()
         with:
           name: test-results-backend
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  property-backend:
+    name: Backend property tests (many examples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: nightly  # random examples, far more than the per-PR run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Test
+        # A failure prints @reproduce_failure(...) for the falsifying example; add it to the test to replay it.
+        run: uv run pytest -p no:cacheprovider tests/property --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-property
           path: backend/test-results/
           if-no-files-found: ignore
 

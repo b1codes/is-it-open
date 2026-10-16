@@ -7,7 +7,7 @@
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
-BACKEND_MIN_COVERAGE ?= 80
+BACKEND_MIN_COVERAGE ?= 95
 FRONTEND_MIN_COVERAGE ?= 13
 
 # Backend commands run in the dev container, which has the test tooling and reaches the emulator.

@@ -88,7 +88,8 @@ def test_distance_triangle_inequality(lat1, lng1, lat2, lng2, lat3, lng3):
     direct = distance_km(lat1, lng1, lat3, lng3)
     via = distance_km(lat1, lng1, lat2, lng2) + distance_km(lat2, lng2, lat3, lng3)
 
-    assert direct <= via + 1e-6
+    # Haversine loses precision near antipodal points (asin of ~1): about a centimetre at 20,000 km.
+    assert direct <= via + 1e-3
 
 
 @given(lats, lngs, radii, st.floats(0, 360), st.floats(0, 1))

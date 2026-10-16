@@ -35,9 +35,11 @@ from tests import factories
 from tests.base import TEST_PROJECT
 
 # Property-based tests: CI runs a fixed, reproducible set of examples (so a PR can't fail on a
-# newly drawn one); locally each run draws new ones. Pick with HYPOTHESIS_PROFILE.
+# newly drawn one); locally each run draws new ones, and the nightly run draws many more. Pick
+# with HYPOTHESIS_PROFILE.
 hypothesis_settings.register_profile("dev", max_examples=100, deadline=None)
 hypothesis_settings.register_profile("ci", max_examples=200, deadline=None, derandomize=True, print_blob=True)
+hypothesis_settings.register_profile("nightly", max_examples=5000, deadline=None, print_blob=True)
 hypothesis_settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 
 

@@ -15,7 +15,7 @@ permissions:
 
 # Minimum total line coverage. Raise these as the backend/frontend suites grow; never lower them.
 env:
-  BACKEND_MIN_COVERAGE: '80'
+  BACKEND_MIN_COVERAGE: '95'
   FRONTEND_MIN_COVERAGE: '13'
 
 jobs:
@@ -59,6 +59,7 @@ jobs:
       FIRESTORE_EMULATOR_HOST: localhost:8080
       GOOGLE_CLOUD_PROJECT: demo-is-it-open
       SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: ci  # fixed property-test examples, so a PR can't fail on a newly drawn one
     steps:
       - uses: actions/checkout@v4
         with:
