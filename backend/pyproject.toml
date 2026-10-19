@@ -25,6 +25,7 @@ dev = [
     "django-stubs>=6.1.2",
     "freezegun>=1.5.5",
     "hypothesis>=6.170.0",
+    "jsonschema-rs>=0.59.0",
     "mutmut>=3.8.0",
     "mypy>=2.4.0",
     "pytest>=9.0.3",
@@ -103,8 +104,7 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
-# scripts/ holds manual one-off scripts (e.g. check_tomtom.py against the live API), not app code.
-exclude = ["^staticfiles/", "^scripts/"]
+exclude = ["^staticfiles/"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings"

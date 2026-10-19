@@ -1,7 +1,7 @@
 name: Nightly
 
 # Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test and API fuzzing
-# runs, and mutation testing.
+# runs, the live TomTom contract check, and mutation testing.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
@@ -104,6 +104,41 @@ jobs:
         if: always()
         with:
           name: test-results-backend-api-fuzz
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  tomtom-contract:
+    name: TomTom live contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      SECRET_KEY: ci-only-not-secret
+      TOMTOM_LIVE_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Test
+        # Checks TomTom's real responses still have the shape in contracts/tomtom/ that the client
+        # and the recorded fixtures assume. A failure means TomTom changed its API (or the key
+        # stopped working); re-record the fixtures as contracts/README.md describes.
+        run: |
+          if [ -z "$TOMTOM_LIVE_API_KEY" ]; then
+            echo "::warning::Add a TOMTOM_API_KEY repository secret to check the live TomTom API."
+            exit 0
+          fi
+          uv run pytest -p no:cacheprovider tests/contracts/test_tomtom_contract.py -k live --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-tomtom
           path: backend/test-results/
           if-no-files-found: ignore
 
