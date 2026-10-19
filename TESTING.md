@@ -14,8 +14,9 @@ How the automated checks are organized, how to run them locally, and what CI enf
 | `make test-widgetbook` | Widgetbook catalog smoke tests |
 | `make coverage` | Both suites with coverage; fails below the minimums |
 | `make mutation-backend` / `make mutation-frontend` | Mutation testing (slow; runs nightly in CI) |
+| `make contracts-update` | Regenerates `contracts/openapi.json` after an intended API change |
 
-Backend targets run inside the dev container (`docker compose`), which starts the Firestore emulator for you. Frontend targets need the Flutter SDK on your machine.
+Backend targets run inside the dev container (`docker compose`), which starts the Firestore emulator for you. Frontend targets need the Flutter SDK on your machine. After a backend dependency changes, rebuild the container with `make build`.
 
 ## Backend (`backend/`)
 
@@ -28,6 +29,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
   | `tests/services/` | `services/`: TomTom (mocked HTTP), geo math, Firestore helpers |
   | `tests/auth/` | `GlobalAuth`: local tokens, Auth0 JWT verification, the JWKS cache |
   | `tests/property/` | Hypothesis property tests (hours parsing, geo, document IDs, the search index) |
+  | `tests/contracts/` | The API and TomTom contracts in `contracts/`: schema snapshot, Schemathesis provider tests, TomTom fixtures and the live check (see [contracts/README.md](contracts/README.md)) |
 
 - **Database:** tests run against the emulator under a separate `demo-is-it-open-test` project, which is wiped before each test, so your local dev data is never touched. New tests use the `firestore_db` fixture (or a factory that depends on it); older ones subclass `tests.base.FirestoreTestCase`.
 - **Fixtures** (`tests/conftest.py`):
@@ -37,7 +39,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
   - An autouse fixture blanks `TOMTOM_API_KEY` and the Auth0 settings and clears the caches, so a local `.env` can't leak into a test.
 - **Time:** use [freezegun](https://github.com/spulec/freezegun) (`freeze_time`), but keep Firestore calls outside the frozen block. The gRPC client hangs on a frozen clock.
 - **Property tests:** the `HYPOTHESIS_PROFILE` environment variable picks the profile. Locally, `dev` draws 100 new examples per run. CI uses `ci`, a fixed set of 200, so a PR can't fail on a newly drawn example. The nightly run uses `nightly`, with 5,000 random examples. A failure prints `@reproduce_failure(...)`; add it to the test to replay the example.
-- **Manual scripts** that hit live services (e.g. `scripts/check_tomtom.py`) live in `backend/scripts/`, outside the suite.
+- **Contract tests:** `SCHEMATHESIS_MAX_EXAMPLES` sets how many requests the provider tests send per operation (50 by default). The TomTom live tests run only when `TOMTOM_LIVE_API_KEY` is set.
 - **Without Docker:** start the emulator (`docker compose up -d firestore`), then:
 
   ```sh
@@ -58,6 +60,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 - **Time:** code that depends on "now" reads `clock.now()` ([package:clock](https://pub.dev/packages/clock)); pin it in tests with `withClock(Clock.fixed(...), () async { ... })`. CI runs the frontend job in `America/New_York` so date code is exercised across DST changes; the suite also passes in UTC.
 - **Property tests:** [glados](https://pub.dev/packages/glados) checks open/closed status and availability windows against independent models (`test/utils/`). Each property gets its own `ExploreConfig`, whose fixed seed makes runs reproducible; a failure prints the shrunk input.
 - **HTTP:** `test/helpers/fake_http_adapter.dart` is a Dio transport with a route table, for testing `ApiService` itself (`ApiService(httpClientAdapter: ...)`).
+- **Contract tests:** `test/contracts/` runs every `ApiService` method against `ContractAdapter`, a fake backend generated from `../contracts/openapi.json` (see [contracts/README.md](contracts/README.md)). A new `ApiService` method needs an entry in `_calls` there.
 - **Coverage:** `flutter test --coverage` only reports files a test imports, which hides untested screens. To count every file, run:
 
   ```sh
@@ -72,9 +75,9 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 
 | Workflow | When | Jobs |
 | --- | --- | --- |
-| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, and `widgetbook` run in parallel. Each runs only when its paths change. The `ci` job is the required check and passes only if every job passed or was skipped. |
+| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, and `widgetbook` run in parallel. Each runs only when its paths change (both backend and frontend run when `contracts/` changes). On PRs that change `contracts/`, `API breaking changes` diffs the API contract against the base branch. The `ci` job is the required check and passes only if every job passed or was skipped. |
 | `test-report.yml` | After CI or Nightly | Publishes test results as check runs on the commit |
-| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, and mutation testing (non-blocking) |
+| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, API contract fuzzing with 1,000 requests per operation, the live TomTom contract check (needs a `TOMTOM_API_KEY` secret), and mutation testing (non-blocking) |
 
 Each job writes a coverage table to its run summary. On PRs it also reports diff coverage, meaning coverage of just the changed lines. Diff coverage is informational for now.
 
