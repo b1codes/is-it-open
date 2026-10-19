@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,7 +56,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
       super(
         TodayRouteState(
           tomtomIds: const [],
-          touchedOn: _dateOnly(DateTime.now()),
+          touchedOn: _dateOnly(clock.now()),
         ),
       ) {
     _hydrate();
@@ -76,7 +77,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     final prefs = await _prefs();
     final raw = prefs.getString(_idsKey);
     final storedDateString = prefs.getString(_dateKey);
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
 
     if (raw == null || storedDateString == null) {
       emit(TodayRouteState(tomtomIds: const [], touchedOn: today));
@@ -105,7 +106,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   // Call when the screen comes back into view so a route built yesterday
   // doesn't linger if the app stayed open through midnight.
   Future<void> refresh() async {
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
     if (_sameDay(state.touchedOn, today)) return;
     await _persist(const [], today);
     emit(
@@ -120,7 +121,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   Future<void> add(String tomtomId) async {
     if (state.tomtomIds.contains(tomtomId)) return;
     final next = [...state.tomtomIds, tomtomId];
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
     await _persist(next, today);
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
@@ -130,7 +131,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   Future<void> remove(String tomtomId) async {
     if (!state.tomtomIds.contains(tomtomId)) return;
     final next = state.tomtomIds.where((id) => id != tomtomId).toList();
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
     await _persist(next, today);
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
@@ -143,7 +144,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     final adjusted = newIndex > oldIndex ? newIndex - 1 : newIndex;
     final item = next.removeAt(oldIndex);
     next.insert(adjusted, item);
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
     await _persist(next, today);
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
