@@ -4,6 +4,7 @@
 	check lint lint-backend lint-frontend format \
 	test test-backend test-frontend test-widgetbook \
 	coverage coverage-backend coverage-frontend \
+	contracts-update \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -81,6 +82,12 @@ coverage-backend:
 
 coverage-frontend:
 	cd frontend && dart run tool/coverage.dart imports && flutter test --coverage -x quarantine && dart run tool/coverage.dart check --min=$(FRONTEND_MIN_COVERAGE)
+
+# --- API contract (see contracts/README.md) ---
+
+# Regenerate contracts/openapi.json after an intended API change
+contracts-update:
+	docker compose run --rm -e SECRET_KEY=test-only-not-secret -e UPDATE_CONTRACTS=1 backend pytest tests/contracts/test_openapi_snapshot.py
 
 # --- Mutation testing (slow; runs nightly in CI) ---
 

@@ -1,6 +1,7 @@
 from ninja import Query, Router, Schema
 from ninja.errors import HttpError
 
+from config.schemas import ErrorSchema
 from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
@@ -113,7 +114,7 @@ def search_places(request, query: str):
     return results
 
 
-@router.post("/", response=PlaceSchema)
+@router.post("/", response={200: PlaceSchema, 400: ErrorSchema})
 def create_place(request, payload: PlaceCreateSchema):
     try:
         return repository.update_or_create_place(payload.dict())
@@ -121,7 +122,7 @@ def create_place(request, payload: PlaceCreateSchema):
         raise HttpError(400, "Invalid tomtom_id") from None
 
 
-@router.post("/bookmark", response=SavedPlaceSchema)
+@router.post("/bookmark", response={200: SavedPlaceSchema, 404: ErrorSchema})
 def bookmark_place(request, payload: SavePlaceInput):
     place = _get_place_or_404(payload.tomtom_id)
     return repository.save_place(request.auth, place, custom_name=payload.custom_name)
@@ -132,24 +133,24 @@ def get_bookmarks(request):
     return repository.list_saved_places(request.auth)
 
 
-@router.delete("/bookmarks/{tomtom_id}", response={204: None, 404: dict})
+@router.delete("/bookmarks/{tomtom_id}", response={204: None, 404: ErrorSchema})
 def delete_bookmark(request, tomtom_id: str):
     if repository.delete_saved_place(request.auth, tomtom_id):
         return 204, None
     return 404, {"detail": "Bookmark not found"}
 
 
-@router.patch("/bookmarks/{tomtom_id}/pin", response=SavedPlaceSchema)
+@router.patch("/bookmarks/{tomtom_id}/pin", response={200: SavedPlaceSchema, 404: ErrorSchema})
 def toggle_pin(request, tomtom_id: str, payload: TogglePinInput):
     return _update_saved_place_or_404(request, tomtom_id, is_pinned=payload.is_pinned)
 
 
-@router.patch("/bookmarks/{tomtom_id}/check-it-out", response=SavedPlaceSchema)
+@router.patch("/bookmarks/{tomtom_id}/check-it-out", response={200: SavedPlaceSchema, 404: ErrorSchema})
 def toggle_check_it_out(request, tomtom_id: str, payload: ToggleCheckItOutInput):
     return _update_saved_place_or_404(request, tomtom_id, is_check_it_out=payload.is_check_it_out)
 
 
-@router.patch("/bookmarks/{tomtom_id}/graphic", response=SavedPlaceSchema)
+@router.patch("/bookmarks/{tomtom_id}/graphic", response={200: SavedPlaceSchema, 404: ErrorSchema})
 def update_graphic(request, tomtom_id: str, payload: UpdateGraphicInput):
     data = payload.dict(exclude_unset=True)
     fields = {}
@@ -164,7 +165,7 @@ def update_graphic(request, tomtom_id: str, payload: UpdateGraphicInput):
     return _update_saved_place_or_404(request, tomtom_id, **fields)
 
 
-@router.patch("/bookmarks/{tomtom_id}/visit-length", response=SavedPlaceSchema)
+@router.patch("/bookmarks/{tomtom_id}/visit-length", response={200: SavedPlaceSchema, 404: ErrorSchema})
 def update_visit_length(request, tomtom_id: str, payload: UpdateVisitLengthInput):
     return _update_saved_place_or_404(request, tomtom_id, average_visit_length=payload.visit_length)
 
@@ -189,7 +190,7 @@ def get_suggestions(request, lat: float | None = None, lng: float | None = None)
     return repository.recent_places(10)
 
 
-@router.get("/{tomtom_id}", response=PlaceSchema)
+@router.get("/{tomtom_id}", response={200: PlaceSchema, 404: ErrorSchema})
 def get_place_details(request, tomtom_id: str):
     # Check if place exists in DB
     place = repository.get_place(tomtom_id)

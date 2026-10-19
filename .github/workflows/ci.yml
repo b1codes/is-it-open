@@ -36,6 +36,7 @@ jobs:
           filters: |
             shared: &shared
               - '.github/workflows/ci.yml'
+              - 'contracts/**'
             backend:
               - *shared
               - 'backend/**'

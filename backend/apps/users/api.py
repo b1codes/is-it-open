@@ -1,6 +1,7 @@
 from ninja import Router, Schema
 from ninja.errors import HttpError
 
+from config.schemas import ErrorSchema
 from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
@@ -77,7 +78,7 @@ def _request_token(request, user):
     return getattr(request, "auth_token", None) or repository.get_or_create_token(user)
 
 
-@router.post("/login", response=AuthOutput)
+@router.post("/login", response={200: AuthOutput, 401: ErrorSchema})
 def login(request, data: LoginInput):
     user = repository.authenticate(data.username, data.password)
     if not user:
@@ -91,7 +92,7 @@ def login(request, data: LoginInput):
 AUTH0_SUB_SEPARATOR = "|"
 
 
-@router.post("/register", response=AuthOutput)
+@router.post("/register", response={200: AuthOutput, 400: ErrorSchema})
 def register(request, data: RegisterInput):
     if AUTH0_SUB_SEPARATOR in data.username:
         raise HttpError(400, "Invalid username") from None

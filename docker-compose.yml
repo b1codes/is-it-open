@@ -23,6 +23,8 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/code
+      # The API contract (contracts/openapi.json), which the backend's contract tests check and update
+      - ./contracts:/contracts
     ports:
       - "8001:8000"
     depends_on:
