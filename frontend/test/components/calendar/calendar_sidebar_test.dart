@@ -262,6 +262,22 @@ void main() {
     });
   });
 
+  testWidgets('too narrow for the full layout, it shows the compact one', (
+    tester,
+  ) async {
+    await tester.pumpApp(
+      Scaffold(
+        body: SizedBox(
+          width: CalendarSidebarWidget.minExpandedWidth - 1,
+          child: _sidebar(),
+        ),
+      ),
+    );
+    expect(find.text('My Places'), findsNothing);
+    expect(find.byTooltip('Friday burger spot'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   group('collapsed', () {
     testWidgets('shows an icon per place that toggles its filter', (
       tester,

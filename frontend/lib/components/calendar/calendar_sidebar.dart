@@ -123,8 +123,15 @@ class CalendarSidebarWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(title, style: PlacesType.title(theme.ink)),
-          const Spacer(),
+          // Flexible so the header fits while the sidebar animates its width.
+          Expanded(
+            child: Text(
+              title,
+              style: PlacesType.title(theme.ink),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           ?trailing,
         ],
       ),
@@ -568,12 +575,22 @@ class CalendarSidebarWidget extends StatelessWidget {
     );
   }
 
+  /// Narrower than this, the full sidebar can't lay out, e.g. while the
+  /// calendar animates the sidebar open, so the compact one is shown.
+  static const double minExpandedWidth = 240;
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          isCollapsed || constraints.maxWidth < minExpandedWidth
+          ? _buildCollapsedSidebar(context)
+          : _buildExpandedSidebar(context),
+    );
+  }
+
+  Widget _buildExpandedSidebar(BuildContext context) {
     final theme = context.places;
-    if (isCollapsed) {
-      return _buildCollapsedSidebar(context);
-    }
     return ListView(
       children: [
         _buildSectionHeader(

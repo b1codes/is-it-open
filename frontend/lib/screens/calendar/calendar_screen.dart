@@ -322,7 +322,9 @@ class _CalendarScreenContent extends StatelessWidget {
                   dataState,
                   uiState,
                   windows,
-                  theme.inkMuted.withValues(alpha: 0.5),
+                  // Exactly inkMuted: CalendarEventTileWidget styles an
+                  // event as personal by matching this color.
+                  theme.inkMuted,
                 ),
                 checkedPlacesCount: dataState.checkedPlaceIds.length,
                 textColor: theme.ink,
