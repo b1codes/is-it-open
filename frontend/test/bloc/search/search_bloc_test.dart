@@ -3,15 +3,13 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:frontend/bloc/search/search_bloc.dart';
 import 'package:frontend/bloc/search/search_event.dart';
 import 'package:frontend/bloc/search/search_state.dart';
-import 'package:frontend/services/api_service.dart';
 import 'package:frontend/models/place.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'search_bloc_test.mocks.dart';
 
-@GenerateMocks([ApiService])
+import '../../helpers/mocks.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -48,7 +46,7 @@ void main() {
       'SearchQueryChanged emits [loading, success] when successful',
       build: () {
         when(
-          mockApiService.searchPlaces('test'),
+          () => mockApiService.searchPlaces('test'),
         ).thenAnswer((_) async => [mockPlace]);
         return bloc;
       },
@@ -63,7 +61,7 @@ void main() {
       'LoadSearchSuggestions loads recent places and fetches suggestions',
       build: () {
         when(
-          mockApiService.getSuggestions(any, any),
+          () => mockApiService.getSuggestions(any(), any()),
         ).thenAnswer((_) async => [mockPlace]);
         return bloc;
       },

@@ -6,11 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:bloc_test/bloc_test.dart';
 
-class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
-
-class MockApiService extends Mock implements ApiService {}
+import '../../helpers/mocks.dart';
 
 void main() {
   testWidgets('MapScreen renders FlutterMap immediately without blocking', (

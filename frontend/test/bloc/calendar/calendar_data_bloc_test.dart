@@ -3,15 +3,13 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_event.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
-import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/ical_parser_service.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'calendar_data_bloc_test.mocks.dart';
 
-@GenerateMocks([ApiService])
+import '../../helpers/mocks.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
@@ -42,7 +40,7 @@ void main() {
     blocTest<CalendarDataBloc, CalendarDataState>(
       'LoadSavedPlaces emits [loading, loaded] when successful',
       build: () {
-        when(mockApiService.getBookmarks()).thenAnswer((_) async => []);
+        when(() => mockApiService.getBookmarks()).thenAnswer((_) async => []);
         return bloc;
       },
       act: (bloc) => bloc.add(LoadSavedPlaces()),

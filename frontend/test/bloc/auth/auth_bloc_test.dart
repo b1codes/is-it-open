@@ -3,10 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/models/user.dart';
-import 'package:frontend/services/api_service.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockApiService extends Mock implements ApiService {}
+import '../../helpers/mocks.dart';
 
 void main() {
   group('AuthBloc', () {
