@@ -127,6 +127,10 @@ jobs:
     defaults:
       run:
         working-directory: frontend
+    env:
+      # A zone with DST, so date and time code is tested across clock changes. The suite also
+      # passes in UTC.
+      TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
         with:

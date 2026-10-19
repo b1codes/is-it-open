@@ -55,4 +55,72 @@ void main() {
       );
     });
   });
+  group('GraphicsHelper.buildProfileGraphic', () {
+    Future<(BoxDecoration, Icon)> render(
+      WidgetTester tester,
+      SavedPlace place, {
+      double size = 40,
+    }) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: GraphicsHelper.buildProfileGraphic(place, size: size),
+          ),
+        ),
+      );
+      final box = tester.widget<Container>(find.byType(Container));
+      return (
+        box.decoration! as BoxDecoration,
+        tester.widget<Icon>(find.byType(Icon)),
+      );
+    }
+
+    testWidgets('draws the stored icon on an opaque stored color', (
+      tester,
+    ) async {
+      final place = SavedPlace(
+        id: 1,
+        place: _savedPlace().place,
+        icon: 'local_cafe',
+        color: '80112233',
+      );
+      final (decoration, icon) = await render(tester, place, size: 50);
+      expect(decoration.color, const Color(0xFF112233));
+      expect(decoration.shape, BoxShape.circle);
+      expect(icon.icon, Icons.local_cafe);
+      expect(icon.size, 30);
+      expect(tester.getSize(find.byType(Container)), const Size(50, 50));
+    });
+
+    testWidgets('defaults to a blue star', (tester) async {
+      final (decoration, icon) = await render(tester, _savedPlace());
+      expect(decoration.color, Color(Colors.blue.toARGB32()));
+      expect(icon.icon, Icons.star);
+    });
+
+    testWidgets('falls back for an unknown icon name', (tester) async {
+      final place = SavedPlace(
+        id: 1,
+        place: _savedPlace().place,
+        icon: 'not_an_icon',
+      );
+      final (_, icon) = await render(tester, place);
+      expect(icon.icon, Icons.star);
+    });
+
+    testWidgets('falls back to blue for a malformed stored color', (
+      tester,
+    ) async {
+      for (final color in ['', 'not-hex']) {
+        final (decoration, _) = await render(tester, _savedPlace(color: color));
+        expect(decoration.color, Color(Colors.blue.toARGB32()), reason: color);
+      }
+    });
+
+    test('every available icon name maps to an icon', () {
+      expect(GraphicsHelper.availableIcons, hasLength(11));
+      expect(GraphicsHelper.availableIcons['work'], Icons.work);
+    });
+  });
 }

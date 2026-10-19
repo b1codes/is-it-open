@@ -41,10 +41,11 @@ class GraphicsHelper {
   };
 
   static Widget buildProfileGraphic(SavedPlace savedPlace, {double size = 40}) {
-    final currentColorHex =
-        savedPlace.color ?? Colors.blue.toARGB32().toRadixString(16);
+    // A missing or malformed stored color falls back to blue rather than
+    // throwing mid-build.
+    final storedColor = int.tryParse(savedPlace.color ?? '', radix: 16);
     final currentColor = Color(
-      int.parse(currentColorHex, radix: 16),
+      storedColor ?? Colors.blue.toARGB32(),
     ).withValues(alpha: 1.0);
     final currentIconName = savedPlace.icon ?? 'star';
 
