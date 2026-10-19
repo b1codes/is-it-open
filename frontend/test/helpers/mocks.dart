@@ -7,9 +7,11 @@ import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_event.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
+import 'package:frontend/models/place.dart';
 import 'package:frontend/models/user.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:geolocator_platform_interface/geolocator_platform_interface.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -28,6 +30,14 @@ class MockDeviceCalendarPlugin extends Mock implements DeviceCalendarPlugin {}
 
 void registerFallbacks() {
   registerFallbackValue(User(id: 0, username: 'fallback'));
+  registerFallbackValue(
+    const Place(
+      tomtomId: 'fallback',
+      name: 'fallback',
+      address: '',
+      location: LatLng(0, 0),
+    ),
+  );
   registerFallbackValue(RetrieveEventsParams());
   registerFallbackValue(AppStarted());
   registerFallbackValue(LoadSavedPlaces());

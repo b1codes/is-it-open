@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../components/places/quick_add_place_sheet.dart';
 import '../../components/places/saved_place_row.dart';
 import '../../components/places/saved_place_tile.dart';
 import '../../components/places/status_pill.dart';
+import '../../models/place.dart';
 import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
 import '../../utils/place_status.dart';
@@ -39,7 +41,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   _VisitFilter _filter = _VisitFilter.all;
   Timer? _ticker;
 
-  int _lastRebuildMinute = DateTime.now().minute;
+  int _lastRebuildMinute = clock.now().minute;
 
   @override
   void initState() {
@@ -49,7 +51,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     // so status pills update from open → closing-soon → closed without redundant rebuilds.
     _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
-      final currentMinute = DateTime.now().minute;
+      final currentMinute = clock.now().minute;
       if (currentMinute != _lastRebuildMinute) {
         setState(() {
           _lastRebuildMinute = currentMinute;
@@ -76,7 +78,11 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
 
   Future<void> _refresh() async {
     final next = context.read<ApiService>().getBookmarks();
-    setState(() => _bookmarksFuture = next);
+    // A block body: an arrow would return the Future, which setState rejects
+    // in debug builds without rebuilding.
+    setState(() {
+      _bookmarksFuture = next;
+    });
     await next;
   }
 
@@ -111,7 +117,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
         }
         final allPlaces = snapshot.data ?? const <SavedPlace>[];
         if (allPlaces.isEmpty) {
-          return _sheetScrollable(const _EmptyState());
+          return _sheetScrollable(_EmptyState(onPlaceAdded: _refresh));
         }
         return _PlacesBody(
           allPlaces: allPlaces,
@@ -188,7 +194,7 @@ class _PlacesBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
-    final now = DateTime.now();
+    final now = clock.now();
 
     final filtered = allPlaces.where(
       (p) => switch (filter) {
@@ -221,7 +227,7 @@ class _PlacesBody extends StatelessWidget {
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(child: _TodayStrip()),
+          SliverToBoxAdapter(child: _TodayStrip(places: allPlaces)),
           SliverToBoxAdapter(
             child: _FilterChips(
               filter: filter,
@@ -290,8 +296,8 @@ class _PlacesBody extends StatelessWidget {
       return an.compareTo(bn);
     });
     groups[PlaceStatusKind.closingSoon]!.sort(
-      (a, b) => (a.status.nextChange ?? DateTime.now()).compareTo(
-        b.status.nextChange ?? DateTime.now(),
+      (a, b) => (a.status.nextChange ?? clock.now()).compareTo(
+        b.status.nextChange ?? clock.now(),
       ),
     );
     groups[PlaceStatusKind.closed]!.sort((a, b) {
@@ -341,7 +347,10 @@ class _StatusGroup {
 // ─────────────────────────────────────────────────────────────────────
 
 class _TodayStrip extends StatelessWidget {
-  const _TodayStrip();
+  const _TodayStrip({required this.places});
+
+  /// The loaded saved places, which the route's stops are looked up in.
+  final List<SavedPlace> places;
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +407,7 @@ class _TodayStrip extends StatelessWidget {
                       onTap: () =>
                           context.read<TodayRouteCubit>().dismissResetNote(),
                       child: Text(
-                        "Today's route reset for ${_friendlyDate(DateTime.now())}.",
+                        "Today's route reset for ${_friendlyDate(clock.now())}.",
                         style: PlacesType.bodySmall(theme.inkMuted),
                       ),
                     ),
@@ -427,8 +436,13 @@ class _TodayStrip extends StatelessWidget {
                     itemCount: route.tomtomIds.length,
                     separatorBuilder: (_, _) =>
                         const SizedBox(width: PlacesSpacing.sm),
-                    itemBuilder: (context, i) =>
-                        _TodayStopCard(tomtomId: route.tomtomIds[i], index: i),
+                    itemBuilder: (context, i) => _TodayStopCard(
+                      tomtomId: route.tomtomIds[i],
+                      savedPlace: places
+                          .where((p) => p.place.tomtomId == route.tomtomIds[i])
+                          .firstOrNull,
+                      index: i,
+                    ),
                   ),
                 ),
             ],
@@ -459,94 +473,91 @@ class _TodayStrip extends StatelessWidget {
 }
 
 class _TodayStopCard extends StatelessWidget {
-  const _TodayStopCard({required this.tomtomId, required this.index});
+  const _TodayStopCard({
+    required this.tomtomId,
+    required this.savedPlace,
+    required this.index,
+  });
 
   final String tomtomId;
+
+  /// Null when the stop is no longer one of the user's saved places.
+  final SavedPlace? savedPlace;
   final int index;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    // Resolve display info from the cached bookmarks list above; the
-    // FutureBuilder upstream already has it. We re-fetch lightly here.
-    return FutureBuilder<List<SavedPlace>>(
-      future: context.read<ApiService>().getBookmarks(),
-      builder: (context, snap) {
-        final places = snap.data ?? const <SavedPlace>[];
-        final match = places.cast<SavedPlace?>().firstWhere(
-          (p) => p?.place.tomtomId == tomtomId,
-          orElse: () => null,
-        );
-        final use24 = context.watch<PreferencesCubit>().state.use24HourFormat;
-        final status = match == null
-            ? const PlaceStatus(kind: PlaceStatusKind.unknown, supporting: '')
-            : PlaceStatusCalculator.compute(
-                match.place,
-                now: DateTime.now(),
-                use24HourFormat: use24,
-              );
-        final name = match == null
-            ? 'Loading…'
-            : (match.customName ?? match.place.name);
+    // The stop comes from the already-loaded list. Fetching here, in build,
+    // refetched every bookmark once per stop on every rebuild (the minute
+    // ticker included) and flickered through a loading state.
+    final match = savedPlace;
+    final use24 = context.watch<PreferencesCubit>().state.use24HourFormat;
+    final status = match == null
+        ? const PlaceStatus(kind: PlaceStatusKind.unknown, supporting: '')
+        : PlaceStatusCalculator.compute(
+            match.place,
+            now: clock.now(),
+            use24HourFormat: use24,
+          );
+    final name = match == null
+        ? 'Not in your places'
+        : (match.customName ?? match.place.name);
 
-        return Semantics(
-          button: true,
-          label: 'Route stop: $name. Long press to open options menu.',
-          child: GestureDetector(
-            onLongPress: () => _showStopMenu(context, tomtomId, index),
-            child: Container(
-              width: 220,
-              padding: const EdgeInsets.all(PlacesSpacing.md),
-              decoration: BoxDecoration(
-                color: theme.paperRaised,
-                borderRadius: BorderRadius.circular(PlacesRadius.md),
-                border: Border.all(color: theme.ashSoft),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Semantics(
+      button: true,
+      label: 'Route stop: $name. Long press to open options menu.',
+      child: GestureDetector(
+        onLongPress: () => _showStopMenu(context, tomtomId, index),
+        child: Container(
+          width: 220,
+          padding: const EdgeInsets.all(PlacesSpacing.md),
+          decoration: BoxDecoration(
+            color: theme.paperRaised,
+            borderRadius: BorderRadius.circular(PlacesRadius.md),
+            border: Border.all(color: theme.ashSoft),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: theme.anchor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              color: theme.anchorOnContrast,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                            ),
-                          ),
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: theme.anchor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          color: theme.anchorOnContrast,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
                         ),
                       ),
-                      const SizedBox(width: PlacesSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: PlacesType.title(
-                            theme.ink,
-                          ).copyWith(fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const Spacer(),
-                  StatusPill(status: status),
+                  const SizedBox(width: PlacesSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: PlacesType.title(theme.ink).copyWith(fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
-            ),
+              const Spacer(),
+              StatusPill(status: status),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -843,7 +854,13 @@ void _openActionSheet(
   final theme = context.places;
   final api = context.read<ApiService>();
   final todayCubit = context.read<TodayRouteCubit>();
+  final messenger = ScaffoldMessenger.of(context);
   final sp = enriched.savedPlace;
+  void reportFailure(String action) => messenger.showSnackBar(
+    SnackBar(
+      content: Text("Couldn't $action ${sp.customName ?? sp.place.name}."),
+    ),
+  );
   showModalBottomSheet(
     context: context,
     backgroundColor: theme.paperRaised,
@@ -893,7 +910,9 @@ void _openActionSheet(
               try {
                 await api.togglePinPlace(sp.place.tomtomId, !sp.isPinned);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure(sp.isPinned ? 'unpin' : 'pin');
+              }
             },
           ),
           ListTile(
@@ -911,7 +930,9 @@ void _openActionSheet(
               try {
                 await api.toggleCheckItOut(sp.place.tomtomId, !sp.isCheckItOut);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure('update');
+              }
             },
           ),
           ListTile(
@@ -936,7 +957,9 @@ void _openActionSheet(
                 await api.deleteBookmark(sp.place.tomtomId);
                 todayCubit.remove(sp.place.tomtomId);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure('remove');
+              }
             },
           ),
           const SizedBox(height: PlacesSpacing.sm),
@@ -1027,7 +1050,10 @@ class _ShimmerBox extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onPlaceAdded});
+
+  /// Reloads the list once a place is added, so the first one appears.
+  final Future<void> Function() onPlaceAdded;
 
   @override
   Widget build(BuildContext context) {
@@ -1076,7 +1102,11 @@ class _EmptyState extends StatelessWidget {
                   _SecondaryAction(
                     label: 'Add a custom place',
                     icon: Icons.add_location_alt_outlined,
-                    onPressed: () => _openQuickAdd(context),
+                    onPressed: () async {
+                      if (await _openQuickAdd(context) != null) {
+                        await onPlaceAdded();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -1212,8 +1242,9 @@ class _SecondaryAction extends StatelessWidget {
   }
 }
 
-void _openQuickAdd(BuildContext context) {
-  showModalBottomSheet(
+/// Completes with the saved place, or null if the sheet was dismissed.
+Future<Place?> _openQuickAdd(BuildContext context) {
+  return showModalBottomSheet<Place>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

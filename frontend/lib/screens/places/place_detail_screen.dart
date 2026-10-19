@@ -639,9 +639,16 @@ class _CustomPlaceAffordancesState extends State<_CustomPlaceAffordances> {
         widget.saved.place.tomtomId,
         widget.saved.icon,
         widget.saved.color,
-        customName: _label.text.trim().isEmpty ? null : _label.text.trim(),
+        // An empty name clears the label; null would leave it unchanged.
+        customName: _label.text.trim(),
       );
       widget.onChanged();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save the label.")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

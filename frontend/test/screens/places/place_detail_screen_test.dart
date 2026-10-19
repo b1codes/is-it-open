@@ -1,11 +1,25 @@
 import 'package:clock/clock.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/bloc/today/today_cubit.dart';
+import 'package:frontend/components/places/address_map_thumb.dart';
+import 'package:frontend/models/place.dart';
+import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/screens/places/place_detail_screen.dart';
+import 'package:frontend/screens/places/plan_visit_screen.dart';
+import 'package:frontend/services/api_service.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:mocktail/mocktail.dart';
+
+import '../../helpers/mocks.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/pump_app.dart';
 
 void main() {
+  setUpAll(registerFallbacks);
+
   group('PlaceDetailScreen', () {
     // Today's row in the hours table gets a dot and a bold label; on some
     // weekdays that overflowed its fixed-width label column.
@@ -23,6 +37,223 @@ void main() {
         });
       });
     }
+
+    // Monday 19 Oct 2026, noon.
+    final noon = DateTime(2026, 10, 19, 12);
+
+    Future<void> open(
+      WidgetTester tester,
+      Place place, {
+      List<SavedPlace>? bookmarks,
+      bool apiFails = false,
+      List<String> todayRouteIds = const [],
+      ApiService? api,
+    }) async {
+      await tester.pumpApp(
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PlaceDetailScreen(place: place),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+        bookmarks: bookmarks,
+        apiFails: apiFails,
+        todayRouteIds: todayRouteIds,
+        api: api,
+        size: const Size(600, 1400),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows a saved place with its details', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, bistroPlace);
+        expect(find.text('Friday burger spot'), findsOneWidget);
+        expect(find.text('restaurant'), findsOneWidget);
+        expect(find.text(bistroPlace.address), findsOneWidget);
+        expect(find.byType(AddressMapThumb), findsOneWidget);
+        expect(find.text('Contact'), findsOneWidget);
+        expect(find.text(bistroPlace.phone!), findsOneWidget);
+        expect(find.text('Plan visit'), findsOneWidget);
+        expect(
+          find.text('Typical visit 1.5 hr. Check if it fits.'),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+      });
+    });
+
+    testWidgets('an unsaved place has no saved-place actions', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, bistroPlace, bookmarks: const []);
+        expect(find.text(bistroPlace.name), findsOneWidget);
+        expect(find.text('Plan visit'), findsNothing);
+        expect(find.byIcon(Icons.more_horiz_rounded), findsNothing);
+      });
+    });
+
+    testWidgets('adding to today saves and bookmarks an unsaved place', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, gymPlace, bookmarks: const []);
+        await tester.tap(find.text("Add to today's route"));
+        await tester.pumpAndSettle();
+        expect(find.text("On today's route"), findsOneWidget);
+        expect(find.text('Plan visit'), findsOneWidget, reason: 'now saved');
+        final context = tester.element(find.byType(PlaceDetailScreen));
+        expect(context.read<TodayRouteCubit>().state.tomtomIds, ['tt_gym']);
+
+        await tester.tap(find.text("On today's route"));
+        await tester.pumpAndSettle();
+        expect(context.read<TodayRouteCubit>().state.tomtomIds, isEmpty);
+      });
+    });
+
+    testWidgets('explains a failed add', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        final api = MockApiService();
+        when(() => api.getBookmarks()).thenAnswer((_) async => []);
+        when(() => api.savePlace(any())).thenThrow(ApiException('down'));
+        await open(tester, gymPlace, api: api);
+        await tester.tap(find.text("Add to today's route"));
+        await tester.pumpAndSettle();
+        expect(find.text("Couldn't add to today."), findsOneWidget);
+        expect(find.text("Add to today's route"), findsOneWidget);
+      });
+    });
+
+    testWidgets('a bookmarks failure still shows the place', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, coffeePlace, apiFails: true);
+        expect(find.text(coffeePlace.name), findsOneWidget);
+        expect(find.text("Add to today's route"), findsOneWidget);
+      });
+    });
+
+    testWidgets('remove from saved deletes it and goes back', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, coffeePlace, todayRouteIds: const ['tt_coffee']);
+        final context = tester.element(find.byType(PlaceDetailScreen));
+        final today = context.read<TodayRouteCubit>();
+        final api = context.read<ApiService>();
+        await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove from saved'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PlaceDetailScreen), findsNothing);
+        expect(today.state.tomtomIds, isEmpty);
+        final remaining = (await tester.runAsync(api.getBookmarks))!;
+        expect(
+          remaining.map((b) => b.place.tomtomId),
+          isNot(contains('tt_coffee')),
+        );
+      });
+    });
+
+    testWidgets('opens plan visit and refreshes on return', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, gymPlace);
+        await tester.tap(find.text('Plan visit'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PlanVisitScreen), findsOneWidget);
+        await tester.tap(find.text('2 hr'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Typical visit 2 hr. Check if it fits.'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    testWidgets('a custom place without hours offers to add them', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, hardwarePlace);
+        expect(find.text('Hours unknown'), findsOneWidget);
+        await tester.tap(find.text('Add hours'));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit hours'), findsOneWidget);
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit hours'), findsNothing);
+      });
+    });
+
+    testWidgets('a saved custom place can be relabelled or cleared', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(tester, hardwarePlace);
+        final label = find.widgetWithText(TextField, hardwarePlace.name);
+        await tester.ensureVisible(label);
+        await tester.enterText(label, 'The hardware store');
+        await tester.tap(find.text('Save label'));
+        await tester.pumpAndSettle();
+        expect(find.text('The hardware store'), findsWidgets);
+
+        await tester.enterText(
+          find.widgetWithText(TextField, 'The hardware store'),
+          '   ',
+        );
+        await tester.tap(find.text('Save label'));
+        await tester.pumpAndSettle();
+        // Cleared: the title falls back to the place's own name.
+        expect(
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.text(hardwarePlace.name),
+          ),
+          findsWidgets,
+        );
+      });
+    });
+
+    testWidgets('explains a failed relabel', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        final api = MockApiService();
+        final saved = SavedPlace(id: 9, place: hardwarePlace);
+        when(() => api.getBookmarks()).thenAnswer((_) async => [saved]);
+        when(
+          () => api.updateBookmarkGraphic(
+            any(),
+            any(),
+            any(),
+            customName: any(named: 'customName'),
+          ),
+        ).thenThrow(ApiException('down'));
+        await open(tester, hardwarePlace, api: api);
+        await tester.ensureVisible(find.text('Save label'));
+        await tester.tap(find.text('Save label'));
+        await tester.pumpAndSettle();
+        expect(find.text("Couldn't save the label."), findsOneWidget);
+      });
+    });
+
+    testWidgets('a place without a location has no map', (tester) async {
+      await withClock(Clock.fixed(noon), () async {
+        await open(
+          tester,
+          const Place(
+            tomtomId: 'tt_nowhere',
+            name: 'Nowhere',
+            address: 'Unknown',
+            location: LatLng(0, 0),
+          ),
+          bookmarks: const [],
+        );
+        expect(find.byType(AddressMapThumb), findsNothing);
+        expect(find.text('Contact'), findsNothing);
+      });
+    });
   });
 }
 
