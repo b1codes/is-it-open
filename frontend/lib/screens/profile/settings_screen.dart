@@ -135,10 +135,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: Colors.green,
             ),
           );
-        } else if (state is AuthFailure) {
+        } else if (state is ProfileUpdateFailure || state is AuthFailure) {
+          final error = state is ProfileUpdateFailure
+              ? state.error
+              : (state as AuthFailure).error;
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+            SnackBar(content: Text(error), backgroundColor: Colors.red),
           );
         }
       },

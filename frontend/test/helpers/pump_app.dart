@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
+import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/ical_parser_service.dart';
 import 'package:frontend/utils/app_theme.dart';
 
 import 'fixtures.dart';
@@ -17,7 +19,9 @@ extension PumpApp on WidgetTester {
   /// Pumps [widget] as the home route of a themed [MaterialApp] inside a
   /// [MockAppScope]: every bloc and repository the app provides, backed by
   /// [FakeApiService] (instant responses by default) and seeded with the
-  /// shared fixtures. Pass [api] to serve requests from a mock instead.
+  /// shared fixtures. Pass [api] to serve requests from a mock instead; the
+  /// auth and calendar-data blocs then use it too (calendar data starts
+  /// empty unless [calendarData] is given).
   Future<void> pumpApp(
     Widget widget, {
     Size size = phoneSize,
@@ -38,9 +42,30 @@ extension PumpApp on WidgetTester {
       themeMode: themeMode,
       home: widget,
     );
-    // Above the Navigator, so pushed routes and sheets see the override too.
+    // Above the Navigator, so pushed routes and sheets see the override too,
+    // along with blocs that call it rather than MockAppScope's FakeApiService.
     if (api != null) {
-      app = RepositoryProvider<ApiService>.value(value: api, child: app);
+      app = RepositoryProvider<ApiService>.value(
+        value: api,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider<AuthBloc>(
+              create: (_) => SeededAuthBloc(
+                apiClient: api,
+                seed: authState ?? AuthAuthenticated(user: demoUser),
+              ),
+            ),
+            BlocProvider<CalendarDataBloc>(
+              create: (_) => SeededCalendarDataBloc(
+                apiService: api,
+                icalParserService: IcalParserService(),
+                seed: calendarData ?? const CalendarDataState(),
+              ),
+            ),
+          ],
+          child: app,
+        ),
+      );
     }
     await pumpWidget(
       MockAppScope(

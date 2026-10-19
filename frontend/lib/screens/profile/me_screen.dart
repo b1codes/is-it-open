@@ -102,8 +102,55 @@ class _MeScreenState extends State<MeScreen> {
     super.dispose();
   }
 
+  // Whether the form's address differs from the saved one ('' and null are
+  // the same "not set").
+  static bool _addressChanged(
+    List<TextEditingController> controllers,
+    List<String?> saved,
+  ) {
+    for (var i = 0; i < controllers.length; i++) {
+      if (controllers[i].text.trim() != (saved[i] ?? '').trim()) return true;
+    }
+    return false;
+  }
+
   void _saveProfile(User currentUser) {
     if (_formKey.currentState!.validate()) {
+      // Coordinates sent with the profile override geocoding on the server,
+      // so only resend them for an address that didn't change; an edited
+      // address is geocoded afresh.
+      final homeChanged = _addressChanged(
+        [
+          _homeAddressController,
+          _homeStreetController,
+          _homeCityController,
+          _homeStateController,
+          _homeZipController,
+        ],
+        [
+          currentUser.homeAddress,
+          currentUser.homeStreet,
+          currentUser.homeCity,
+          currentUser.homeState,
+          currentUser.homeZip,
+        ],
+      );
+      final workChanged = _addressChanged(
+        [
+          _workAddressController,
+          _workStreetController,
+          _workCityController,
+          _workStateController,
+          _workZipController,
+        ],
+        [
+          currentUser.workAddress,
+          currentUser.workStreet,
+          currentUser.workCity,
+          currentUser.workState,
+          currentUser.workZip,
+        ],
+      );
       final updatedUser = User(
         id: currentUser.id,
         username: currentUser.username,
@@ -115,15 +162,15 @@ class _MeScreenState extends State<MeScreen> {
         homeCity: _homeCityController.text.trim(),
         homeState: _homeStateController.text.trim(),
         homeZip: _homeZipController.text.trim(),
-        homeLat: currentUser.homeLat,
-        homeLng: currentUser.homeLng,
+        homeLat: homeChanged ? null : currentUser.homeLat,
+        homeLng: homeChanged ? null : currentUser.homeLng,
         workAddress: _workAddressController.text.trim(),
         workStreet: _workStreetController.text.trim(),
         workCity: _workCityController.text.trim(),
         workState: _workStateController.text.trim(),
         workZip: _workZipController.text.trim(),
-        workLat: currentUser.workLat,
-        workLng: currentUser.workLng,
+        workLat: workChanged ? null : currentUser.workLat,
+        workLng: workChanged ? null : currentUser.workLng,
         useCurrentLocation: currentUser.useCurrentLocation,
       );
 
