@@ -25,18 +25,14 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isGridView = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Use a post-frame callback to trigger suggestions after the Bloc is initialized via BlocProvider
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSuggestions(BuildContext context) async {
+  // Takes the screen's own bloc: the create callback below runs with the
+  // parent context, where there is no SearchBloc to look up.
+  Future<void> _loadSuggestions(SearchBloc bloc) async {
     double? lat;
     double? lng;
 
@@ -52,8 +48,8 @@ class _SearchScreenState extends State<SearchScreen> {
       // Ignore location errors for suggestions
     }
 
-    if (context.mounted) {
-      context.read<SearchBloc>().add(LoadSearchSuggestions(lat: lat, lng: lng));
+    if (!bloc.isClosed) {
+      bloc.add(LoadSearchSuggestions(lat: lat, lng: lng));
     }
   }
 
@@ -67,7 +63,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void _clearSearch(BuildContext context) {
     _searchController.clear();
     context.read<SearchBloc>().add(const SearchQueryChanged(''));
-    _loadSuggestions(context);
+    _loadSuggestions(context.read<SearchBloc>());
   }
 
   Widget _buildSuggestionsSection(
@@ -161,7 +157,7 @@ class _SearchScreenState extends State<SearchScreen> {
     return BlocProvider(
       create: (context) {
         final bloc = SearchBloc(apiClient: context.read<ApiService>());
-        _loadSuggestions(context);
+        _loadSuggestions(bloc);
         return bloc;
       },
       child: Builder(
@@ -197,7 +193,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 context.read<SearchBloc>().add(
                                   const SearchQueryChanged(''),
                                 );
-                                _loadSuggestions(context);
+                                _loadSuggestions(context.read<SearchBloc>());
                               }
                             },
                           ),

@@ -22,14 +22,23 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  /// [apiService] and [icalParserService] default to the real ones; tests
+  /// pass fakes to run the whole app without a backend.
+  const MyApp({super.key, this.apiService, this.icalParserService});
+
+  final ApiService? apiService;
+  final IcalParserService? icalParserService;
+
+  static final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider(create: (context) => ApiService()),
-        RepositoryProvider(create: (context) => IcalParserService()),
+        RepositoryProvider(create: (context) => apiService ?? ApiService()),
+        RepositoryProvider(
+          create: (context) => icalParserService ?? IcalParserService(),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -63,6 +72,10 @@ class MyApp extends StatelessWidget {
             return login || logout;
           },
           listener: (context, state) {
+            // Home shows login or the app depending on the auth state, so
+            // drop any screens pushed on top of it (register, settings, a
+            // place) when that state flips.
+            _navigatorKey.currentState?.popUntil((route) => route.isFirst);
             if (state is AuthAuthenticated) {
               context.read<CalendarDataBloc>().add(LoadSavedPlaces());
               final url = state.user.calendarSubscriptionUrl;
@@ -76,6 +89,7 @@ class MyApp extends StatelessWidget {
           child: BlocBuilder<ThemeCubit, ThemeMode>(
             builder: (context, themeMode) {
               return MaterialApp(
+                navigatorKey: _navigatorKey,
                 title: 'Is It Open',
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,

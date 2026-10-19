@@ -240,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text('New here?', style: theme.textTheme.bodyMedium),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacement(
+                          Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => const RegisterScreen(),
                             ),

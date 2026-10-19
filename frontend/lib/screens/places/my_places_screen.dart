@@ -80,6 +80,20 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     await next;
   }
 
+  Widget _sheetScrollable(Widget child) {
+    final controller = widget.scrollController;
+    if (controller == null) return child;
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        controller: controller,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
@@ -87,15 +101,17 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     final bodyContent = FutureBuilder<List<SavedPlace>>(
       future: _bookmarksFuture,
       builder: (context, snapshot) {
+        // In the home sheet every state scrolls with the sheet's controller,
+        // so the sheet can be dragged and expanded before the list loads.
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return _SkeletonList();
+          return _SkeletonList(controller: widget.scrollController);
         }
         if (snapshot.hasError) {
-          return _ErrorState(onRetry: _refresh);
+          return _sheetScrollable(_ErrorState(onRetry: _refresh));
         }
         final allPlaces = snapshot.data ?? const <SavedPlace>[];
         if (allPlaces.isEmpty) {
-          return const _EmptyState();
+          return _sheetScrollable(const _EmptyState());
         }
         return _PlacesBody(
           allPlaces: allPlaces,
@@ -935,10 +951,15 @@ void _openActionSheet(
 // ─────────────────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatelessWidget {
+  const _SkeletonList({this.controller});
+
+  final ScrollController? controller;
+
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
     return ListView.separated(
+      controller: controller,
       padding: const EdgeInsets.only(top: PlacesSpacing.lg),
       itemCount: 6,
       separatorBuilder: (_, _) => const SizedBox(height: 0),

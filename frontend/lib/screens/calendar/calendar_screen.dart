@@ -9,6 +9,7 @@ import '../../components/calendar/planner_view.dart';
 import '../../models/saved_place.dart';
 
 import '../../bloc/calendar/calendar_ui_cubit.dart';
+import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
@@ -326,7 +327,10 @@ class _CalendarScreenContent extends StatelessWidget {
                 checkedPlacesCount: dataState.checkedPlaceIds.length,
                 textColor: theme.ink,
                 textSmallColor: theme.inkMuted,
-                use24HourFormat: false,
+                use24HourFormat: context
+                    .watch<PreferencesCubit>()
+                    .state
+                    .use24HourFormat,
               );
             } else {
               mainContent = PlannerView(

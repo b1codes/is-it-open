@@ -34,9 +34,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 backgroundColor: AppColors.thermalCore,
               ),
             );
-          } else if (state is AuthAuthenticated) {
-            Navigator.of(context).pop();
           }
+          // On success MyApp returns to its home route, which shows home.
         },
         child: SafeArea(
           child: Center(
@@ -162,11 +161,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          );
+                          final navigator = Navigator.of(context);
+                          if (navigator.canPop()) {
+                            navigator.pop(); // back to the login screen
+                          } else {
+                            navigator.pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                          }
                         },
                         child: Text(
                           'Sign in',
