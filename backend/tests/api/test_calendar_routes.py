@@ -47,9 +47,21 @@ def test_upstream_failure_is_400(auth_client, http_mock, upstream):
     assert response.json()["detail"].startswith("Failed to fetch calendar")
 
 
-@pytest.mark.parametrize("url", ["not a url", "ftp://example.com/cal.ics", ""])
-def test_unfetchable_url_is_400(auth_client, http_mock, url):
-    assert auth_client.get("/calendar/proxy", url=url).status_code == 400
+@pytest.mark.parametrize("url", ["not a url", "ftp://example.com/cal.ics", "webcal://example.com/cal.ics", ""])
+def test_url_that_is_not_http_is_422(auth_client, http_mock, url):
+    response = auth_client.get("/calendar/proxy", url=url)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"][-1] == "url"
+    assert len(http_mock.calls) == 0
+
+
+@pytest.mark.parametrize("url", ["http://", "https://exa mple.com/cal.ics", "http://example.com:notaport/"])
+def test_unfetchable_http_url_is_400(auth_client, http_mock, url):
+    response = auth_client.get("/calendar/proxy", url=url)
+
+    assert response.status_code == 400
+    assert response.json()["detail"].startswith("Failed to fetch calendar")
 
 
 def test_missing_url_is_422(auth_client):

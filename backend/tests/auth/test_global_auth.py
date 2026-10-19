@@ -314,5 +314,5 @@ class TestAccountCollision:
     def test_local_registration_cannot_claim_an_auth0_sub(self, firestore_db, auth0_tenant):
         response = ApiClient().post("/auth/register", {"username": "auth0|bob", "password": "pw"})
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert users.get_user("auth0|bob") is None

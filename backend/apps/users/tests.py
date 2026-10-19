@@ -29,7 +29,7 @@ class AuthApiTests(FirestoreTestCase):
     def test_register_rejects_duplicate_username(self):
         self._post("/api/auth/register", {"username": "testuser", "password": "password"})
         response = self._post("/api/auth/register", {"username": "testuser", "password": "other"})
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 409)
 
     def test_login_returns_same_token(self):
         registered = self._post("/api/auth/register", {"username": "testuser", "password": "password"}).json()

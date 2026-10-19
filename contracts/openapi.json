@@ -32,6 +32,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -73,6 +83,16 @@
           },
           "400": {
             "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -148,6 +168,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuthOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
                 }
               }
             }
@@ -338,6 +368,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -507,6 +547,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -573,6 +623,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/json": {
                 "schema": {
@@ -655,6 +715,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -721,6 +791,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/json": {
                 "schema": {
@@ -1004,6 +1084,7 @@
             "in": "query",
             "name": "url",
             "schema": {
+              "pattern": "^https?://",
               "title": "Url",
               "type": "string"
             },
@@ -1334,6 +1415,8 @@
       "RegisterInput": {
         "properties": {
           "username": {
+            "minLength": 1,
+            "pattern": "^[^\\|]+$",
             "title": "Username",
             "type": "string"
           },
@@ -1567,14 +1650,25 @@
       "BusinessHoursSchema": {
         "properties": {
           "day_of_week": {
+            "description": "0 is Monday",
+            "maximum": 6,
+            "minimum": 0,
             "title": "Day Of Week",
             "type": "integer"
           },
           "open_time": {
+            "examples": [
+              "09:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
             "title": "Open Time",
             "type": "string"
           },
           "close_time": {
+            "examples": [
+              "17:30"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
             "title": "Close Time",
             "type": "string"
           }
@@ -1590,10 +1684,14 @@
       "LocationSchema": {
         "properties": {
           "lat": {
+            "maximum": 90,
+            "minimum": -90,
             "title": "Lat",
             "type": "number"
           },
           "lng": {
+            "maximum": 180,
+            "minimum": -180,
             "title": "Lng",
             "type": "number"
           }
@@ -1608,6 +1706,7 @@
       "PlaceCreateSchema": {
         "properties": {
           "tomtom_id": {
+            "minLength": 1,
             "title": "Tomtom Id",
             "type": "string"
           },
@@ -1905,12 +2004,15 @@
           "visit_length": {
             "anyOf": [
               {
+                "maximum": 1440,
+                "minimum": 1,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "Minutes; null clears it",
             "title": "Visit Length"
           }
         },

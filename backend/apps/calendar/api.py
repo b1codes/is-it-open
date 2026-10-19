@@ -1,6 +1,6 @@
 import requests
 from django.http import HttpResponse
-from ninja import Router
+from ninja import Query, Router
 from ninja.errors import HttpError
 
 from config.schemas import ErrorSchema
@@ -19,7 +19,7 @@ ICAL_RESPONSE = {
 
 
 @router.get("/proxy", response={400: ErrorSchema}, openapi_extra=ICAL_RESPONSE)
-def proxy_ical(request, url: str):
+def proxy_ical(request, url: str = Query(..., pattern=r"^https?://")):
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()

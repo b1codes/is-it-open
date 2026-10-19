@@ -1,7 +1,7 @@
 name: Nightly
 
-# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test runs, and
-# mutation testing.
+# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test and API fuzzing
+# runs, and mutation testing.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
@@ -70,6 +70,40 @@ jobs:
         if: always()
         with:
           name: test-results-backend-property
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  api-fuzz:
+    name: API contract fuzzing (many examples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: nightly  # random requests, unlike the fixed set each PR sends
+      SCHEMATHESIS_MAX_EXAMPLES: '1000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Test
+        # A failure prints a curl command that reproduces it.
+        run: uv run pytest -p no:cacheprovider tests/contracts/test_provider.py --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-api-fuzz
           path: backend/test-results/
           if-no-files-found: ignore
 

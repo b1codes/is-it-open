@@ -165,10 +165,10 @@ class TestCreatePlace:
         assert second["name"] == "New"
         assert second["location"] == {"lat": 1.0, "lng": 2.0}
 
-    def test_empty_tomtom_id_is_400(self, auth_client):
+    def test_empty_tomtom_id_is_422(self, auth_client):
         response = auth_client.post("/places/", factories.place_data(tomtom_id=None) | {"tomtom_id": ""})
 
-        assert response.status_code == 400
+        assert _field_errors(response) == {"tomtom_id"}
 
     @pytest.mark.parametrize(
         "change, fields",
@@ -179,6 +179,17 @@ class TestCreatePlace:
             ({"hours": [{"day_of_week": "Mon", "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
             ({"hours": [{"day_of_week": 1}]}, {"open_time", "close_time"}),
             ({"categories": "Cafe"}, {"categories"}),
+            # Hours the app couldn't read back (it parses HH:MM) were stored as sent.
+            ({"hours": [{"day_of_week": 1, "open_time": "", "close_time": "17:00"}]}, {"open_time"}),
+            ({"hours": [{"day_of_week": 1, "open_time": "9am", "close_time": "24:00"}]}, {"open_time", "close_time"}),
+            ({"hours": [{"day_of_week": 7, "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
+            ({"hours": [{"day_of_week": -1, "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
+            # Values of the wrong JSON type used to be coerced (false -> 0, "1" -> 1).
+            ({"hours": [{"day_of_week": False, "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
+            ({"hours": [{"day_of_week": "1", "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
+            ({"location": {"lat": "40.7", "lng": 0}}, {"lat"}),
+            ({"location": {"lat": 90.5, "lng": 0}}, {"lat"}),
+            ({"location": {"lat": 0, "lng": -180.5}}, {"lng"}),
         ],
     )
     def test_invalid_body_is_422(self, auth_client, change, fields):
@@ -186,6 +197,16 @@ class TestCreatePlace:
 
         assert _field_errors(auth_client.post("/places/", payload)) == fields
         assert places.get_place("bad") is None
+
+    def test_whole_number_floats_are_integers(self, auth_client):
+        payload = factories.place_data("p") | {
+            "hours": [{"day_of_week": 2.0, "open_time": "09:00", "close_time": "17:00"}]
+        }
+
+        response = auth_client.post("/places/", payload)
+
+        assert response.status_code == 200, response.content
+        assert response.json()["hours"][0]["day_of_week"] == 2
 
 
 # --- POST /places/bookmark and GET /places/bookmarks ---
@@ -280,13 +301,13 @@ class TestDeleteBookmark:
 
 # (path suffix, valid payload, field it sets, expected value, invalid payload, invalid field)
 BOOKMARK_UPDATES = [
-    ("pin", {"is_pinned": True}, "is_pinned", True, {"is_pinned": "sometimes"}, "is_pinned"),
+    ("pin", {"is_pinned": True}, "is_pinned", True, {"is_pinned": 1}, "is_pinned"),
     (
         "check-it-out",
         {"is_check_it_out": True},
         "is_check_it_out",
         True,
-        {"is_check_it_out": []},
+        {"is_check_it_out": "true"},
         "is_check_it_out",
     ),
     ("graphic", {"icon": "star"}, "icon", "star", {"icon": 5}, "icon"),
@@ -396,6 +417,26 @@ class TestBookmarkUpdates:
         data = auth_client.patch("/places/bookmarks/place-1/visit-length", payload).json()
 
         assert data["average_visit_length"] is None
+
+    # Negative lengths meant nothing, and huge ones overflowed Firestore's 64-bit integers (a 500).
+    @pytest.mark.parametrize("visit_length", [0, -30, 24 * 60 + 1, 2**63])
+    def test_visit_length_out_of_range_is_422(self, auth_client, place, make_bookmark, visit_length):
+        make_bookmark(auth_client.user, place, average_visit_length=30)
+
+        response = auth_client.patch("/places/bookmarks/place-1/visit-length", {"visit_length": visit_length})
+
+        assert _field_errors(response) == {"visit_length"}
+        assert places.get_saved_place(auth_client.user, place)["average_visit_length"] == 30
+
+    @pytest.mark.parametrize("suffix", ["pin", "check-it-out", "graphic", "visit-length"])
+    @pytest.mark.parametrize("body", ["[]", "null", '"star"', "[null, null]"])
+    def test_body_that_is_not_an_object_is_400(self, auth_client, place, make_bookmark, suffix, body):
+        make_bookmark(auth_client.user, place)
+
+        response = auth_client.patch(f"/places/bookmarks/place-1/{suffix}", body)
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Cannot parse request body"}
 
 
 # --- GET /places/nearby ---

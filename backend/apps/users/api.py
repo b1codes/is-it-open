@@ -1,7 +1,9 @@
-from ninja import Router, Schema
+import re
+
+from ninja import Field, Router, Schema
 from ninja.errors import HttpError
 
-from config.schemas import ErrorSchema
+from config.schemas import ErrorSchema, StrictSchema
 from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
@@ -11,7 +13,7 @@ from .auth import GlobalAuth
 router = Router()
 
 
-class LoginInput(Schema):
+class LoginInput(StrictSchema):
     username: str
     password: str
 
@@ -39,12 +41,6 @@ class AuthOutput(Schema):
     work_lng: float | None = None
     use_current_location: bool = False
     calendar_subscription_url: str | None = ""
-
-
-class RegisterInput(Schema):
-    username: str
-    password: str
-    email: str | None = None
 
 
 def _auth_output(user, token):
@@ -92,16 +88,20 @@ def login(request, data: LoginInput):
 AUTH0_SUB_SEPARATOR = "|"
 
 
-@router.post("/register", response={200: AuthOutput, 400: ErrorSchema})
+class RegisterInput(StrictSchema):
+    username: str = Field(min_length=1, pattern=rf"^[^{re.escape(AUTH0_SUB_SEPARATOR)}]+$")
+    password: str
+    email: str | None = None
+
+
+@router.post("/register", response={200: AuthOutput, 400: ErrorSchema, 409: ErrorSchema})
 def register(request, data: RegisterInput):
-    if AUTH0_SUB_SEPARATOR in data.username:
-        raise HttpError(400, "Invalid username") from None
     try:
         user = repository.create_user(data.username, data.password, email=data.email or "")
     except InvalidDocumentKey:
         raise HttpError(400, "Invalid username") from None
     if not user:
-        raise HttpError(400, "Username already taken")
+        raise HttpError(409, "Username already taken")
 
     return _auth_output(user, repository.get_or_create_token(user))
 
@@ -111,7 +111,7 @@ def me(request):
     return _auth_output(request.auth, _request_token(request, request.auth))
 
 
-class ProfileUpdateInput(Schema):
+class ProfileUpdateInput(StrictSchema):
     first_name: str | None = None
     last_name: str | None = None
     home_address: str | None = None

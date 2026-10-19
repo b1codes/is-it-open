@@ -75,23 +75,24 @@ class TestRegister:
         assert first["id"] != second["id"]
         assert first["token"] != second["token"]
 
-    def test_duplicate_username_is_400(self, api_client, user):
+    def test_duplicate_username_is_409(self, api_client, user):
         response = api_client.post("/auth/register", {"username": user.username, "password": "other"})
 
-        assert response.status_code == 400
+        assert response.status_code == 409
+        assert response.json() == {"detail": "Username already taken"}
         assert users.get_user(user.username).check_password("password")  # original account untouched
 
     @pytest.mark.parametrize("username", ["auth0|123", "google-oauth2|victim"])
-    def test_auth0_style_username_is_400(self, api_client, username):
+    def test_auth0_style_username_is_422(self, api_client, username):
         response = api_client.post("/auth/register", {"username": username, "password": "pw"})
 
-        assert response.status_code == 400
+        assert _field_errors(response) == {"username"}
         assert users.get_user(username) is None
 
-    def test_empty_username_is_400(self, api_client):
+    def test_empty_username_is_422(self, api_client):
         response = api_client.post("/auth/register", {"username": "", "password": "pw"})
 
-        assert response.status_code == 400
+        assert _field_errors(response) == {"username"}
 
     @pytest.mark.parametrize(
         "payload, fields",
@@ -99,6 +100,8 @@ class TestRegister:
             ({"password": "pw"}, {"username"}),
             ({"username": "bob"}, {"password"}),
             ({"username": ["bob"], "password": "pw"}, {"username"}),
+            ({"username": 5, "password": "pw"}, {"username"}),
+            ({"username": "bob", "password": "pw", "email": False}, {"email"}),
         ],
     )
     def test_invalid_body_is_422(self, api_client, payload, fields):
@@ -106,6 +109,13 @@ class TestRegister:
 
     def test_malformed_json_is_400(self, api_client):
         response = api_client.post("/auth/register", "not json")
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Cannot parse request body"}
+
+    @pytest.mark.parametrize("body", ["[]", '["bob", "pw"]', '"bob"', "5", "null"])
+    def test_body_that_is_not_an_object_is_400(self, api_client, body):
+        response = api_client.post("/auth/register", body)
 
         assert response.status_code == 400
         assert response.json() == {"detail": "Cannot parse request body"}
@@ -334,11 +344,22 @@ class TestUpdateMe:
             ({"home_lat": "north"}, {"home_lat"}),
             ({"use_current_location": "sometimes"}, {"use_current_location"}),
             ({"first_name": ["A"], "work_lng": {}}, {"first_name", "work_lng"}),
+            # Values of the wrong JSON type used to be coerced (0 -> false, "1.5" -> 1.5).
+            ({"use_current_location": 0}, {"use_current_location"}),
+            ({"home_lat": "1.5"}, {"home_lat"}),
         ],
     )
     def test_invalid_body_is_422(self, auth_client, payload, fields):
         assert _field_errors(auth_client.put("/auth/me", payload)) == fields
         assert users.get_user("alice").first_name == "Alice"
+
+    # These used to succeed as a no-op: Ninja read any body that wasn't an object as {}.
+    @pytest.mark.parametrize("body", ["[null, null]", "[1, 2]", '"Alice"', "5", "null"])
+    def test_body_that_is_not_an_object_is_400(self, auth_client, body):
+        response = auth_client.put("/auth/me", body)
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Cannot parse request body"}
 
     @pytest.mark.parametrize("token", [None, "not-a-token"])
     def test_missing_or_invalid_credentials_are_401(self, firestore_db, token):

@@ -379,6 +379,10 @@ class TestParseOpeningHours:
             {"startTime": {"date": "2026-10-12"}, "endTime": None},
             "junk",
             None,
+            # Out of range: "24:00" or "09:60" would break the API contract and the app.
+            {"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"hour": 24}},
+            {"startTime": {"date": "2026-10-12", "hour": 9, "minute": 60}, "endTime": {"hour": 17}},
+            {"startTime": {"date": "2026-10-12", "hour": -1}, "endTime": {"hour": 17}},
         ],
         ids=[
             "no-date",
@@ -393,6 +397,9 @@ class TestParseOpeningHours:
             "null-end-time",
             "string-range",
             "null-range",
+            "hour-24",
+            "minute-60",
+            "negative-hour",
         ],
     )
     def test_malformed_ranges_are_skipped(self, bad_range):

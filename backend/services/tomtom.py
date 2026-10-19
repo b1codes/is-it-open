@@ -22,6 +22,9 @@ def _format_time(time: dict) -> str:
     hour, minute = time.get("hour", 0), time.get("minute", 0)
     if not all(isinstance(v, int) and not isinstance(v, bool) for v in (hour, minute)):
         raise ValueError(f"Not a time: {time!r}")
+    # Out of range would break the API contract (BusinessHoursSchema) and the app's time parsing.
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"Not a time: {time!r}")
     return f"{hour:02d}:{minute:02d}"
 
 

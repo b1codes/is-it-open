@@ -372,9 +372,9 @@ class InvalidTomTomIdTest(FirestoreTestCase):
     def test_bookmark_with_empty_tomtom_id_is_404(self):
         self.assertEqual(self._post("/api/places/bookmark", {"tomtom_id": ""}).status_code, 404)
 
-    def test_create_place_with_empty_tomtom_id_is_400(self):
+    def test_create_place_with_empty_tomtom_id_is_422(self):
         payload = {**_place_data(""), "address": "1 Main St"}
-        self.assertEqual(self._post("/api/places/", payload).status_code, 400)
+        self.assertEqual(self._post("/api/places/", payload).status_code, 422)
 
 
 class PlaceDetailsTest(FirestoreTestCase):

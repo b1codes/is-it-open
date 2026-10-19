@@ -219,9 +219,9 @@ class InvalidKeyApiTest(FirestoreTestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["username"], "__admin__")
 
-    def test_register_with_unstorable_username_is_400(self):
+    def test_register_with_empty_username_is_422(self):
         response = self._post("/api/auth/register", {"username": "", "password": "pw"})
-        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.status_code, 422, response.content)
 
     def test_register_with_overlong_username(self):
         username = "u" * 2000
@@ -268,7 +268,7 @@ class InvalidKeyApiTest(FirestoreTestCase):
 
     def test_register_rejects_auth0_style_usernames(self):
         response = self._post("/api/auth/register", {"username": "google-oauth2|123", "password": "pw"})
-        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.status_code, 422, response.content)
         self.assertIsNone(repository.get_user("google-oauth2|123"))
 
 

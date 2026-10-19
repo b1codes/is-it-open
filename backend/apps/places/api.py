@@ -1,7 +1,9 @@
-from ninja import Query, Router, Schema
+from typing import Annotated
+
+from ninja import Field, Query, Router, Schema
 from ninja.errors import HttpError
 
-from config.schemas import ErrorSchema
+from config.schemas import INTEGRAL_FLOATS, ErrorSchema, JsonInt, StrictSchema
 from services.firestore import InvalidDocumentKey
 from services.tomtom import TomTomClient
 
@@ -11,15 +13,19 @@ router = Router()
 
 
 # Schemes
-class BusinessHoursSchema(Schema):
-    day_of_week: int
-    open_time: str
-    close_time: str
+# 24-hour HH:MM. Seconds are accepted and dropped when stored, so responses are always HH:MM.
+TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$"
 
 
-class LocationSchema(Schema):
-    lat: float
-    lng: float
+class BusinessHoursSchema(StrictSchema):
+    day_of_week: JsonInt = Field(ge=0, le=6, description="0 is Monday")
+    open_time: str = Field(pattern=TIME_PATTERN, examples=["09:00"])
+    close_time: str = Field(pattern=TIME_PATTERN, examples=["17:30"])
+
+
+class LocationSchema(StrictSchema):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class PlaceSchema(Schema):
@@ -34,8 +40,8 @@ class PlaceSchema(Schema):
     hours: list[BusinessHoursSchema] = []
 
 
-class PlaceCreateSchema(Schema):
-    tomtom_id: str
+class PlaceCreateSchema(StrictSchema):
+    tomtom_id: str = Field(min_length=1)
     name: str
     address: str
     location: LocationSchema
@@ -56,25 +62,27 @@ class SavedPlaceSchema(Schema):
     average_visit_length: int | None = None
 
 
-class TogglePinInput(Schema):
+class TogglePinInput(StrictSchema):
     is_pinned: bool
 
 
-class ToggleCheckItOutInput(Schema):
+class ToggleCheckItOutInput(StrictSchema):
     is_check_it_out: bool
 
 
-class UpdateGraphicInput(Schema):
+class UpdateGraphicInput(StrictSchema):
     icon: str | None = None
     color: str | None = None
     custom_name: str | None = None
 
 
-class UpdateVisitLengthInput(Schema):
-    visit_length: int | None = None
+class UpdateVisitLengthInput(StrictSchema):
+    visit_length: Annotated[int, Field(ge=1, le=24 * 60), INTEGRAL_FLOATS] | None = Field(
+        None, description="Minutes; null clears it"
+    )
 
 
-class SavePlaceInput(Schema):
+class SavePlaceInput(StrictSchema):
     tomtom_id: str
     custom_name: str | None = None
 
