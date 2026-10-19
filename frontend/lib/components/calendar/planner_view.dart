@@ -1,6 +1,6 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:timezone/timezone.dart' as tz;
 import '../../utils/places_theme.dart';
 import '../../utils/availability_calculator.dart';
 
@@ -48,11 +48,9 @@ class PlannerView extends StatelessWidget {
   }
 
   bool _isTodayVisible() {
-    final now = tz.TZDateTime.now(tz.local);
-    final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
+    final now = clock.now();
     for (int i = 0; i < dayCount; i++) {
-      final date = baseDate.add(Duration(days: i));
-      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today) {
+      if (DateUtils.isSameDay(baseDate.add(Duration(days: i)), now)) {
         return true;
       }
     }
@@ -177,7 +175,7 @@ class _PlannerTimeline extends StatelessWidget {
       child: Column(
         children: List.generate(endHour - startHour + 1, (index) {
           final hour = startHour + index;
-          final time = tz.TZDateTime(tz.local, 2024, 1, 1, hour);
+          final time = DateTime(2024, 1, 1, hour);
           return SizedBox(
             height: hourHeight,
             child: Text(
@@ -207,7 +205,7 @@ class _DayColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    final isToday = DateUtils.isSameDay(date, tz.TZDateTime.now(tz.local));
+    final isToday = DateUtils.isSameDay(date, clock.now());
 
     return Column(
       children: [
@@ -369,7 +367,7 @@ class _DayColumn extends StatelessWidget {
   }
 
   Widget _buildNowIndicator(PlacesTheme theme) {
-    final now = tz.TZDateTime.now(tz.local);
+    final now = clock.now();
     if (now.hour < _PlannerTimeline.startHour ||
         now.hour > _PlannerTimeline.endHour) {
       return const SizedBox.shrink();

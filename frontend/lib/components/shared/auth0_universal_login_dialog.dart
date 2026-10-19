@@ -22,6 +22,14 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSignUp = false;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
   String _generateMockJwt({
     required String sub,
     required String email,

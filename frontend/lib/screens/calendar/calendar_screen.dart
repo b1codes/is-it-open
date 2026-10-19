@@ -1,7 +1,7 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 import '../../components/calendar/calendar_view_stack.dart';
 import '../../components/calendar/calendar_sidebar.dart';
@@ -105,22 +105,27 @@ class _CalendarScreenContent extends StatelessWidget {
     DateTime baseDate,
   ) {
     final List<Map<String, dynamic>> blocks = [];
-    final startOfRange = tz.TZDateTime(
-      tz.local,
+    final startOfRange = DateTime(
       baseDate.year,
       baseDate.month,
-      baseDate.day,
-    ).subtract(const Duration(days: 14));
+      baseDate.day - 14,
+    );
 
     for (final sp in dataState.savedPlaces) {
       if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
 
       for (int dayOffset = 0; dayOffset <= 42; dayOffset++) {
-        final date = startOfRange.add(Duration(days: dayOffset));
-        final weekday = date.weekday;
+        // Calendar arithmetic, so a DST change can't repeat or skip a day.
+        final date = DateTime(
+          startOfRange.year,
+          startOfRange.month,
+          startOfRange.day + dayOffset,
+        );
+        // BusinessHours days are Mon=0..Sun=6; DateTime.weekday is Mon=1..Sun=7.
+        final dayOfWeek = date.weekday - 1;
 
         for (final hours in sp.place.hours) {
-          if (hours.dayOfWeek == weekday) {
+          if (hours.dayOfWeek == dayOfWeek) {
             // Strip timezone and use naive DateTime for business hours
             final startTime = DateTime(
               date.year,
@@ -350,9 +355,7 @@ class _CalendarScreenContent extends StatelessWidget {
                   );
                 },
                 onNavigateToday: () {
-                  context.read<CalendarUiCubit>().navigateDate(
-                    tz.TZDateTime.now(tz.local),
-                  );
+                  context.read<CalendarUiCubit>().navigateDate(clock.now());
                 },
                 onWindowTap: (window) =>
                     _showSchedulingSheet(context, window, dataState, theme),

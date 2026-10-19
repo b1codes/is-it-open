@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
 import 'dart:convert' show utf8;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
@@ -66,11 +64,12 @@ void _showSubscriptionDialog(BuildContext context, String? currentUrl) {
           onPressed: () {
             final authState = authBloc.state;
             if (authState is AuthAuthenticated) {
-              final updatedUser = User(
-                id: authState.user.id,
-                username: authState.user.username,
-                calendarSubscriptionUrl: controller.text,
-              );
+              // Change only the URL. A bare User would also send its
+              // defaults, e.g. turning off "use current location".
+              final updatedUser = User.fromJson({
+                ...authState.user.toJson(),
+                'calendar_subscription_url': controller.text,
+              });
               authBloc.add(ProfileUpdateRequested(updatedUser: updatedUser));
             }
             Navigator.pop(context);
@@ -386,7 +385,7 @@ class CalendarSidebarWidget extends StatelessWidget {
 
   Widget _buildDeviceCalendarsSidebar(BuildContext context) {
     final theme = context.places;
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+    if (!context.read<CalendarDataBloc>().supportsDeviceCalendar) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
         child: Column(

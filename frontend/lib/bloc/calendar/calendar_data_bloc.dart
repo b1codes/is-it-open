@@ -20,6 +20,9 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
   // Device calendars exist only on Android and iOS.
   final bool _supportsDeviceCalendar;
 
+  /// Whether this platform has device calendars to sync with.
+  bool get supportsDeviceCalendar => _supportsDeviceCalendar;
+
   /// [deviceCalendarPlugin] and [supportsDeviceCalendar] default to the real
   /// plugin and the current platform; tests replace them.
   CalendarDataBloc({

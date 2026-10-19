@@ -1,8 +1,8 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:calendar_view/calendar_view.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_ui_cubit.dart';
@@ -92,18 +92,21 @@ class CalendarViewStackWidget extends StatelessWidget {
       daysToAdvance = 7;
     }
 
-    final now = tz.TZDateTime.now(tz.local);
+    final now = clock.now();
     final initialScrollOffset = (now.hour * 60.0 + now.minute) * 1.0;
+    // The days on screen, by calendar date: the week view runs Monday to
+    // Sunday around baseDate, the others start at baseDate.
+    final base = DateUtils.dateOnly(uiState.baseDate);
+    final firstVisible = uiState.currentView == CalendarViewType.week
+        ? DateTime(base.year, base.month, base.day - (base.weekday - 1))
+        : base;
+    final afterLastVisible = DateTime(
+      firstVisible.year,
+      firstVisible.month,
+      firstVisible.day + daysToAdvance,
+    );
     final isShowingToday =
-        DateUtils.isSameDay(uiState.baseDate, now) ||
-        (uiState.currentView == CalendarViewType.week &&
-            uiState.baseDate
-                .subtract(Duration(days: uiState.baseDate.weekday - 1))
-                .isBefore(now) &&
-            uiState.baseDate
-                .subtract(Duration(days: uiState.baseDate.weekday - 1))
-                .add(const Duration(days: 7))
-                .isAfter(now));
+        !now.isBefore(firstVisible) && now.isBefore(afterLastVisible);
 
     Widget calendarWidget;
     if (uiState.currentView == CalendarViewType.singleDay) {
@@ -237,10 +240,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
         weekDayBuilder: (date) {
-          final isToday = DateUtils.isSameDay(
-            date,
-            tz.TZDateTime.now(tz.local),
-          );
+          final isToday = DateUtils.isSameDay(date, clock.now());
           final dayEvents = controller.getEventsOnDay(date);
           final allDayEvents = dayEvents
               .where((e) => e.startTime == null || e.endTime == null)
@@ -364,9 +364,8 @@ class CalendarViewStackWidget extends StatelessWidget {
               ),
               if (!isShowingToday)
                 TextButton(
-                  onPressed: () => context.read<CalendarUiCubit>().navigateDate(
-                    tz.TZDateTime.now(tz.local),
-                  ),
+                  onPressed: () =>
+                      context.read<CalendarUiCubit>().navigateDate(clock.now()),
                   style: TextButton.styleFrom(
                     foregroundColor: theme.anchor,
                     textStyle: PlacesType.label(

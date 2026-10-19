@@ -32,9 +32,15 @@ extension PumpApp on WidgetTester {
     ThemeMode themeMode = ThemeMode.light,
   }) async {
     setViewport(size);
-    Widget home = widget;
+    Widget app = MaterialApp(
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      home: widget,
+    );
+    // Above the Navigator, so pushed routes and sheets see the override too.
     if (api != null) {
-      home = RepositoryProvider<ApiService>.value(value: api, child: home);
+      app = RepositoryProvider<ApiService>.value(value: api, child: app);
     }
     await pumpWidget(
       MockAppScope(
@@ -45,12 +51,7 @@ extension PumpApp on WidgetTester {
         todayRouteIds: todayRouteIds,
         apiFails: apiFails,
         apiLatency: apiLatency,
-        child: MaterialApp(
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: themeMode,
-          home: home,
-        ),
+        child: app,
       ),
     );
     await pump();
