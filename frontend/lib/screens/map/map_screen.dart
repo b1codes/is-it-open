@@ -560,83 +560,90 @@ class _MapScreenState extends State<MapScreen> {
         builder: (context, uiState) {
           final isMobile = MediaQuery.of(context).size.width < 800;
 
+          // Picks the layout from the real width: while the sidebar animates
+          // open, the full layout doesn't fit (its switch tile asserts).
           Widget sidebarContent = SafeArea(
-            child: uiState.isSidebarCollapsed
-                ? _buildCollapsedSidebar()
-                : CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: SwitchListTile(
-                          title: const Text('Show Pinned Locations'),
-                          subtitle: const Text(
-                            'Automatically show markers for all pinned places',
+            child: LayoutBuilder(
+              builder: (context, constraints) =>
+                  uiState.isSidebarCollapsed || constraints.maxWidth < 240
+                  ? _buildCollapsedSidebar()
+                  : CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: SwitchListTile(
+                            title: const Text('Show Pinned Locations'),
+                            subtitle: const Text(
+                              'Automatically show markers for all pinned places',
+                            ),
+                            value: _showPinnedLocations,
+                            onChanged: (val) {
+                              setState(() {
+                                _showPinnedLocations = val;
+                                if (val) {
+                                  for (final sp in _savedPlaces) {
+                                    if (sp.isPinned) {
+                                      _checkedPlaceIds.add(sp.place.tomtomId);
+                                    }
+                                  }
+                                } else {
+                                  for (final sp in _savedPlaces) {
+                                    if (sp.isPinned) {
+                                      _checkedPlaceIds.remove(
+                                        sp.place.tomtomId,
+                                      );
+                                    }
+                                  }
+                                }
+                              });
+                            },
                           ),
-                          value: _showPinnedLocations,
-                          onChanged: (val) {
-                            setState(() {
-                              _showPinnedLocations = val;
-                              if (val) {
-                                for (final sp in _savedPlaces) {
-                                  if (sp.isPinned) {
-                                    _checkedPlaceIds.add(sp.place.tomtomId);
-                                  }
-                                }
-                              } else {
-                                for (final sp in _savedPlaces) {
-                                  if (sp.isPinned) {
-                                    _checkedPlaceIds.remove(sp.place.tomtomId);
-                                  }
-                                }
-                              }
-                            });
-                          },
                         ),
-                      ),
-                      const SliverToBoxAdapter(child: Divider()),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Row(
-                            children: [
-                              Text(
-                                'My Places',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              ),
-                              const Spacer(),
-                              if (_checkedPlaceIds.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.layers_clear,
-                                    size: 18,
+                        const SliverToBoxAdapter(child: Divider()),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'My Places',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
-                                  tooltip: 'Hide All',
+                                ),
+                                const Spacer(),
+                                if (_checkedPlaceIds.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.layers_clear,
+                                      size: 18,
+                                    ),
+                                    tooltip: 'Hide All',
+                                    onPressed: () {
+                                      setState(() {
+                                        _checkedPlaceIds.clear();
+                                        _showPinnedLocations = false;
+                                      });
+                                    },
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 18),
                                   onPressed: () {
-                                    setState(() {
-                                      _checkedPlaceIds.clear();
-                                      _showPinnedLocations = false;
-                                    });
+                                    setState(() => _isLoadingPlaces = true);
+                                    _loadSavedPlaces();
                                   },
                                 ),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                onPressed: () {
-                                  setState(() => _isLoadingPlaces = true);
-                                  _loadSavedPlaces();
-                                },
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      _buildPlacesSliverSidebar(),
-                    ],
-                  ),
+                        _buildPlacesSliverSidebar(),
+                      ],
+                    ),
+            ),
           );
 
           return Scaffold(
