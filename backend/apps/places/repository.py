@@ -19,7 +19,7 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud.firestore_v1.field_path import FieldPath
 
-from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
+from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client, run_transaction
 from services.geo import MAX_RADIUS_KM, distance_km, encode_geohash, geohash_query_prefixes
 
 PLACES = "places"
@@ -142,13 +142,11 @@ def update_or_create_place(data: dict) -> dict:
     Upsert TomTom (or user-supplied) place data. Mirrors the old get_or_create + update logic.
     Raises InvalidDocumentKey if the TomTom ID can't be stored.
     """
-    client = get_client()
     ref = _places().document(doc_id(data["tomtom_id"]))
     location = data.get("location") or {}
     lat, lng = location.get("lat"), location.get("lng")
     hours = _normalize_hours(data.get("hours") or [])
 
-    @firestore.transactional
     def upsert(transaction):
         snapshot = ref.get(transaction=transaction)
 
@@ -178,7 +176,7 @@ def update_or_create_place(data: dict) -> dict:
             place.update(updates)
         return place
 
-    return _to_place(upsert(client.transaction()))
+    return _to_place(run_transaction(upsert))
 
 
 def search_places(query: str, limit=None):
@@ -339,10 +337,8 @@ def get_saved_place(user, place: dict):
 
 def save_place(user, place: dict, custom_name=None) -> dict:
     """Bookmark `place` for `user` (get_or_create). Updates the custom name if one is given."""
-    client = get_client()
     ref = _saved_places(user).document(doc_id(place["tomtom_id"]))
 
-    @firestore.transactional
     def get_or_create(transaction):
         snapshot = ref.get(transaction=transaction)
         if snapshot.exists:
@@ -356,7 +352,7 @@ def save_place(user, place: dict, custom_name=None) -> dict:
         transaction.set(ref, data)
         return data
 
-    return _to_saved_place(get_or_create(client.transaction()), place)
+    return _to_saved_place(run_transaction(get_or_create), place)
 
 
 def update_saved_place(user, place: dict, **fields):
@@ -365,7 +361,6 @@ def update_saved_place(user, place: dict, **fields):
 
     # Transactional, so a bookmark deleted after the read retries the transaction (and returns
     # None) instead of failing the update with NotFound.
-    @firestore.transactional
     def update(transaction):
         snapshot = ref.get(transaction=transaction)
         if not snapshot.exists:
@@ -376,7 +371,7 @@ def update_saved_place(user, place: dict, **fields):
             data.update(fields)
         return data
 
-    data = update(get_client().transaction())
+    data = run_transaction(update)
     return _to_saved_place(data, place) if data is not None else None
 
 

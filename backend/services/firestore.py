@@ -4,7 +4,8 @@ import random
 import re
 import threading
 import time
-from typing import cast
+from collections.abc import Callable
+from typing import TypeVar, cast
 from urllib.parse import quote
 
 import requests
@@ -12,6 +13,8 @@ from django.conf import settings
 from google.api_core import exceptions as api_exceptions
 from google.cloud import firestore
 from google.cloud.firestore_v1 import _helpers as firestore_helpers
+
+T = TypeVar("T")
 
 _clients: dict[tuple, firestore.Client] = {}
 
@@ -33,6 +36,15 @@ _RESERVE_RETRYABLE = (
     api_exceptions.ResourceExhausted,
     api_exceptions.ServiceUnavailable,
 )
+
+# Retry writes and transactions that Firestore aborts on lock contention. The client library
+# retries an aborted transaction at once, with no backoff, counting on the retry keeping its place
+# in line. The emulator doesn't do that: five same-document transactions on a slow CI runner kept
+# aborting each other in lockstep until every attempt was gone. So each transaction makes one
+# attempt per call, and retries wait a jittered, growing delay (about 10s in total at most).
+_CONTENTION_ATTEMPTS = 10
+_CONTENTION_BACKOFF_SECONDS = 0.05
+_CONTENTION_MAX_BACKOFF_SECONDS = 2.0
 
 # Firestore document ID limit, in UTF-8 bytes.
 _MAX_DOC_ID_BYTES = 1500
@@ -139,6 +151,35 @@ def reserve_id_block(name: str, size: int = ID_BLOCK_SIZE):
     if first > MAX_SAFE_ID:
         raise OverflowError(f"Counter {name!r} has exhausted the JavaScript-safe integer range")
     return first, min(last, MAX_SAFE_ID)
+
+
+def _is_contention(exc: BaseException) -> bool:
+    """Aborted, or the library's "Failed to commit transaction in N attempts" wrapping one."""
+    return isinstance(exc, api_exceptions.Aborted) or (
+        isinstance(exc, ValueError) and isinstance(exc.__cause__, api_exceptions.Aborted)
+    )
+
+
+def retry_on_contention(operation: Callable[[], T]) -> T:
+    """
+    Call `operation`, retrying with jittered exponential backoff while Firestore aborts it for
+    lock contention. An aborted write or transaction committed nothing, so the retry is safe.
+    """
+    for attempt in range(_CONTENTION_ATTEMPTS):
+        try:
+            return operation()
+        except (api_exceptions.Aborted, ValueError) as e:
+            if not _is_contention(e) or attempt == _CONTENTION_ATTEMPTS - 1:
+                raise
+            backoff = min(_CONTENTION_MAX_BACKOFF_SECONDS, _CONTENTION_BACKOFF_SECONDS * 2**attempt)
+            time.sleep(random.uniform(0, backoff))
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def run_transaction(body: Callable[[firestore.Transaction], T]) -> T:
+    """Run `body(transaction)` in a Firestore transaction, retrying contention with backoff."""
+    client = get_client()
+    return retry_on_contention(lambda: firestore.transactional(body)(client.transaction(max_attempts=1)))
 
 
 def allocate_id(name) -> int:

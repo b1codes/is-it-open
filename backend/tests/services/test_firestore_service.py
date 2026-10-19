@@ -1,4 +1,4 @@
-"""services/firestore.py: the client cache, ID reservation retries, and emulator reset.
+"""services/firestore.py: the client cache, ID reservation and contention retries, and emulator reset.
 
 tests/test_firestore_core.py covers ID allocation under concurrency and doc_id() encoding.
 """
@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from google.api_core import exceptions as api_exceptions
 from google.cloud.firestore_v1.document import DocumentReference
+from google.cloud.firestore_v1.transaction import Transaction
 
 from services import firestore as fs
 
@@ -102,6 +103,100 @@ class TestReserveIdBlock:
 
         assert set_.call_count == 1
         assert sleeps.call_count == 0
+
+
+class TestRetryOnContention:
+    @pytest.fixture
+    def sleeps(self):
+        with patch.object(fs.time, "sleep") as sleep:
+            yield sleep
+
+    @staticmethod
+    def _failing(*errors, result="done"):
+        calls = []
+
+        def operation():
+            calls.append(None)
+            if len(calls) <= len(errors):
+                raise errors[len(calls) - 1]
+            return result
+
+        return operation, calls
+
+    def test_returns_the_first_success(self, sleeps):
+        operation, calls = self._failing()
+
+        assert fs.retry_on_contention(operation) == "done"
+        assert len(calls) == 1
+        sleeps.assert_not_called()
+
+    def test_retries_aborted_writes_and_exhausted_transactions(self, sleeps):
+        exhausted = ValueError("Failed to commit transaction in 5 attempts.")
+        exhausted.__cause__ = api_exceptions.Aborted("lock timeout")
+        operation, calls = self._failing(api_exceptions.Aborted("lock timeout"), exhausted)
+
+        assert fs.retry_on_contention(operation) == "done"
+        assert len(calls) == 3
+        assert sleeps.call_count == 2
+        assert all(0 <= call.args[0] <= fs._CONTENTION_MAX_BACKOFF_SECONDS for call in sleeps.call_args_list)
+
+    def test_gives_up_after_the_last_attempt(self, sleeps):
+        operation, calls = self._failing(*[api_exceptions.Aborted("x")] * fs._CONTENTION_ATTEMPTS)
+
+        with pytest.raises(api_exceptions.Aborted):
+            fs.retry_on_contention(operation)
+        assert len(calls) == fs._CONTENTION_ATTEMPTS
+
+    @pytest.mark.parametrize(
+        "error",
+        [ValueError("not contention"), api_exceptions.PermissionDenied("no"), KeyError("k")],
+        ids=["plain ValueError", "PermissionDenied", "KeyError"],
+    )
+    def test_does_not_retry_other_errors(self, sleeps, error):
+        operation, calls = self._failing(error)
+
+        with pytest.raises(type(error)):
+            fs.retry_on_contention(operation)
+        assert len(calls) == 1
+        sleeps.assert_not_called()
+
+
+class TestRunTransaction:
+    def test_commits_the_body(self, firestore_db):
+        ref = fs.get_client().collection("things").document("a")
+
+        def body(transaction):
+            transaction.set(ref, {"n": 1})
+            return "ok"
+
+        assert fs.run_transaction(body) == "ok"
+        assert ref.get().to_dict() == {"n": 1}
+
+    def test_backs_off_between_aborted_commits(self, firestore_db):
+        ref = fs.get_client().collection("things").document("a")
+        runs = []
+        real_commit = Transaction._commit
+        commits = []
+
+        def contended_commit(transaction):
+            commits.append(None)
+            if len(commits) <= 2:
+                raise api_exceptions.Aborted("lock timeout")
+            return real_commit(transaction)
+
+        def body(transaction):
+            runs.append(None)
+            transaction.set(ref, {"n": len(runs)})
+            return len(runs)
+
+        with (
+            patch.object(Transaction, "_commit", contended_commit),
+            patch.object(Transaction, "_rollback"),
+            patch.object(fs.time, "sleep") as sleep,
+        ):
+            assert fs.run_transaction(body) == 3
+        assert sleep.call_count == 2  # each abort waits before the next attempt
+        assert ref.get().to_dict() == {"n": 3}
 
 
 class TestResetIdAllocator:

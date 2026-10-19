@@ -7,6 +7,7 @@ from google.api_core.exceptions import Aborted
 from google.cloud.firestore_v1.document import DocumentReference
 
 from apps.users import repository as users
+from services import firestore as fs
 from services.firestore import doc_id, get_client
 
 
@@ -89,7 +90,7 @@ class TestCreateUser:
             return real_create(ref, document)
 
         monkeypatch.setattr(DocumentReference, "create", flaky_create)
-        monkeypatch.setattr(users.time, "sleep", lambda _: None)
+        monkeypatch.setattr(fs.time, "sleep", lambda _: None)
 
         user = users.create_user("bob", "pw")
 
@@ -101,11 +102,28 @@ class TestCreateUser:
             raise Aborted("Transaction lock timeout.")
 
         monkeypatch.setattr(DocumentReference, "create", aborted)
-        monkeypatch.setattr(users.time, "sleep", lambda _: None)
+        monkeypatch.setattr(fs.time, "sleep", lambda _: None)
 
         with pytest.raises(Aborted):
             users.create_user("bob", "pw")
         assert users.get_user("bob") is None
+
+    def test_a_retry_that_finds_its_own_earlier_write_reports_created(self, firestore_db, monkeypatch):
+        # The first create lands but its response is lost; the retry then sees AlreadyExists.
+        real_create = DocumentReference.create
+
+        def lost_response(ref, document):
+            real_create(ref, document)
+            monkeypatch.setattr(DocumentReference, "create", real_create)
+            raise Aborted("response lost")
+
+        monkeypatch.setattr(DocumentReference, "create", lost_response)
+        monkeypatch.setattr(fs.time, "sleep", lambda _: None)
+
+        user = users.create_user("bob", "pw")
+
+        assert user is not None
+        assert users.get_user("bob") == user
 
     @pytest.mark.parametrize("username", ["", "\ud800"])
     def test_unstorable_username_raises(self, firestore_db, username):
