@@ -32,7 +32,7 @@ void main() {
     popped = null;
   });
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(WidgetTester tester, {bool withOnSaved = false}) async {
     await tester.pumpApp(
       Builder(
         builder: (context) => Scaffold(
@@ -41,7 +41,8 @@ void main() {
               popped = await showModalBottomSheet<Place>(
                 context: context,
                 isScrollControlled: true,
-                builder: (_) => QuickAddPlaceSheet(onSaved: saved.add),
+                builder: (_) =>
+                    QuickAddPlaceSheet(onSaved: withOnSaved ? saved.add : null),
               );
             },
             child: const Text('open'),
@@ -92,9 +93,23 @@ void main() {
     expect(place.name, 'Trailhead');
     expect(place.address, '1 Forest Rd');
     verify(() => api.bookmarkPlace(place.tomtomId)).called(1);
-    expect(saved, [place]);
     expect(popped, place);
     expect(find.byType(QuickAddPlaceSheet), findsNothing);
+  });
+
+  testWidgets('with onSaved, hands the place over instead of popping', (
+    tester,
+  ) async {
+    when(
+      () => api.savePlace(any()),
+    ).thenAnswer((call) async => (call.positionalArguments.single as Place));
+    when(() => api.bookmarkPlace(any())).thenAnswer((_) async {});
+    await open(tester, withOnSaved: true);
+    await fill(tester, 'Trailhead', '1 Forest Rd');
+    await tester.tap(find.text('Save place'));
+    await tester.pumpAndSettle();
+    expect(saved.single.name, 'Trailhead');
+    expect(find.byType(QuickAddPlaceSheet), findsOneWidget);
   });
 
   testWidgets('stays open and explains a failed save', (tester) async {

@@ -12,6 +12,9 @@ import '../../utils/places_theme.dart';
 class QuickAddPlaceSheet extends StatefulWidget {
   const QuickAddPlaceSheet({super.key, this.onSaved});
 
+  /// Called with the saved place; the caller then decides where to go.
+  /// Without it, the sheet pops its route with the place. (Doing both
+  /// popped whatever screen [onSaved] had just opened.)
   final ValueChanged<Place>? onSaved;
 
   @override
@@ -46,8 +49,13 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
       );
       final savedPlace = await api.savePlace(place);
       await api.bookmarkPlace(savedPlace.tomtomId);
-      widget.onSaved?.call(savedPlace);
-      if (mounted) nav.pop(savedPlace);
+      final onSaved = widget.onSaved;
+      if (onSaved != null) {
+        onSaved(savedPlace);
+        if (mounted) setState(() => _submitting = false);
+      } else if (mounted) {
+        nav.pop(savedPlace);
+      }
     } catch (e) {
       scaffold.showSnackBar(SnackBar(content: Text('Couldn\'t save place.')));
       if (mounted) setState(() => _submitting = false);

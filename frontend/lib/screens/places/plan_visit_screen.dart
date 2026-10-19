@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -43,8 +44,8 @@ class _PlanVisitScreenState extends State<PlanVisitScreen> {
         minutes,
       );
     } catch (e) {
-      setState(() => _current = previous);
       if (mounted) {
+        setState(() => _current = previous);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Couldn't update visit length.")),
         );
@@ -59,7 +60,7 @@ class _PlanVisitScreenState extends State<PlanVisitScreen> {
     final theme = context.places;
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
     final name = widget.saved.customName ?? widget.place.name;
-    final today = DateTime.now().weekday - 1;
+    final today = clock.now().weekday - 1;
     final todayBlocks =
         widget.place.hours.where((h) => h.dayOfWeek == today).toList()
           ..sort((a, b) => _mins(a.openTime).compareTo(_mins(b.openTime)));
@@ -249,10 +250,10 @@ class _WindowRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    final now = DateTime.now();
+    final now = clock.now();
     final openMin = block.openTime.hour * 60 + block.openTime.minute;
     var closeMin = block.closeTime.hour * 60 + block.closeTime.minute;
-    if (closeMin <= openMin) closeMin = 24 * 60; // cross-midnight: cap at today
+    if (closeMin <= openMin) closeMin += 24 * 60; // runs past midnight
     final nowMin = now.hour * 60 + now.minute;
 
     final effectiveStart = nowMin > openMin && nowMin < closeMin
