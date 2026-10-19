@@ -51,13 +51,19 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 
 ## Frontend (`frontend/`)
 
-- **Runner:** `flutter test`. Tests mirror `lib/` under `test/`.
+- **Runner:** `flutter test`. Tests mirror `lib/` under `test/` (`test/bloc/`, `test/services/`, `test/screens/`, ...); `test/main_test.dart` runs the whole app (startup, login, logout, sign-up) against a fake API.
+- **Mocks:** [mocktail](https://pub.dev/packages/mocktail) only (no code generation). Shared mocks and fakes live in `test/helpers/mocks.dart`: `MockApiService`, `MockDeviceCalendarPlugin`, and fake Geolocator and FilePicker platforms (`FakeGeolocator.install(addTearDown, ...)`). Call `registerFallbacks()` in `setUpAll` before using `any()` with app types.
+- **Widget tests:** `tester.pumpApp(widget)` (`test/helpers/pump_app.dart`) wraps a widget in a themed `MaterialApp` inside Widgetbook's `MockAppScope`: every app bloc and repository, backed by `FakeApiService` and the shared sample data (`test/helpers/fixtures.dart`). Options seed the auth state, calendar data, bookmarks, today's route, the 24-hour setting, failures and latency. Pass `api:` to serve requests from a mock; the auth and calendar-data blocs then use it too. Use `phoneSize`/`desktopSize` for layouts, and `tester.unmount()` to end a test that leaves timers running.
+- **Fonts and network:** `test/flutter_test_config.dart` loads the timezone database and registers Roboto (from the Flutter SDK) in place of the runtime-fetched Google Fonts, so text lays out like a device and no test touches the network. Map tiles still log harmless `ClientException`s.
+- **Time:** code that depends on "now" reads `clock.now()` ([package:clock](https://pub.dev/packages/clock)); pin it in tests with `withClock(Clock.fixed(...), () async { ... })`. CI runs the frontend job in `America/New_York` so date code is exercised across DST changes; the suite also passes in UTC.
+- **Property tests:** [glados](https://pub.dev/packages/glados) checks open/closed status and availability windows against independent models (`test/utils/`). Each property gets its own `ExploreConfig`, whose fixed seed makes runs reproducible; a failure prints the shrunk input.
+- **HTTP:** `test/helpers/fake_http_adapter.dart` is a Dio transport with a route table, for testing `ApiService` itself (`ApiService(httpClientAdapter: ...)`).
 - **Coverage:** `flutter test --coverage` only reports files a test imports, which hides untested screens. To count every file, run:
 
   ```sh
   dart run tool/coverage.dart imports            # generates test/coverage_imports_test.dart (gitignored)
   flutter test --coverage
-  dart run tool/coverage.dart check --min=13     # per-file table; fails below the minimum
+  dart run tool/coverage.dart check --min=95     # per-file table; fails below the minimum
   ```
 
 - **Lint:** `dart format lib test tool` and `flutter analyze lib test tool` (lints from `analysis_options.yaml`). Scope it to those directories: plain `flutter analyze` also picks up the nested `widgetbook/` package.
@@ -77,7 +83,7 @@ Each job writes a coverage table to its run summary. On PRs it also reports diff
 | Suite | Minimum | Goal |
 | --- | --- | --- |
 | Backend | 95% | 95% |
-| Frontend | 13% | 80% |
+| Frontend | 95% | 95% |
 
 The minimums are set in `ci.yml` (`BACKEND_MIN_COVERAGE`, `FRONTEND_MIN_COVERAGE`) and mirrored in the `Makefile`. **Ratchet them up** as coverage grows, and never lower them to get a PR through.
 

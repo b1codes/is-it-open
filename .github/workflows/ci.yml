@@ -16,7 +16,7 @@ permissions:
 # Minimum total line coverage. Raise these as the backend/frontend suites grow; never lower them.
 env:
   BACKEND_MIN_COVERAGE: '95'
-  FRONTEND_MIN_COVERAGE: '13'
+  FRONTEND_MIN_COVERAGE: '95'
 
 jobs:
   changes:

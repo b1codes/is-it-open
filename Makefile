@@ -8,7 +8,7 @@
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
 BACKEND_MIN_COVERAGE ?= 95
-FRONTEND_MIN_COVERAGE ?= 13
+FRONTEND_MIN_COVERAGE ?= 95
 
 # Backend commands run in the dev container, which has the test tooling and reaches the emulator.
 # SECRET_KEY is only for tests; the dev compose file doesn't set one.
