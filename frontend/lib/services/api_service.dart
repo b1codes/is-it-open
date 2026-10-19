@@ -10,7 +10,7 @@ import '../models/saved_place.dart';
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
 
-  /// Wraps [e] as "[action]: <detail>". The detail is the response body when
+  /// Wraps [e] as `[action]: detail`. The detail is the response body when
   /// there is one and [includeBody] is set, otherwise Dio's message.
   factory ApiException.from(
     String action,
