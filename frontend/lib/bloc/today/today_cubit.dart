@@ -54,10 +54,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   TodayRouteCubit({SharedPreferences? prefs})
     : _injectedPrefs = prefs,
       super(
-        TodayRouteState(
-          tomtomIds: const [],
-          touchedOn: _dateOnly(clock.now()),
-        ),
+        TodayRouteState(tomtomIds: const [], touchedOn: _dateOnly(clock.now())),
       ) {
     _hydrate();
   }
