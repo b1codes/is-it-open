@@ -17,3 +17,23 @@ The backend suite fails while `openapi.json` is out of date (`backend/tests/cont
 - 401 on every route that needs auth, and 422 on every route that takes input. `config.api.Api` adds these, since Django Ninja returns them but doesn't document them.
 
 The error bodies are `ErrorSchema` (`{"detail": "..."}`) and `ValidationErrorSchema` (`{"detail": [{"type", "loc", "msg"}, ...]}`), defined in `backend/config/schemas.py`.
+
+## Breaking changes
+
+Released builds of the app keep calling the API after a backend deploy, so on every PR that changes `openapi.json`, the **API breaking changes** CI job runs [oasdiff](https://github.com/oasdiff/oasdiff) against the base branch's copy. It fails on changes that can break an existing client, such as:
+
+- removing a route, or a field from a response
+- making a response field optional or nullable
+- adding a required request field, or narrowing what a parameter accepts
+
+The job summary lists every API change, breaking or not.
+
+To check locally:
+
+```sh
+git show origin/main:contracts/openapi.json > /tmp/base.json
+docker run --rm -v "$PWD:/repo" -v /tmp:/tmp -w /repo tufin/oasdiff:v1.33.0 \
+  breaking /tmp/base.json contracts/openapi.json --fail-on ERR --err-ignore contracts/breaking-changes-ignore.txt
+```
+
+When a break is intended (for example, the app versions that relied on a field are no longer supported), add the reported line to `breaking-changes-ignore.txt` in the same PR so the reviewer sees it was a deliberate choice.

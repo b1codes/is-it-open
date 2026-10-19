@@ -28,6 +28,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      contracts: ${{ steps.filter.outputs.contracts }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -45,6 +46,8 @@ jobs:
             frontend:
               - *shared
               - 'frontend/**'
+            contracts:
+              - 'contracts/**'
 
   backend:
     name: Backend
@@ -220,11 +223,47 @@ jobs:
           path: frontend/widgetbook/test-results/
           if-no-files-found: ignore
 
+  # Released app builds keep calling the API after a deploy, so a PR may not break the contract
+  # (contracts/openapi.json) that main's build relies on. See contracts/README.md.
+  api-breaking-changes:
+    name: API breaking changes
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OASDIFF: docker run --rm -v ${{ github.workspace }}:/repo -w /repo tufin/oasdiff:v1.33.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get the base branch's contract
+        id: base
+        run: |
+          if git show "origin/${{ github.base_ref }}:contracts/openapi.json" > base-openapi.json 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${{ github.base_ref }} has no contracts/openapi.json yet; nothing to compare against."
+          fi
+
+      - name: Changelog
+        if: steps.base.outputs.exists == 'true'
+        run: |
+          { echo "## API changes"; echo; $OASDIFF changelog base-openapi.json contracts/openapi.json -f markdown; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on breaking changes
+        if: steps.base.outputs.exists == 'true'
+        run: >
+          $OASDIFF breaking base-openapi.json contracts/openapi.json
+          --fail-on ERR --format githubactions
+          --err-ignore contracts/breaking-changes-ignore.txt
+
   # Branch protection requires a check named "ci". It passes when every job above passed or was
   # skipped because its paths didn't change.
   ci:
     name: ci
-    needs: [changes, backend, frontend, widgetbook]
+    needs: [changes, backend, frontend, widgetbook, api-breaking-changes]
     if: always()
     runs-on: ubuntu-latest
     steps:
