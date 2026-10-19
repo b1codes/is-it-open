@@ -116,50 +116,51 @@ class _TodayToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.places;
 
-    return Semantics(
-      button: true,
-      label: isOnToday ? 'Remove from today\'s route' : 'Add to today\'s route',
-      child: SizedBox(
-        height: 44,
-        child: TextButton(
-          style: TextButton.styleFrom(
-            minimumSize: const Size(44, 44),
-            padding: const EdgeInsets.symmetric(
-              horizontal: PlacesSpacing.md,
-              vertical: PlacesSpacing.sm,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(PlacesRadius.pill),
-            ),
-            backgroundColor: isOnToday
-                ? theme.anchor.withValues(alpha: 0.12)
-                : Colors.transparent,
-            foregroundColor: theme.anchor,
-            side: isOnToday
-                ? BorderSide.none
-                : BorderSide(color: theme.anchor.withValues(alpha: 0.5)),
+    // TextButton is its own semantics node, so the spoken label goes on its
+    // text; a Semantics wrapper around the button would be dropped.
+    return SizedBox(
+      height: 44,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          padding: const EdgeInsets.symmetric(
+            horizontal: PlacesSpacing.md,
+            vertical: PlacesSpacing.sm,
           ),
-          onPressed: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isOnToday ? Icons.check_rounded : Icons.add_rounded,
-                size: 16,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(PlacesRadius.pill),
+          ),
+          backgroundColor: isOnToday
+              ? theme.anchor.withValues(alpha: 0.12)
+              : Colors.transparent,
+          foregroundColor: theme.anchor,
+          side: isOnToday
+              ? BorderSide.none
+              : BorderSide(color: theme.anchor.withValues(alpha: 0.5)),
+        ),
+        onPressed: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOnToday ? Icons.check_rounded : Icons.add_rounded,
+              size: 16,
+              color: theme.anchor,
+            ),
+            const SizedBox(width: PlacesSpacing.xs),
+            Text(
+              isOnToday ? 'On Today' : 'Today',
+              semanticsLabel: isOnToday
+                  ? 'Remove from today\'s route'
+                  : 'Add to today\'s route',
+              style: TextStyle(
                 color: theme.anchor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
-              const SizedBox(width: PlacesSpacing.xs),
-              Text(
-                isOnToday ? 'On Today' : 'Today',
-                style: TextStyle(
-                  color: theme.anchor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
