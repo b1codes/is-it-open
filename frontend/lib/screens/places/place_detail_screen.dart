@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -90,7 +91,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget build(BuildContext context) {
     final theme = context.places;
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
-    final now = DateTime.now();
+    final now = clock.now();
     final status = PlaceStatusCalculator.compute(
       widget.place,
       now: now,
@@ -357,8 +358,9 @@ class _HoursRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Wide enough for the dot plus the widest bold label ("Wed").
           SizedBox(
-            width: 44,
+            width: 52,
             child: Row(
               children: [
                 if (isToday)
@@ -373,12 +375,19 @@ class _HoursRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                Text(
-                  label,
-                  style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
-                      .copyWith(
-                        fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                // Clips rather than overflowing at large text scales.
+                Flexible(
+                  child: Text(
+                    label,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
+                        .copyWith(
+                          fontWeight: isToday
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                  ),
                 ),
               ],
             ),
