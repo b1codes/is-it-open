@@ -46,7 +46,11 @@ def tomtom_result(
         "name": name,
         "phone": "+1 555-0100",
         "url": "https://example.com",
-        "categorySet": [{"id": i, "name": c} for i, c in enumerate(categories)],
+        # Shaped like TomTom's: categorySet has only IDs; the names are in classifications (and in
+        # the deprecated categories list).
+        "categorySet": [{"id": 7315000 + i} for i, _ in enumerate(categories)],
+        "categories": [c.lower() for c in categories],
+        "classifications": [{"code": c.upper(), "names": [{"nameLocale": "en-US", "name": c}]} for c in categories],
         **poi,
     }
     if time_ranges is not None:

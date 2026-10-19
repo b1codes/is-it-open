@@ -103,12 +103,7 @@ class TomTomClient:
             return None
 
         hours = self._parse_opening_hours(poi.get("openingHours"))
-
-        categories = []
-        for cset in poi.get("categorySet") or []:
-            name = cset.get("name") if isinstance(cset, dict) else None
-            if name:
-                categories.append(name)
+        categories = self._parse_categories(poi)
 
         return {
             "tomtom_id": result["id"],
@@ -122,6 +117,27 @@ class TomTomClient:
             "categories": categories,
             "hours": hours,
         }
+
+    def _parse_categories(self, poi):
+        """
+        Category names, most specific first, from `classifications[].names` (TomTom's current
+        field), else the deprecated `categories` list. `categorySet` only has numeric IDs, so
+        reading names from it (as this used to) gave every place an empty list.
+        """
+        names: list[str] = []
+
+        def add(name):
+            if isinstance(name, str) and name and name not in names:
+                names.append(name)
+
+        for classification in poi.get("classifications") or []:
+            if isinstance(classification, dict):
+                for entry in classification.get("names") or []:
+                    add(entry.get("name") if isinstance(entry, dict) else None)
+        if not names:
+            for name in poi.get("categories") or []:
+                add(name)
+        return names
 
     def _parse_opening_hours(self, opening_hours_data):
         """

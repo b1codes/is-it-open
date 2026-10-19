@@ -326,11 +326,29 @@ class TestParsePlace:
             "hours": [],
         }
 
-    def test_skips_categories_without_names(self):
+    def test_categories_come_from_classification_names(self):
         result = factories.tomtom_result()
-        result["poi"]["categorySet"] = [{"id": 1}, {"id": 2, "name": "Cafe"}, {"id": 3, "name": ""}, "junk"]
+        result["poi"]["categorySet"] = [{"id": 7315015}]  # IDs only, as TomTom sends it
+        result["poi"]["classifications"] = [
+            {"code": "RESTAURANT", "names": [{"nameLocale": "en-US", "name": "pizza"}, {"name": "restaurant"}]},
+            {"code": "CAFE_PUB", "names": [{"name": "pizza"}, {"name": ""}, {}, "junk"]},
+            "junk",
+        ]
 
-        assert TomTomClient()._parse_place(result)["categories"] == ["Cafe"]
+        assert TomTomClient()._parse_place(result)["categories"] == ["pizza", "restaurant"]
+
+    def test_categories_fall_back_to_the_deprecated_list(self):
+        result = factories.tomtom_result()
+        result["poi"]["classifications"] = []
+        result["poi"]["categories"] = ["cafe", "", None, "cafe", "bakery"]
+
+        assert TomTomClient()._parse_place(result)["categories"] == ["cafe", "bakery"]
+
+    def test_category_ids_alone_give_no_categories(self):
+        result = factories.tomtom_result()
+        result["poi"] = {"name": "Bare", "categorySet": [{"id": 7315015}]}
+
+        assert TomTomClient()._parse_place(result)["categories"] == []
 
 
 class TestParseOpeningHours:

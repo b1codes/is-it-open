@@ -95,8 +95,23 @@ tomtom_results = st.fixed_dictionaries(
                     "name": maybe(st.text(max_size=20)),
                     "phone": maybe(st.text(max_size=10)),
                     "url": maybe(st.text(max_size=10)),
-                    "categorySet": maybe(
-                        st.lists(maybe(st.fixed_dictionaries({}, optional={"name": maybe(st.text())})))
+                    "categorySet": maybe(st.lists(maybe(st.fixed_dictionaries({}, optional={"id": st.integers()})))),
+                    "categories": maybe(st.lists(maybe(st.text(max_size=10)))),
+                    "classifications": maybe(
+                        st.lists(
+                            maybe(
+                                st.fixed_dictionaries(
+                                    {},
+                                    optional={
+                                        "names": maybe(
+                                            st.lists(
+                                                maybe(st.fixed_dictionaries({}, optional={"name": maybe(st.text())}))
+                                            )
+                                        )
+                                    },
+                                )
+                            )
+                        )
                     ),
                     "openingHours": maybe(messy_hours),
                 },
