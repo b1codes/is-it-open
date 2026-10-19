@@ -293,13 +293,14 @@ class Auth0ReadPathTest(FirestoreTestCase):
         self.assertEqual(user, existing)
         transaction.assert_not_called()
 
-    def test_new_user_is_created_in_a_transaction(self):
-        with self.settings(AUTH0_MOCK=True), self._patch_transactions() as transaction:
+    def test_new_user_is_created_with_a_create_only_write(self):
+        create = patch.object(DocumentReference, "create", autospec=True, side_effect=DocumentReference.create)
+        with self.settings(AUTH0_MOCK=True), create as created:
             user = self.auth.authenticate(None, self._token("auth0|new"))
 
         self.assertEqual(user.username, "auth0|new")
         self.assertEqual(user.email, "a@example.com")
-        self.assertTrue(transaction.called)
+        created.assert_called_once()
         self.assertEqual(repository.get_user("auth0|new"), user)
 
     def test_reserved_auth0_sub(self):

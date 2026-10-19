@@ -3,6 +3,8 @@
 import threading
 
 import pytest
+from google.api_core.exceptions import Aborted
+from google.cloud.firestore_v1.document import DocumentReference
 
 from apps.users import repository as users
 from services.firestore import doc_id, get_client
@@ -75,6 +77,35 @@ class TestCreateUser:
 
         assert errors == []
         assert len([u for u in results if u is not None]) == 1
+
+    def test_retries_a_create_aborted_by_lock_contention(self, firestore_db, monkeypatch):
+        real_create = DocumentReference.create
+        calls = []
+
+        def flaky_create(ref, document):
+            calls.append(ref.id)
+            if len(calls) == 1:
+                raise Aborted("Transaction lock timeout.")
+            return real_create(ref, document)
+
+        monkeypatch.setattr(DocumentReference, "create", flaky_create)
+        monkeypatch.setattr(users.time, "sleep", lambda _: None)
+
+        user = users.create_user("bob", "pw")
+
+        assert len(calls) == 2
+        assert users.get_user("bob") == user
+
+    def test_gives_up_when_every_create_is_aborted(self, firestore_db, monkeypatch):
+        def aborted(ref, document):
+            raise Aborted("Transaction lock timeout.")
+
+        monkeypatch.setattr(DocumentReference, "create", aborted)
+        monkeypatch.setattr(users.time, "sleep", lambda _: None)
+
+        with pytest.raises(Aborted):
+            users.create_user("bob", "pw")
+        assert users.get_user("bob") is None
 
     @pytest.mark.parametrize("username", ["", "\ud800"])
     def test_unstorable_username_raises(self, firestore_db, username):

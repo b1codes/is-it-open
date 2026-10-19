@@ -9,10 +9,13 @@ Lookups by username or token return None for keys that can't be stored (see
 services.firestore.doc_id); create_user() raises InvalidDocumentKey for them.
 """
 
+import random
 import secrets
+import time
 from dataclasses import asdict, dataclass, fields
 
 from django.contrib.auth.hashers import check_password, is_password_usable, make_password
+from google.api_core.exceptions import Aborted, AlreadyExists
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
@@ -103,35 +106,41 @@ def get_or_create_user(username: str, **defaults):
 
 
 def _get_or_create_user(username, password, extra):
-    client = get_client()
     ref = _users().document(doc_id(username))
 
     # Almost every call (e.g. each Auth0-authenticated request) is for an existing user, so try a
-    # plain read first and only pay for a transaction when the user may need creating.
+    # plain read first and only hash a password and write when the user may need creating.
     snapshot = ref.get()
     if snapshot.exists:
         return User.from_dict(snapshot.to_dict()), False
 
-    # Hashing is deliberately slow, so it happens before the transaction: a transaction held open
-    # that long makes concurrent sign-ups for the same username exhaust their retries.
-    password_hash = make_password(password)
+    # create() writes only if the document doesn't exist yet, so concurrent sign-ups for one
+    # username need no transaction: one write lands and the rest read it back. (A transaction here
+    # exhausted its retries under contention on slow CI runners.) The ID a losing caller allocated
+    # is skipped, as allocate_id allows.
+    user = User(
+        id=allocate_id(USERS),
+        username=username,
+        password=make_password(password),
+        **extra,
+    )
+    document = user_document(user)
+    for attempt in range(_CREATE_ATTEMPTS):
+        try:
+            ref.create(document)
+            return user, True
+        except AlreadyExists:
+            return User.from_dict(ref.get().to_dict()), False
+        except Aborted:
+            # Lock contention with a concurrent write to the same document; nothing was written,
+            # so the next attempt either creates the user or finds the winner's.
+            if attempt == _CREATE_ATTEMPTS - 1:
+                raise
+            time.sleep(random.uniform(0, min(1.0, 0.05 * 2**attempt)))
+    raise AssertionError("unreachable")  # pragma: no cover
 
-    @firestore.transactional
-    def get_or_create(transaction):
-        snapshot = ref.get(transaction=transaction)
-        if snapshot.exists:
-            return User.from_dict(snapshot.to_dict()), False
 
-        user = User(
-            id=allocate_id(USERS),
-            username=username,
-            password=password_hash,
-            **extra,
-        )
-        transaction.set(ref, user_document(user))
-        return user, True
-
-    return get_or_create(client.transaction())
+_CREATE_ATTEMPTS = 8
 
 
 # Firestore's limit on an indexed (and so queried) string value, in UTF-8 bytes. Tokens are 40 hex
