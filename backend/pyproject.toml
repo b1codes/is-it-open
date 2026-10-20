@@ -22,6 +22,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "bandit[toml]>=1.9.4",
     "django-stubs>=6.1.2",
     "freezegun>=1.5.5",
     "hypothesis>=6.170.0",
@@ -113,6 +114,11 @@ django_settings_module = "config.settings"
 # Test bodies lean on Optional returns being non-None after assertions; only check their signatures.
 module = ["tests.*", "apps.*.tests", "apps.*.tests_profile"]
 check_untyped_defs = false
+
+[tool.bandit]
+# App code only; tests use throwaway passwords and asserts by design. CI fails on any finding, so
+# mark a deliberate one with `# nosec <id>` and say why.
+exclude_dirs = ["tests", ".venv", "staticfiles"]
 
 [tool.mutmut]
 # Nightly, non-blocking mutation testing (see .github/workflows/nightly.yml): mutmut makes small

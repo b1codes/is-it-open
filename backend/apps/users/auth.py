@@ -128,6 +128,7 @@ class GlobalAuth(HttpBearer):
                 jwks = response.json()
                 _jwks_cache[domain] = jwks
                 return jwks
-        except Exception:
+        # An unreachable tenant rejects the token; the next request tries again.
+        except Exception:  # nosec B110
             pass
         return None

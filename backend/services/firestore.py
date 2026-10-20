@@ -144,7 +144,8 @@ def reserve_id_block(name: str, size: int = ID_BLOCK_SIZE):
         except _RESERVE_RETRYABLE:
             if attempt == _RESERVE_ATTEMPTS - 1:
                 raise
-            time.sleep(random.uniform(0, _RESERVE_BACKOFF_SECONDS * 2**attempt))
+            # Jitter, not a secret, so the standard generator is fine.
+            time.sleep(random.uniform(0, _RESERVE_BACKOFF_SECONDS * 2**attempt))  # nosec B311
 
     last = int(cast(int, firestore_helpers.decode_value(result.transform_results[0], client)))
     first = last - size + 1
@@ -172,7 +173,7 @@ def retry_on_contention(operation: Callable[[], T]) -> T:
             if not _is_contention(e) or attempt == _CONTENTION_ATTEMPTS - 1:
                 raise
             backoff = min(_CONTENTION_MAX_BACKOFF_SECONDS, _CONTENTION_BACKOFF_SECONDS * 2**attempt)
-            time.sleep(random.uniform(0, backoff))
+            time.sleep(random.uniform(0, backoff))  # nosec B311
     raise AssertionError("unreachable")  # pragma: no cover
 
 

@@ -19,7 +19,8 @@ from apps.users import repository as users_repo
 from services.firestore import get_client
 
 SEED_USERNAME = "e2e-seeded"
-SEED_PASSWORD = "e2e-password"
+# The E2E stack's known account; seed_e2e refuses to run outside the emulator.
+SEED_PASSWORD = "e2e-password"  # nosec B105
 
 # Weekday hours (0 is Monday), as stored by the API.
 _EVERY_DAY = range(7)

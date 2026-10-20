@@ -74,6 +74,7 @@ _PROFILE_COLUMNS = (
     "calendar_subscription_url",
 )
 
+# Only the constant column names above are interpolated.
 USERS_SQL = f"""
     SELECT u.id, u.username, u.password, u.email, u.first_name, u.last_name, u.is_active, u.date_joined,
            t.key AS token_key, t.created_at AS token_created_at,
@@ -82,7 +83,7 @@ USERS_SQL = f"""
     LEFT JOIN users_authtoken t ON t.user_id = u.id
     LEFT JOIN users_userprofile p ON p.user_id = u.id
     ORDER BY u.id
-"""
+"""  # nosec B608
 
 PLACES_SQL = """
     SELECT id, tomtom_id, name, address,

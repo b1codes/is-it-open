@@ -1,7 +1,7 @@
 # Makefile
 
 .PHONY: up down build logs shell firestore-reset \
-	check lint lint-backend lint-frontend format \
+	check lint lint-backend lint-frontend format audit \
 	test test-backend test-frontend test-widgetbook test-goldens goldens-pull \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
@@ -51,11 +51,18 @@ check: lint test
 lint: lint-backend lint-frontend
 
 lint-backend:
-	$(BACKEND_RUN_WITH_E2E) sh -c 'ruff check . /e2e && ruff format --check . /e2e && mypy .'
+	$(BACKEND_RUN_WITH_E2E) sh -c "ruff check . /e2e && ruff format --check . /e2e && mypy . && bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'"
 
 lint-frontend:
 	cd frontend && dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver && flutter analyze lib test tool integration_test test_driver
 	cd frontend/widgetbook && flutter analyze
+
+# Known vulnerabilities in the locked dependencies, as CI's dependency audit checks (needs uv and Docker)
+audit:
+	cd backend && uv export --frozen --all-groups --no-emit-project --format requirements-txt -o "$${TMPDIR:-/tmp}/is-it-open-requirements.txt" -q
+	uvx pip-audit==2.10.1 -r "$${TMPDIR:-/tmp}/is-it-open-requirements.txt" --require-hashes --disable-pip --progress-spinner off
+	docker run --rm -v "$(CURDIR):/src:ro" -w /src ghcr.io/google/osv-scanner:v2.6.0 scan source --verbosity error \
+		-L frontend/pubspec.lock -L frontend/widgetbook/pubspec.lock -L backend/uv.lock
 
 # Apply formatting and autofixable lint fixes
 format:

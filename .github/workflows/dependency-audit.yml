@@ -1,0 +1,50 @@
+name: Dependency audit
+
+# Known vulnerabilities in the locked dependencies: pip-audit for the backend (PyPI's advisories)
+# and osv-scanner for every lockfile, including the Flutter app's and Widgetbook's pub packages.
+# Called by ci.yml when a lockfile changes (so a PR can't add a vulnerable version) and by
+# nightly.yml (for advisories published since). See "Security" in TESTING.md.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Audit
+        # Every dependency group, since the dev tools run in CI too. Hashes pin exactly what's locked.
+        run: |
+          uv export --frozen --all-groups --no-emit-project --format requirements-txt -o "$RUNNER_TEMP/requirements.txt"
+          status=0
+          uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/requirements.txt" --require-hashes --disable-pip \
+            --progress-spinner off --desc --format markdown -o "$RUNNER_TEMP/pip-audit.md" || status=$?
+          { echo "## pip-audit (backend)"; echo; cat "$RUNNER_TEMP/pip-audit.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+  osv-scanner:
+    name: osv-scanner (all lockfiles)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan
+        run: |
+          status=0
+          docker run --rm -v "$PWD:/src:ro" -w /src ghcr.io/google/osv-scanner:v2.6.0 scan source --verbosity error \
+            -L frontend/pubspec.lock -L frontend/widgetbook/pubspec.lock -L backend/uv.lock \
+            --format markdown > "$RUNNER_TEMP/osv.md" || status=$?
+          { echo "## osv-scanner"; echo; cat "$RUNNER_TEMP/osv.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status

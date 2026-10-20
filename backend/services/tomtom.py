@@ -207,7 +207,7 @@ class TomTomClient:
             return None
 
         # Create a stable cache key
-        address_hash = hashlib.md5(address.strip().lower().encode("utf-8")).hexdigest()
+        address_hash = hashlib.md5(address.strip().lower().encode("utf-8"), usedforsecurity=False).hexdigest()
         cache_key = f"geocode_{address_hash}"
 
         cached_result = cache.get(cache_key)

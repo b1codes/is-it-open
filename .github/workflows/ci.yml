@@ -30,6 +30,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       contracts: ${{ steps.filter.outputs.contracts }}
       e2e: ${{ steps.filter.outputs.e2e }}
+      deps: ${{ steps.filter.outputs.deps }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -57,6 +58,13 @@ jobs:
               - 'docker/**'
               - 'e2e/**'
               - 'docker-compose.e2e.yml'
+            deps:
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/dependency-audit.yml'
+              - 'backend/pyproject.toml'
+              - 'backend/uv.lock'
+              - 'frontend/pubspec.lock'
+              - 'frontend/widgetbook/pubspec.lock'
 
   backend:
     name: Backend
@@ -94,6 +102,10 @@ jobs:
 
       - name: Type check (mypy)
         run: uv run mypy .
+
+      - name: Security lint (bandit)
+        # App code only (see [tool.bandit] in pyproject.toml); any finding fails.
+        run: uv run bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'
 
       - name: Start Firestore emulator
         working-directory: .
@@ -406,11 +418,19 @@ jobs:
           --fail-on ERR --format githubactions
           --err-ignore contracts/breaking-changes-ignore.txt
 
+  # Known vulnerabilities in the locked dependencies, when a lockfile changes. nightly.yml runs the
+  # same audit every day, for advisories published since.
+  dependency-audit:
+    name: Dependency audit
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    uses: ./.github/workflows/dependency-audit.yml
+
   # Branch protection requires a check named "ci". It passes when every job above passed or was
   # skipped because its paths didn't change.
   ci:
     name: ci
-    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes]
+    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes, dependency-audit]
     if: always()
     runs-on: ubuntu-latest
     steps:
