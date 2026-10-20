@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
@@ -109,11 +110,10 @@ class _MockAppScopeHostState extends State<_MockAppScopeHost> {
     // whose in-flight writes could land in this scope's fixture state.
     _prefs = _ScopedPreferences({
       PreferencesCubit.timeFormatKey: config.use24HourFormat,
+      // Dated by the same clock TodayRouteCubit reads, so a test that pins
+      // the clock (withClock) gets today's route, not one it resets as stale.
       if (config.todayRouteIds.isNotEmpty)
-        ...TodayRouteCubit.persistedValues(
-          config.todayRouteIds,
-          DateTime.now(),
-        ),
+        ...TodayRouteCubit.persistedValues(config.todayRouteIds, clock.now()),
     });
 
     _api = FakeApiService(
