@@ -1,7 +1,7 @@
 # Makefile
 
 .PHONY: up down build logs shell firestore-reset \
-	check lint lint-backend lint-frontend format audit \
+	check lint lint-backend lint-frontend lint-infra format audit \
 	test test-backend test-frontend test-widgetbook test-goldens goldens-pull test-rules \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
@@ -49,7 +49,7 @@ firestore-reset:
 # Lint and test everything
 check: lint test
 
-lint: lint-backend lint-frontend
+lint: lint-backend lint-frontend lint-infra
 
 lint-backend:
 	$(BACKEND_RUN_WITH_E2E) sh -c "ruff check . /e2e && ruff format --check . /e2e && mypy . && bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'"
@@ -57,6 +57,15 @@ lint-backend:
 lint-frontend:
 	cd frontend && dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver && flutter analyze lib test tool integration_test test_driver
 	cd frontend/widgetbook && flutter analyze
+
+# infra/ as CI's Terraform job checks it, with the same tool versions (needs Docker)
+TERRAFORM = docker run --rm -v "$(CURDIR)/infra:/infra" -w /infra hashicorp/terraform:1.16.5
+TRIVY = aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+lint-infra:
+	$(TERRAFORM) fmt -check -diff -recursive
+	$(TERRAFORM) init -backend=false -input=false >/dev/null && $(TERRAFORM) validate
+	docker run --rm -v "$(CURDIR)/infra:/data" -w /data ghcr.io/terraform-linters/tflint:v0.64.0 --format compact
+	docker run --rm -v "$(CURDIR)/infra:/infra:ro" $(TRIVY) config --quiet --exit-code 1 --severity HIGH,CRITICAL /infra
 
 # Known vulnerabilities in the locked dependencies, as CI's dependency audit checks (needs uv and Docker)
 audit:
