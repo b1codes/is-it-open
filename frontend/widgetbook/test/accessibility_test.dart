@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/components/calendar/calendar_event_tile.dart';
 
 import 'support/catalog.dart';
+import 'support/text_contrast.dart';
 
 // Accessibility checks for every catalog use case, so every screen and
 // component is covered:
@@ -31,45 +32,16 @@ const _phone = _Device('phone', Size(390, 844));
 const _tablet = _Device('tablet', Size(834, 1194));
 const _desktop = _Device('desktop', Size(1280, 800));
 
-/// Text the contrast check reads wrongly, by use case. The check finds the
-/// two most common colors around a piece of text and takes them as text and
-/// background, which fails when the text has fewer pixels than the
-/// background's own shades. Each of these was checked by hand.
-const _contrastExempt = <String, Set<String>>{
-  // The calendar grid: hour lines, day columns and translucent blocks
-  // behind small labels. The colors are checked directly in the app's
-  // test/accessibility/contrast_test.dart.
-  'components/calendar/calendarviewstackwidget/default': _anyText,
-  'components/calendar/calendareventtilewidget/business-block': _anyText,
-  'components/calendar/calendareventtilewidget/personal-event': _anyText,
-  'components/calendar/fulldayeventwidget/single-event': _anyText,
-  'components/calendar/fulldayeventwidget/multiple-events': _anyText,
-  'components/calendar/plannerview/default': _anyText,
-  'components/calendar/plannerview/empty': _anyText,
-  'screens/calendar/calendarscreen/default': _anyText,
-  'screens/calendar/calendarscreen/loading-places': _anyText,
-  'screens/calendar/calendarscreen/no-saved-places': _anyText,
-  // Glass on the catalog's multicolor backdrop, which the app never puts
-  // glass on. The screens that use glass are checked on their real
-  // backgrounds.
-  'components/shared/glasscard/default': _anyText,
-  'components/shared/glasscontainer/default': _anyText,
-  // A lone "1": too thin a glyph for any of its pixels to be the text color.
-  'screens/places/myplacesscreen/default': {'1'},
-  // The screen is transparent (the home shell paints behind it), so the
-  // catalog's grid shows through.
-  'screens/search/searchscreen/default': {
-    'No suggestions available.\nTry searching for something!',
-  },
-  // Section headers over the screen's gradient.
-  'screens/profile/settingsscreen/default': {
-    'Location Preferences',
-    'App Preferences',
-  },
+/// Use cases whose text isn't checked for contrast: components shown on
+/// the catalog's multicolor glass backdrop (ComponentStage's `backdrop`),
+/// which the app never puts them on. The screens that use them are checked
+/// on their real backgrounds.
+const _contrastExempt = {
+  'components/shared/glasscard/default',
+  'components/shared/glasscontainer/default',
+  'components/search/searchresultlistcard/results-list',
+  'components/search/searchresultgridcard/results-grid',
 };
-
-/// Stands for every piece of text in a use case in [_contrastExempt].
-const _anyText = {'*'};
 
 void main() {
   for (final path in useCasePaths) {
@@ -81,15 +53,31 @@ void main() {
             final semantics = tester.ensureSemantics();
             await _pump(tester, path, device, theme: theme);
 
-            await expectLater(tester, meetsGuideline(_androidTapTarget));
-            await expectLater(tester, meetsGuideline(_iOSTapTarget));
+            // Calendar event blocks: their height is the event's duration on
+            // the time grid, so a short event can't be a 48px target.
+            final events = [
+              for (final e in find.byType(CalendarEventTileWidget).evaluate())
+                tester.getRect(find.byWidget(e.widget)),
+            ];
+            await expectLater(
+              tester,
+              meetsGuideline(_TapTarget.android(skipping: events)),
+            );
+            await expectLater(
+              tester,
+              meetsGuideline(_TapTarget.iOS(skipping: events)),
+            );
             await expectLater(
               tester,
               meetsGuideline(labeledTapTargetGuideline),
             );
             await expectLater(
               tester,
-              meetsGuideline(_TextContrast(_contrastExempt[path] ?? const {})),
+              meetsGuideline(
+                _contrastExempt.contains(path)
+                    ? const _Pass()
+                    : const TextStyleContrastGuideline(),
+              ),
             );
 
             await unmountUseCase(tester);
@@ -127,38 +115,44 @@ Future<void> _pump(
   );
 }
 
-/// [androidTapTargetGuideline] and [iOSTapTargetGuideline], except for
-/// calendar event blocks, whose height is the event's duration on the time
-/// grid.
-const _androidTapTarget = _TapTarget(
-  size: Size(48, 48),
-  link: 'https://support.google.com/accessibility/android/answer/7101858',
-);
-const _iOSTapTarget = _TapTarget(
-  size: Size(44, 44),
-  link:
-      'https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls',
-);
-
+/// [androidTapTargetGuideline] or [iOSTapTargetGuideline], skipping the
+/// tap targets inside [skipping].
 class _TapTarget extends MinimumTapTargetGuideline {
-  const _TapTarget({required super.size, required super.link});
+  const _TapTarget.android({required this.skipping})
+    : super(
+        size: const Size(48, 48),
+        link: 'https://support.google.com/accessibility/android/answer/7101858',
+      );
+
+  const _TapTarget.iOS({required this.skipping})
+    : super(
+        size: const Size(44, 44),
+        link:
+            'https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls',
+      );
+
+  final List<Rect> skipping;
 
   @override
-  bool shouldSkipNode(SemanticsNode node) =>
-      node.getSemanticsData().identifier ==
-          CalendarEventTileWidget.semanticsIdentifier ||
-      super.shouldSkipNode(node);
+  bool shouldSkipNode(SemanticsNode node) {
+    if (super.shouldSkipNode(node)) return true;
+    // The node's rect in the view (the test views have a pixel ratio of 1).
+    var rect = node.rect;
+    for (SemanticsNode? n = node; n != null; n = n.parent) {
+      if (n.transform case final transform?) {
+        rect = MatrixUtils.transformRect(transform, rect);
+      }
+    }
+    return skipping.any((r) => r.inflate(1).contains(rect.center));
+  }
 }
 
-/// [textContrastGuideline], skipping the [exempt] text.
-class _TextContrast extends MinimumTextContrastGuideline {
-  const _TextContrast(this.exempt);
-
-  final Set<String> exempt;
+class _Pass extends AccessibilityGuideline {
+  const _Pass();
 
   @override
-  bool shouldSkipNode(SemanticsData data) =>
-      exempt.contains('*') ||
-      exempt.contains(data.label) ||
-      super.shouldSkipNode(data);
+  String get description => 'Not checked';
+
+  @override
+  Evaluation evaluate(WidgetTester tester) => const Evaluation.pass();
 }
