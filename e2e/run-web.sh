@@ -13,6 +13,7 @@ cd "$(dirname "$0")/../frontend"
 
 port="${CHROMEDRIVER_PORT:-4444}"
 size="${E2E_BROWSER_SIZE:-1600x1024}"
+mkdir -p build
 
 if ! curl -fsS http://127.0.0.1:18000/api/openapi.json > /dev/null 2>&1; then
   echo "The E2E stack isn't running. Start it with: make e2e-up" >&2
@@ -27,6 +28,10 @@ if ! curl -fsS "http://127.0.0.1:${port}/status" > /dev/null 2>&1; then
     curl -fsS "http://127.0.0.1:${port}/status" > /dev/null 2>&1 && break
     sleep 0.2
   done
+  curl -fsS "http://127.0.0.1:${port}/status" > /dev/null 2>&1 || {
+    echo "chromedriver didn't start; see frontend/build/chromedriver.log" >&2
+    exit 1
+  }
 fi
 
 rm -rf build/e2e-screenshots
