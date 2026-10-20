@@ -7,6 +7,7 @@
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
 	e2e-native-up e2e-native-down \
+	load test-load \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -151,6 +152,21 @@ e2e-native-up:
 
 e2e-native-down:
 	e2e/start-native.sh stop
+
+# --- Performance (slow; runs nightly in CI; see "Performance" in TESTING.md) ---
+
+# The API load test (perf/load.js) against the E2E stack, which it starts and stops. VUS, DURATION and
+# PLACES override its defaults (20 users for 2m, 200 extra places), e.g. make load VUS=60 DURATION=30s
+load:
+	$(MAKE) e2e-up
+	status=0; $(MAKE) test-load || status=$$?; $(MAKE) e2e-down; exit $$status
+
+# The load test against a running E2E stack. Results land in perf/results/.
+test-load:
+	mkdir -p perf/results
+	docker run --rm --network is-it-open-e2e_default --user "$$(id -u):$$(id -g)" \
+		-v "$(CURDIR)/perf:/perf" -e BASE_URL=http://backend:8000/api -e SUMMARY_DIR=/perf/results \
+		-e VUS -e DURATION -e PLACES grafana/k6:2.3.0 run --quiet /perf/load.js
 
 # --- Mutation testing (slow; runs nightly in CI) ---
 

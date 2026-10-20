@@ -204,3 +204,6 @@ frontend/mutation-test-report/
 
 # E2E stack started without Docker (e2e/start-native.sh)
 e2e/.native/
+
+# Load test results (make load)
+perf/results/

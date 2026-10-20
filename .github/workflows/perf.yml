@@ -1,0 +1,52 @@
+name: Performance
+
+# Catches slowdowns before users do: an API load test with p95 latency and error-rate budgets.
+# Called by nightly.yml (or run by hand); not per PR, since timings need a quiet, full-length run.
+# The per-request Firestore cost is checked per PR instead, in the Backend job. See "Performance"
+# in TESTING.md.
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: Concurrent users for the load test
+        default: '20'
+      duration:
+        description: How long the load test holds them (k6 duration, e.g. 2m)
+        default: 2m
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: API load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The production image, with TomTom stubbed (there's no staging backend yet).
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - name: Load test
+        env:
+          VUS: ${{ inputs.vus || '20' }}
+          DURATION: ${{ inputs.duration || '2m' }}
+        run: make test-load
+
+      - name: Summary
+        if: always()
+        run: cat perf/results/load-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > perf/results/stack-logs.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test
+          path: perf/results/
+          if-no-files-found: ignore

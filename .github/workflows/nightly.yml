@@ -184,6 +184,11 @@ jobs:
     name: DAST
     uses: ./.github/workflows/dast.yml
 
+  # The API load test (perf.yml).
+  performance:
+    name: Performance
+    uses: ./.github/workflows/perf.yml
+
   mutation-backend:
     name: Backend mutation testing
     runs-on: ubuntu-latest
