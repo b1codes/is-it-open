@@ -45,6 +45,7 @@ jobs:
               - 'backend/**'
               - 'docker/**'
               - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
               - 'e2e/stub/**'
             frontend:
               - *shared

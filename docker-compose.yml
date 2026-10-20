@@ -25,6 +25,8 @@ services:
       - ./backend:/code
       # The API contract (contracts/openapi.json), which the backend's contract tests check and update
       - ./contracts:/contracts
+      # The production compose file, whose settings and entrypoint backend/tests/deploy/ checks
+      - ./docker-compose.prod.yml:/docker-compose.prod.yml:ro
     ports:
       - "8001:8000"
     depends_on:
