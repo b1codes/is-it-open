@@ -3,6 +3,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'helpers/e2e.dart';
 import 'journeys/auth_journey.dart';
+import 'journeys/profile_journey.dart';
 
 // Every E2E journey, against the stack in docker-compose.e2e.yml. One entry
 // point, so the app is built once per run. See e2e/README.md.
@@ -13,4 +14,5 @@ void main() {
   setUp(resetDevice);
 
   group('auth', authJourneys);
+  group('profile', profileJourneys);
 }
