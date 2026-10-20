@@ -1,0 +1,132 @@
+name: E2E on mobile
+
+# The E2E journeys (frontend/integration_test) on an iOS simulator and an Android emulator, for what
+# the per-PR web runs can't cover: native plugins (geolocator, shared_preferences, device_calendar),
+# native networking and the platform builds. Called by nightly.yml; see e2e/README.md.
+on:
+  workflow_call:
+  workflow_dispatch:
+  # TEMPORARY: verifies this workflow on its PR. Remove before merging.
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/e2e-mobile.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: E2E (iOS simulator)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Xcode 26 and later only build for iOS 15+, and the app targets iOS 13.
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'  # the Firestore emulator's minimum
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      # macOS runners have no Docker, so the stack runs directly on the runner.
+      - name: Start the E2E stack
+        run: e2e/start-native.sh
+
+      - name: Boot a simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          for runtime in sorted(runtimes, reverse=True):
+              phones = [d for d in runtimes[runtime] if "iOS" in runtime and d["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[0]["udid"])
+                  break
+          ')
+          xcrun simctl boot "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Run the journeys
+        working-directory: frontend
+        run: >
+          flutter test integration_test/app_test.dart -r expanded
+          -d "${{ steps.simulator.outputs.udid }}"
+          --dart-define=ENV=e2e
+          --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-ios
+          path: e2e/.native/*.log
+          if-no-files-found: ignore
+
+  android:
+    name: E2E (Android emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'  # for the Android Gradle build
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Run the journeys
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: frontend
+          # adb reverse makes the stack's host ports the emulator's 127.0.0.1 (envs/e2e.json).
+          script: |
+            adb reverse tcp:18000 tcp:18000
+            adb reverse tcp:18090 tcp:18090
+            flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-android
+          path: e2e-stack.log
+          if-no-files-found: ignore
