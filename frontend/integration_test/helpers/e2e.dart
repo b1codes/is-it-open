@@ -2,11 +2,13 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/components/shared/side_menu.dart';
 import 'package:frontend/core/env_config.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 
@@ -26,6 +28,30 @@ const stubGeocodeLng = -89.64352;
 Future<void> initApp() async {
   tz.initializeTimeZones();
   await EnvConfig.init();
+}
+
+/// A journey: a testWidgets that saves a screenshot when it fails (on the
+/// web, `flutter drive` writes it to build/e2e-screenshots).
+void journey(String description, WidgetTesterCallback body) {
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } catch (_) {
+      await _screenshot(description);
+      rethrow;
+    }
+  });
+}
+
+Future<void> _screenshot(String description) async {
+  // Only the web driver saves screenshots; elsewhere this would need a host.
+  if (!kIsWeb) return;
+  final name = description.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+  try {
+    await IntegrationTestWidgetsFlutterBinding.instance.takeScreenshot(name);
+  } catch (e) {
+    debugPrint('Could not take a screenshot: $e');
+  }
 }
 
 /// Each journey starts signed out, with nothing stored on the device.
@@ -160,18 +186,31 @@ extension E2eTester on WidgetTester {
     }
   }
 
+  /// Taps [finder] once any route transition has finished (a tap during one
+  /// lands on the route that's leaving), then lets the result settle.
   Future<void> tapAndSettle(Finder finder) async {
+    await settle(const Duration(milliseconds: 400));
     await ensureVisible(finder.first);
     await tap(finder.first);
     await settle();
   }
 
-  Future<void> enterField(String label, String text) async {
-    final field = find.widgetWithText(TextFormField, label);
-    await ensureVisible(field.first);
+  /// Types into a text field, focusing it with a tap first, as a user would.
+  Future<void> typeInto(Finder field, String text) async {
+    await tapAndSettle(field);
     await enterText(field.first, text);
     await pump();
+    expect(
+      widget<EditableText>(
+        find.descendant(of: field.first, matching: find.byType(EditableText)),
+      ).controller.text,
+      text,
+      reason: 'the text should land in $field',
+    );
   }
+
+  Future<void> enterField(String label, String text) =>
+      typeInto(find.widgetWithText(TextFormField, label), text);
 
   /// The desktop layout has a side menu; the phone layout a bottom bar.
   bool get isDesktopLayout => any(find.byType(SideMenu));

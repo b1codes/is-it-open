@@ -37,7 +37,7 @@ SEED_PLACES = [
         "hours": [{"day_of_week": d, "open_time": "10:00", "close_time": "23:00"} for d in _EVERY_DAY],
     },
     {
-        "tomtom_id": "custom-e2e-community-garden",
+        "tomtom_id": "custom_e2e_community_garden",
         "name": "Riverside Community Garden",
         "address": "12 River Road, Springfield, IL 62701",
         "location": {"lat": 39.7990, "lng": -89.6440},

@@ -21,7 +21,7 @@ LatLng _mapCenter(WidgetTester tester) => tester
 /// Profile edits go through the backend (which geocodes the address with
 /// the TomTom stub) and back to the map.
 void profileJourneys() {
-  testWidgets('a saved home address is geocoded and the map recentres on it', (
+  journey('a saved home address is geocoded and the map recentres on it', (
     tester,
   ) async {
     final api = BackendApi();
@@ -58,9 +58,6 @@ void profileJourneys() {
     await tester.waitFor(find.byType(HomeScreen));
     await tester.openTab('Me');
     await tester.waitFor(find.text('Hana'));
-    expect(
-      find.widgetWithText(TextFormField, '1 Main Street'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(TextFormField, '1 Main Street'), findsOneWidget);
   });
 }

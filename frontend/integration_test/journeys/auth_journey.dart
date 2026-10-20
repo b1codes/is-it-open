@@ -7,7 +7,7 @@ import '../helpers/e2e.dart';
 
 /// Register → log out → log in → relaunch, against the real backend.
 void authJourneys() {
-  testWidgets('a new user registers, logs out, logs back in, and stays '
+  journey('a new user registers, logs out, logs back in, and stays '
       'signed in across a relaunch', (tester) async {
     final username = uniqueUsername('signup');
     await tester.launchApp();
@@ -31,7 +31,7 @@ void authJourneys() {
     expect(find.byType(LoginScreen), findsNothing);
   });
 
-  testWidgets('the seeded user signs in and sees their saved places', (
+  journey('the seeded user signs in and sees their saved places', (
     tester,
   ) async {
     await tester.launchApp();
@@ -43,7 +43,7 @@ void authJourneys() {
     expect(find.text('Riverside Community Garden'), findsWidgets);
   });
 
-  testWidgets('a wrong password is refused with a message', (tester) async {
+  journey('a wrong password is refused with a message', (tester) async {
     await tester.launchApp();
     await tester.signIn(seededUsername, 'not-the-password');
 

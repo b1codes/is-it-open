@@ -3,6 +3,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'helpers/e2e.dart';
 import 'journeys/auth_journey.dart';
+import 'journeys/places_journey.dart';
 import 'journeys/profile_journey.dart';
 
 // Every E2E journey, against the stack in docker-compose.e2e.yml. One entry
@@ -15,4 +16,5 @@ void main() {
 
   group('auth', authJourneys);
   group('profile', profileJourneys);
+  group('places', placesJourneys);
 }
