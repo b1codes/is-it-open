@@ -201,3 +201,6 @@ diff-cover.md
 lcov.repo.info
 backend/mutants/
 frontend/mutation-test-report/
+
+# E2E stack started without Docker (e2e/start-native.sh)
+e2e/.native/

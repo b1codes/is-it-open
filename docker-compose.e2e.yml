@@ -34,20 +34,10 @@ services:
         condition: service_completed_successfully
       stub:
         condition: service_healthy
+    env_file: e2e/backend.env
     environment:
-      DEBUG: "0"
-      SECRET_KEY: e2e-only-not-secret
-      ALLOWED_HOSTS: "*"
-      CORS_ALLOW_ALL_ORIGINS: "1"
-      GOOGLE_CLOUD_PROJECT: demo-is-it-open-e2e
       FIRESTORE_EMULATOR_HOST: firestore:8080
-      TOMTOM_API_KEY: e2e-stub-key
       TOMTOM_BASE_URL: http://stub:8090/search/2
-      # The journeys sign in with username and password. Auth0 tokens are verified against a
-      # domain that doesn't resolve, so they're all rejected: AUTH0_MOCK stays off here too.
-      AUTH0_MOCK: "0"
-      AUTH0_DOMAIN: auth0.invalid
-      AUTH0_AUDIENCE: https://is-it-open.invalid/api
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/openapi.json"]
       interval: 2s

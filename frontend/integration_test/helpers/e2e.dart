@@ -16,8 +16,15 @@ import 'package:timezone/data/latest.dart' as tz;
 const seededUsername = 'e2e-seeded';
 const seededPassword = 'e2e-password';
 
-/// The stub's iCal feed, as the backend (not the app) reaches it.
-const stubCalendarUrl = 'http://stub:8090/calendar/e2e.ics';
+/// The stub as the backend (not the app) reaches it: by its compose service
+/// name, or at 127.0.0.1 in the Docker-free stack (e2e/start-native.sh).
+const _stubForBackend = String.fromEnvironment(
+  'E2E_STUB_URL',
+  defaultValue: 'http://stub:8090',
+);
+
+/// The stub's iCal feed, for the backend's /calendar/proxy to fetch.
+const stubCalendarUrl = '$_stubForBackend/calendar/e2e.ics';
 const stubEventTitle = 'E2E Dentist Appointment';
 
 /// Where the stub geocodes every address (contracts/tomtom/fixtures/geocode.json).
