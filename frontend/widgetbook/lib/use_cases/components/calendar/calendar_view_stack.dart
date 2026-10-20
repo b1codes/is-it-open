@@ -1,4 +1,5 @@
 import 'package:calendar_view/calendar_view.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_ui_cubit.dart';
@@ -85,7 +86,7 @@ class _ControllerHostState extends State<_ControllerHost> {
   void _fill() {
     final theme = context.places;
     _controller.removeWhere((_) => true);
-    final windows = sampleAvailabilityWindows(DateTime.now(), dayCount: 7);
+    final windows = sampleAvailabilityWindows(clock.now(), dayCount: 7);
     _windowCount = windows.length;
     if (widget.showBusinessHours) {
       _controller.addAll([

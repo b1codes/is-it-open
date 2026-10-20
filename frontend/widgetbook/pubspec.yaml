@@ -28,8 +28,14 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  google_fonts: ^8.1.0
   build_runner: ^2.13.1
   widgetbook_generator: ^3.23.0
 
 flutter:
   uses-material-design: true
+
+  # Montserrat and Open Sans, so the catalog and the golden tests render the
+  # app's fonts offline. See tool/fetch_fonts.sh.
+  assets:
+    - assets/google_fonts/

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:frontend/models/place.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/models/user.dart';
@@ -179,7 +180,7 @@ class FakeApiService extends ApiService {
 
   @override
   Future<String> getCalendarFromUrl(String url) =>
-      _respond(() => sampleIcs(DateTime.now()));
+      _respond(() => sampleIcs(clock.now()));
 
   /// Marks a nullable [_copy] argument as "leave unchanged", so an explicit
   /// null can clear the field (e.g. `updateVisitLength(id, null)`).
