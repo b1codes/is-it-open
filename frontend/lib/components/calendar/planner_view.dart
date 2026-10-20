@@ -312,11 +312,15 @@ class _DayColumn extends StatelessWidget {
                         color: theme.anchor,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        '${window.placeCount} places open',
-                        style: PlacesType.label(
-                          theme.anchor,
-                        ).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                      Flexible(
+                        child: Text(
+                          window.label,
+                          style: PlacesType.label(
+                            theme.ink,
+                          ).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),

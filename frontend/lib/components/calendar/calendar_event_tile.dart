@@ -57,7 +57,7 @@ class CalendarEventTileWidget extends StatelessWidget {
       child: Text(
         event.title,
         style: PlacesType.label(
-          event.color,
+          context.places.ink,
         ).copyWith(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -66,12 +66,19 @@ class CalendarEventTileWidget extends StatelessWidget {
   }
 
   Widget _buildPersonalBlock(BuildContext context, CalendarEventData event) {
+    // White on a dark block; on a light one (dark mode's inkMuted), white
+    // would be under 3:1.
+    final textColor =
+        ThemeData.estimateBrightnessForColor(event.color) == Brightness.dark
+        ? Colors.white
+        : PlacesTheme.dark.paper;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      // In ink rather than the block's color, which is 15% opaque.
       child: Text(
         event.title,
         style: PlacesType.label(
-          Colors.white,
+          textColor,
         ).copyWith(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,

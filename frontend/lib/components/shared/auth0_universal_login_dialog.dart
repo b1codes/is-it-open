@@ -105,8 +105,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
     Navigator.of(context).pop(token);
   }
 
+  // Auth0's hosted login page is light whatever the app's theme, so the
+  // dialog's text and fields use the light theme too; with the dark one,
+  // its cream text sat on the light card.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Theme(
+    data: AppTheme.lightTheme,
+    child: Builder(builder: _buildCard),
+  );
+
+  Widget _buildCard(BuildContext context) {
     final theme = Theme.of(context);
 
     return BackdropFilter(

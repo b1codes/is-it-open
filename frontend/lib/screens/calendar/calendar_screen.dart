@@ -171,7 +171,7 @@ class _CalendarScreenContent extends StatelessWidget {
       for (final window in windows) {
         controller.add(
           CalendarEventData(
-            title: '${window.placeCount} places open',
+            title: window.label,
             date: window.date,
             startTime: window.startTime,
             endTime: window.endTime,

@@ -5,6 +5,7 @@ import '../../models/user.dart';
 import '../../components/shared/address_input_accordion.dart';
 import '../../components/shared/glass_card.dart';
 import '../../screens/profile/settings_screen.dart';
+import '../../utils/places_theme.dart';
 
 class MeScreen extends StatefulWidget {
   final bool embedded;
@@ -236,9 +237,11 @@ class _MeScreenState extends State<MeScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 40,
+                                // Solid: primary initials on a 20% primary
+                                // tint over the glass were under 3:1.
                                 backgroundColor: Theme.of(
                                   context,
-                                ).colorScheme.primary.withValues(alpha: 0.2),
+                                ).colorScheme.primary,
                                 child: Text(
                                   _getInitials(user),
                                   style: Theme.of(context)
@@ -247,7 +250,7 @@ class _MeScreenState extends State<MeScreen> {
                                       ?.copyWith(
                                         color: Theme.of(
                                           context,
-                                        ).colorScheme.primary,
+                                        ).colorScheme.onPrimary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                 ),
@@ -273,7 +276,9 @@ class _MeScreenState extends State<MeScreen> {
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
-                                            ?.copyWith(color: Colors.grey[600]),
+                                            ?.copyWith(
+                                              color: context.places.ink,
+                                            ),
                                       ),
                                     ],
                                   ],

@@ -5,6 +5,7 @@ import 'login_screen.dart';
 import '../../components/shared/glass_card.dart';
 import '../../components/shared/thermal_button.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/places_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,9 +23,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final places = context.places;
 
     return Scaffold(
-      backgroundColor: AppColors.paperWarm,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
@@ -55,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text(
                     'Join the neighborhood',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.inkWarmMuted,
+                      color: places.inkMuted,
                     ),
                   ),
                   const SizedBox(height: 64),
@@ -175,7 +177,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Text(
                           'Sign in',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.terracotta,
+                            color: places.anchor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

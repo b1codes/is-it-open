@@ -80,7 +80,7 @@ void main() {
       await pump(tester, _data([_openOn(0, 'monday'), _openOn(6, 'sunday')]));
       final days = _tiles(
         tester,
-        '1 places open',
+        '1 place open',
       ).map((t) => t.date.weekday).toSet();
       expect(days, {DateTime.monday, DateTime.sunday});
     });
@@ -137,12 +137,12 @@ void main() {
           ],
         ),
       );
-      expect(_tiles(tester, '1 places open'), isNotEmpty);
+      expect(_tiles(tester, '1 place open'), isNotEmpty);
       expect(_tiles(tester, 'Dentist'), isNotEmpty);
 
       await tester.tap(find.text('Places'));
       await tester.pumpAndSettle();
-      expect(_tiles(tester, '1 places open'), isEmpty);
+      expect(_tiles(tester, '1 place open'), isEmpty);
 
       await tester.tap(find.text('Personal'));
       await tester.pumpAndSettle();

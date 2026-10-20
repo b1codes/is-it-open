@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 /// Technical Luxury Design System Tokens
 class AppColors {
   // Brand Anchor
-  static const Color terracotta = Color(0xFFD66A4D); // oklch(60% 0.12 45)
+  // PlacesTheme.light.anchor. The earlier #D66A4D gave white button labels
+  // and terracotta links on paper only about 3.3:1, under WCAG AA's 4.5:1.
+  static const Color terracotta = Color(0xFFB14E27); // ≈ oklch(54% 0.14 45)
 
   // Neutrals (Paper & Ink)
   static const Color paperWarm = Color(0xFFF9F7F2); // oklch(97% 0.008 60)
