@@ -186,6 +186,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         hourIndicatorSettings: HourIndicatorSettings(color: theme.ashSoft),
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: theme.anchor,
+          currentTimeProvider: clock.now,
         ),
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
@@ -236,6 +237,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: theme.anchor,
           showBullet: false,
+          currentTimeProvider: clock.now,
         ),
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
