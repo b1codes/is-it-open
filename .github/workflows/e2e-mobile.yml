@@ -9,8 +9,6 @@ on:
   # TEMPORARY: verifies this workflow on its PR. Remove before merging.
   pull_request:
     branches: [ main ]
-    paths:
-      - '.github/workflows/e2e-mobile.yml'
 
 permissions:
   contents: read

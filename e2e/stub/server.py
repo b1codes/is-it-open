@@ -161,6 +161,13 @@ def ical_feed() -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
+class Server(ThreadingHTTPServer):
+    # The map asks for a few dozen tiles at once. With the default backlog of 5, macOS drops the
+    # extra connections (the iOS simulator saw connect timeouts); Linux happened to cope.
+    request_queue_size = 128
+    daemon_threads = True
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlsplit(self.path)
@@ -205,4 +212,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"E2E stub listening on :{PORT}, fixtures from {FIXTURES}", flush=True)
-    ThreadingHTTPServer(("", PORT), Handler).serve_forever()
+    Server(("", PORT), Handler).serve_forever()
