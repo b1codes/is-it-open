@@ -74,6 +74,8 @@ set -a
 set +a
 export FIRESTORE_EMULATOR_HOST=127.0.0.1:18080
 export TOMTOM_BASE_URL=http://127.0.0.1:18090/search/2
+# The calendar proxy only fetches from public hosts, except the stub's iCal feed.
+export SAFE_FETCH_PRIVATE_HOSTS=127.0.0.1
 
 wait_for firestore http://127.0.0.1:18080/
 wait_for stub http://127.0.0.1:18090/health

@@ -40,9 +40,9 @@ A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
 - **Seed data** (`backend/apps/users/management/commands/seed_e2e.py`): the account `e2e-seeded` / `e2e-password`, with a home in Springfield, IL and two bookmarks: Joe's Pizza (pinned) and Riverside Community Garden, a custom place that only local search finds. The command refuses to run without `FIRESTORE_EMULATOR_HOST`, so the known login can't reach a real project.
 - **Stub:**
   - **TomTom** (the backend's `TOMTOM_BASE_URL` points here): search, nearby, place by ID, and geocode, served from the recorded contract fixtures in `contracts/tomtom/fixtures` with dates moved to today. It adds two places whose status doesn't depend on the clock: *All Day Diner* (open 24 hours) and *Night Owl Bakery* (open only 03:00–03:01, so closed). A query or address containing `outage` gets a 503. Every address geocodes to 39.80178, -89.64352.
-  - **An iCal feed** at `/calendar/e2e.ics`, with one event a day from yesterday to tomorrow.
+  - **An iCal feed** at `/calendar/e2e.ics`, with one event a day from yesterday to tomorrow. The backend's calendar proxy only fetches from public addresses, so the stack lets it reach the stub's host with `SAFE_FETCH_PRIVATE_HOSTS` (`stub`, or `127.0.0.1` without Docker).
   - **Blank map tiles**, so the app never loads OpenStreetMap or Carto (`envs/e2e.json` points the map here).
-- **Auth:** journeys sign in with a username and password, the app's own token path. Auth0 isn't used: `AUTH0_MOCK` is off and Auth0 tokens are checked against a domain that doesn't resolve, so all of them are rejected. Never turn `AUTH0_MOCK` on outside a throwaway stack.
+- **Auth:** journeys sign in with a username and password, the app's own token path. Auth0 isn't used: `AUTH0_MOCK` is off and Auth0 tokens are checked against a domain that doesn't resolve, so all of them are rejected. The backend refuses to start with `AUTH0_MOCK` on and `DEBUG` off.
 - **The app:** `--dart-define=ENV=e2e` loads `frontend/envs/e2e.json`. It points the API at `127.0.0.1:18000` and the map tiles at the stub, and raises the API receive timeout from 3 to 20 seconds, because CI runners and the emulator are slower than production.
 
 ### Without Docker

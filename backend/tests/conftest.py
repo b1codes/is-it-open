@@ -8,11 +8,15 @@ Shared pytest fixtures.
   Auth0 JWT), and `any_auth_client`, which runs the test once with each kind of credential.
 - HTTP: `http_mock` fails any outbound request that isn't registered on it; `tomtom` and
   `auth0_tenant` register the TomTom API and an Auth0 tenant's JWKS on it.
+- DNS: `dns` fakes name lookups for services/safe_fetch.py (the iCal proxy), so no test looks a
+  name up.
 """
 
 import datetime
+import ipaddress
 import json
 import os
+import socket
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +33,7 @@ from jwt.algorithms import RSAAlgorithm
 from apps.places import repository as places
 from apps.users import auth as auth_module
 from apps.users import repository as users
+from services import safe_fetch
 from services.firestore import clear_emulator
 from tests import factories
 from tests.base import TEST_PROJECT
@@ -50,6 +55,7 @@ def _isolate(settings):
     settings.AUTH0_MOCK = False  # the default; make_auth0_token turns mock mode on
     settings.AUTH0_DOMAIN = ""
     settings.AUTH0_AUDIENCE = ""
+    settings.SAFE_FETCH_PRIVATE_HOSTS = []
     cache.clear()
     auth_module._jwks_cache.clear()
     yield
@@ -69,6 +75,37 @@ def firestore_db(settings):
 
 
 # --- Outbound HTTP ---
+
+# What `dns` resolves an unknown name to: a public address (example.com's), so safe_fetch allows it.
+PUBLIC_TEST_ADDRESS = "93.184.215.14"
+
+
+def _is_ip_literal(host: str) -> bool:
+    try:
+        socket.getaddrinfo(host, None, flags=socket.AI_NUMERICHOST)  # local; also takes "127.1", "0x7f000001"
+    except socket.gaierror:
+        return False
+    return True
+
+
+@pytest.fixture(autouse=True)
+def dns(monkeypatch):
+    """
+    Fake DNS for safe_fetch. A name in the returned dict resolves to its addresses; IP literals (in
+    any form getaddrinfo takes) and localhost resolve as usual; any other name to PUBLIC_TEST_ADDRESS.
+    """
+    records: dict[str, list[str]] = {}
+    real_resolve = safe_fetch.resolve
+
+    def resolve(host, port):
+        if host in records:
+            return [ipaddress.ip_address(a) for a in records[host]]
+        if host == "localhost" or _is_ip_literal(host):
+            return real_resolve(host, port)
+        return [ipaddress.ip_address(PUBLIC_TEST_ADDRESS)]
+
+    monkeypatch.setattr(safe_fetch, "resolve", resolve)
+    return records
 
 
 @pytest.fixture

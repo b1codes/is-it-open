@@ -38,6 +38,8 @@ services:
     environment:
       FIRESTORE_EMULATOR_HOST: firestore:8080
       TOMTOM_BASE_URL: http://stub:8090/search/2
+      # The calendar proxy only fetches from public hosts, except the stub's iCal feed.
+      SAFE_FETCH_PRIVATE_HOSTS: stub
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/openapi.json"]
       interval: 2s

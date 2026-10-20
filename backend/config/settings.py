@@ -76,6 +76,12 @@ TOMTOM_API_KEY = config("TOMTOM_API_KEY", default="")
 # Only the E2E stack changes this, to point TomTom calls at its stub server (see e2e/README.md).
 TOMTOM_BASE_URL = config("TOMTOM_BASE_URL", default="https://api.tomtom.com/search/2")
 
+# Hosts services/safe_fetch.py may fetch from although they resolve to private addresses. Only the
+# E2E stack sets this, for its stub server; anywhere else, user-supplied URLs only reach public hosts.
+SAFE_FETCH_PRIVATE_HOSTS = config(
+    "SAFE_FETCH_PRIVATE_HOSTS", default="", cast=lambda v: [s.strip() for s in v.split(",") if s.strip()]
+)
+
 # Auth0 Configuration
 AUTH0_DOMAIN = config("AUTH0_DOMAIN", default="")
 AUTH0_AUDIENCE = config("AUTH0_AUDIENCE", default="")
