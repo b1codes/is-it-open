@@ -535,19 +535,44 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(initialCenter: _currentLocation!, initialZoom: 13.0),
-      children: [
-        TileLayer(
-          urlTemplate: EnvConfig.mapTileUrl(
-            dark: Theme.of(context).brightness == Brightness.dark,
-          ),
-          userAgentPackageName: 'com.brandonlc.isitopen',
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) =>
+          _homeOf(current) != null && _homeOf(current) != _homeOf(previous),
+      listener: (context, state) => _recenterOnNewHome(state),
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _currentLocation!,
+          initialZoom: 13.0,
         ),
-        if (markers.isNotEmpty) MarkerLayer(markers: markers),
-      ],
+        children: [
+          TileLayer(
+            urlTemplate: EnvConfig.mapTileUrl(
+              dark: Theme.of(context).brightness == Brightness.dark,
+            ),
+            userAgentPackageName: 'com.brandonlc.isitopen',
+          ),
+          if (markers.isNotEmpty) MarkerLayer(markers: markers),
+        ],
+      ),
     );
+  }
+
+  static LatLng? _homeOf(AuthState state) {
+    if (state is! AuthAuthenticated) return null;
+    final user = state.user;
+    if (user.homeLat == null || user.homeLng == null) return null;
+    return LatLng(user.homeLat!, user.homeLng!);
+  }
+
+  // A newly saved home address moves the map there, unless the map follows
+  // the device. Before, the map only centred on home when it was created.
+  void _recenterOnNewHome(AuthState state) {
+    final home = _homeOf(state)!;
+    final user = (state as AuthAuthenticated).user;
+    if (user.useCurrentLocation && _userPosition != null) return;
+    setState(() => _currentLocation = home);
+    _mapController.move(home, 13.0);
   }
 
   @override

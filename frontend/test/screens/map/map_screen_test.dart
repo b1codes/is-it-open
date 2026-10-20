@@ -114,6 +114,76 @@ void main() {
       });
     }
 
+    group('a newly saved home', () {
+      final newHome = User.fromJson({
+        ...demoUser.toJson(),
+        'home_lat': 39.8,
+        'home_lng': -89.6,
+      });
+
+      Future<void> saveHome(WidgetTester tester, User user) async {
+        tester
+            .element(find.byType(MapScreen))
+            .read<AuthBloc>()
+            // ignore: invalid_use_of_visible_for_testing_member
+            .emit(ProfileUpdateSuccess(user: user));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('recentres the map on it', (tester) async {
+        await pump(
+          tester,
+          geolocator: FakeGeolocator(serviceEnabled: false),
+          user: noHome,
+        );
+        await saveHome(tester, newHome);
+        expect(_center(tester), const LatLng(39.8, -89.6));
+
+        await saveHome(
+          tester,
+          User.fromJson({...newHome.toJson(), 'home_lat': 41.0}),
+        );
+        expect(_center(tester), const LatLng(41.0, -89.6));
+        await tester.unmount();
+      });
+
+      testWidgets('leaves a map that follows the device where it is', (
+        tester,
+      ) async {
+        final following = User.fromJson({
+          ...noHome.toJson(),
+          'use_current_location': true,
+        });
+        await pump(
+          tester,
+          geolocator: FakeGeolocator(position: here),
+          user: following,
+        );
+        await saveHome(
+          tester,
+          User.fromJson({...newHome.toJson(), 'use_current_location': true}),
+        );
+        expect(_center(tester), herePoint);
+        await tester.unmount();
+      });
+
+      testWidgets('a profile save that keeps the home leaves the map', (
+        tester,
+      ) async {
+        await pump(tester, geolocator: FakeGeolocator(serviceEnabled: false));
+        final controller = tester
+            .widget<FlutterMap>(find.byType(FlutterMap))
+            .mapController!;
+        controller.move(const LatLng(10, 10), 13);
+        await saveHome(
+          tester,
+          User.fromJson({...demoUser.toJson(), 'first_name': 'Renamed'}),
+        );
+        expect(_center(tester), const LatLng(10, 10));
+        await tester.unmount();
+      });
+    });
+
     testWidgets('falls back to New York without a home', (tester) async {
       await pump(
         tester,
