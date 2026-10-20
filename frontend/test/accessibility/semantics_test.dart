@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsAction, Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/components/places/status_pill.dart';
@@ -117,7 +119,9 @@ void main() {
       await pumpMap(tester, onPlaceTapped: tapped.add);
 
       final marker = find.semantics.byLabel('Friday burger spot');
-      expect(marker, containsSemantics(isButton: true, hasTapAction: true));
+      final data = marker.evaluate().single.getSemanticsData();
+      expect(data.flagsCollection.isButton, isTrue);
+      expect(data.hasAction(SemanticsAction.tap), isTrue);
       tester.semantics.tap(marker);
       expect(tapped.single.customName, 'Friday burger spot');
 
@@ -147,10 +151,12 @@ void main() {
     );
     // The spinner hides the label; it used to drop it from semantics too,
     // leaving an unnamed button.
-    expect(
-      tester.getSemantics(find.byType(ThermalButton)),
-      containsSemantics(label: 'JOIN', isButton: true, isEnabled: false),
-    );
+    final data = tester
+        .getSemantics(find.byType(ThermalButton))
+        .getSemanticsData();
+    expect(data.label, 'JOIN');
+    expect(data.flagsCollection.isButton, isTrue);
+    expect(data.flagsCollection.isEnabled, Tristate.isFalse);
     await tester.unmount();
     semantics.dispose();
   });
