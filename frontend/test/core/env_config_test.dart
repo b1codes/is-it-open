@@ -11,6 +11,14 @@ void main() {
     expect(EnvConfig.auth0Domain, 'is-it-open.us.auth0.com');
     expect(EnvConfig.auth0ClientId, 'mock_client_id');
     expect(EnvConfig.auth0Audience, 'https://is-it-open/api');
+    expect(
+      EnvConfig.mapTileUrl(dark: false),
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    );
+    expect(
+      EnvConfig.mapTileUrl(dark: true),
+      'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    );
   });
 
   test('reads envs/dev.json after init', () async {
@@ -25,5 +33,16 @@ void main() {
           ? 'http://127.0.0.1:8000/api'
           : anyOf('http://127.0.0.1:8000/api', 'http://10.0.2.2:8000/api'),
     );
+  });
+
+  test('envs/e2e.json points the API and map tiles at the E2E stack', () async {
+    await EnvConfig.init(env: 'e2e');
+    expect(EnvConfig.apiBaseUrl, 'http://127.0.0.1:18000/api');
+    for (final dark in [false, true]) {
+      expect(
+        EnvConfig.mapTileUrl(dark: dark),
+        'http://127.0.0.1:18090/tiles/{z}/{x}/{y}.png',
+      );
+    }
   });
 }

@@ -39,10 +39,15 @@ class ApiService {
 
   /// [httpClientAdapter] replaces Dio's transport, so tests can serve
   /// canned responses while the real interceptors and error mapping run.
-  ApiService({@visibleForTesting HttpClientAdapter? httpClientAdapter}) {
+  /// [baseUrl] replaces the configured one (the E2E journeys point it at a
+  /// port with no backend).
+  ApiService({
+    @visibleForTesting HttpClientAdapter? httpClientAdapter,
+    @visibleForTesting String? baseUrl,
+  }) {
     _dio = Dio(
       BaseOptions(
-        baseUrl: EnvConfig.apiBaseUrl,
+        baseUrl: baseUrl ?? EnvConfig.apiBaseUrl,
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 3),
         headers: {'Content-Type': 'application/json'},

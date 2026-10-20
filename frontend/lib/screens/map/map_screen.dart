@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../core/env_config.dart';
 import '../../bloc/map/map_ui_cubit.dart';
 import '../../bloc/map/map_ui_state.dart';
 import '../../models/user.dart';
@@ -539,9 +540,9 @@ class _MapScreenState extends State<MapScreen> {
       options: MapOptions(initialCenter: _currentLocation!, initialZoom: 13.0),
       children: [
         TileLayer(
-          urlTemplate: Theme.of(context).brightness == Brightness.dark
-              ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: EnvConfig.mapTileUrl(
+            dark: Theme.of(context).brightness == Brightness.dark,
+          ),
           userAgentPackageName: 'com.brandonlc.isitopen',
         ),
         if (markers.isNotEmpty) MarkerLayer(markers: markers),
