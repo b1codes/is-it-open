@@ -663,6 +663,7 @@ class _FilterChips extends StatelessWidget {
       onTap: () => onChanged(value),
       borderRadius: BorderRadius.circular(PlacesRadius.pill),
       child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(
           horizontal: PlacesSpacing.md,
           vertical: PlacesSpacing.sm,
@@ -1171,7 +1172,8 @@ class _PrimaryAction extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(PlacesRadius.md),
         onTap: onPressed,
-        child: Padding(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(
             horizontal: PlacesSpacing.lg,
             vertical: PlacesSpacing.md,
@@ -1213,6 +1215,7 @@ class _SecondaryAction extends StatelessWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(PlacesRadius.md),
       child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(
           horizontal: PlacesSpacing.lg,
           vertical: PlacesSpacing.md,

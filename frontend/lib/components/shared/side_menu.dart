@@ -178,6 +178,7 @@ class SideMenu extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(PlacesRadius.md),
           child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [

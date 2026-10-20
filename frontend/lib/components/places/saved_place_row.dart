@@ -119,10 +119,10 @@ class _TodayToggle extends StatelessWidget {
     // TextButton is its own semantics node, so the spoken label goes on its
     // text; a Semantics wrapper around the button would be dropped.
     return SizedBox(
-      height: 44,
+      height: 48,
       child: TextButton(
         style: TextButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(
             horizontal: PlacesSpacing.md,
             vertical: PlacesSpacing.sm,
