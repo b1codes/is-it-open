@@ -1,9 +1,10 @@
 name: Dependency audit
 
-# Known vulnerabilities in the locked dependencies: pip-audit for the backend (PyPI's advisories)
-# and osv-scanner for every lockfile, including the Flutter app's and Widgetbook's pub packages.
-# Called by ci.yml when a lockfile changes (so a PR can't add a vulnerable version) and by
-# nightly.yml (for advisories published since). See "Security" in TESTING.md.
+# Known vulnerabilities in the dependencies: pip-audit for the backend's locked packages (PyPI's
+# advisories), and osv-scanner for those and the Flutter app's and Widgetbook's pub packages. The
+# pubspec.lock files aren't committed, so this resolves them as the Flutter jobs do. Called by ci.yml
+# when the dependencies change (so a PR can't add a vulnerable version) and by nightly.yml (for
+# advisories published since). See "Security" in TESTING.md.
 on:
   workflow_call:
 
@@ -30,7 +31,8 @@ jobs:
           status=0
           uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/requirements.txt" --require-hashes --disable-pip \
             --progress-spinner off --desc --format markdown -o "$RUNNER_TEMP/pip-audit.md" || status=$?
-          { echo "## pip-audit (backend)"; echo; cat "$RUNNER_TEMP/pip-audit.md"; } >> "$GITHUB_STEP_SUMMARY"
+          # pip-audit only writes the report when it finds something.
+          { echo "## pip-audit (backend)"; echo; cat "$RUNNER_TEMP/pip-audit.md" 2>/dev/null || echo "No known vulnerabilities found."; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
 
   osv-scanner:
@@ -39,6 +41,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Resolve the pub packages
+        run: |
+          (cd frontend && flutter pub get)
+          (cd frontend/widgetbook && flutter pub get)
 
       - name: Scan
         run: |

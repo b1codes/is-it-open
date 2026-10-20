@@ -63,8 +63,8 @@ jobs:
               - '.github/workflows/dependency-audit.yml'
               - 'backend/pyproject.toml'
               - 'backend/uv.lock'
-              - 'frontend/pubspec.lock'
-              - 'frontend/widgetbook/pubspec.lock'
+              - 'frontend/pubspec.yaml'
+              - 'frontend/widgetbook/pubspec.yaml'
 
   backend:
     name: Backend
@@ -418,7 +418,7 @@ jobs:
           --fail-on ERR --format githubactions
           --err-ignore contracts/breaking-changes-ignore.txt
 
-  # Known vulnerabilities in the locked dependencies, when a lockfile changes. nightly.yml runs the
+  # Known vulnerabilities in the dependencies, when they change. nightly.yml runs the
   # same audit every day, for advisories published since.
   dependency-audit:
     name: Dependency audit
