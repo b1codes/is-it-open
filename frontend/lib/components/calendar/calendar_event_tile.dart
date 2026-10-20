@@ -19,6 +19,11 @@ class CalendarEventTileWidget extends StatelessWidget {
     required this.endDuration,
   });
 
+  /// Marks an event block in the semantics tree. Its height is its duration
+  /// on the time grid, so a short event can't be a 48px tap target; the
+  /// accessibility tests exempt these blocks from the tap target size check.
+  static const semanticsIdentifier = 'calendar-event';
+
   @override
   Widget build(BuildContext context) {
     if (events.isEmpty) return const SizedBox.shrink();
@@ -30,30 +35,34 @@ class CalendarEventTileWidget extends StatelessWidget {
     final isPersonalEvent = event.color == theme.inkMuted;
     final isBusinessBlock = !isPersonalEvent;
 
-    return AnimatedContainer(
-      duration: PlacesMotion.of(context, const Duration(milliseconds: 300)),
-      curve: Curves.easeInOut,
-      decoration: BoxDecoration(
-        color: isBusinessBlock
-            ? event.color.withValues(alpha: 0.15)
-            : event.color.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.zero,
-        border: Border.all(
+    return Semantics(
+      identifier: semanticsIdentifier,
+      child: AnimatedContainer(
+        duration: PlacesMotion.of(context, const Duration(milliseconds: 300)),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
           color: isBusinessBlock
-              ? event.color.withValues(alpha: 0.5)
-              : event.color,
-          width: 1.5,
+              ? event.color.withValues(alpha: 0.15)
+              : event.color.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.zero,
+          border: Border.all(
+            color: isBusinessBlock
+                ? event.color.withValues(alpha: 0.5)
+                : event.color,
+            width: 1.5,
+          ),
         ),
+        child: isBusinessBlock
+            ? _buildBusinessBlock(context, event)
+            : _buildPersonalBlock(context, event),
       ),
-      child: isBusinessBlock
-          ? _buildBusinessBlock(context, event)
-          : _buildPersonalBlock(context, event),
     );
   }
 
   Widget _buildBusinessBlock(BuildContext context, CalendarEventData event) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      // In ink rather than the block's color, which is 15% opaque.
       child: Text(
         event.title,
         style: PlacesType.label(
@@ -74,7 +83,6 @@ class CalendarEventTileWidget extends StatelessWidget {
         : PlacesTheme.dark.paper;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      // In ink rather than the block's color, which is 15% opaque.
       child: Text(
         event.title,
         style: PlacesType.label(
