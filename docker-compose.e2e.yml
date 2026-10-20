@@ -1,0 +1,66 @@
+# E2E stack: the production backend image with everything it talks to, isolated from local dev.
+# It has its own compose project, ports and an emulator that starts empty, so it can run next to
+# `make up` without touching dev data. See e2e/README.md.
+#
+#   make e2e-up      # build, start, seed, and wait until healthy
+#   make test-e2e    # run the Flutter journeys against it
+#   make e2e-down
+name: is-it-open-e2e
+
+services:
+  # Firestore emulator without the dev entrypoint's import/export: every start is empty.
+  firestore:
+    build: ./docker/firestore-emulator
+    entrypoint: ["firebase", "emulators:start", "--only", "firestore", "--project", "demo-is-it-open-e2e"]
+
+  # TomTom, the iCal feed and map tiles (e2e/stub/server.py), from the recorded contract fixtures.
+  stub:
+    build: ./e2e/stub
+    volumes:
+      - ./contracts/tomtom/fixtures:/fixtures:ro
+    ports:
+      # The app loads map tiles from here directly.
+      - "18090:8090"
+
+  # The backend image (production build) with the E2E settings below.
+  backend: &backend
+    image: is-it-open-e2e-backend
+    build:
+      context: ./backend
+    ports:
+      - "18000:8000"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      stub:
+        condition: service_healthy
+    environment:
+      DEBUG: "0"
+      SECRET_KEY: e2e-only-not-secret
+      ALLOWED_HOSTS: "*"
+      CORS_ALLOW_ALL_ORIGINS: "1"
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open-e2e
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+      TOMTOM_API_KEY: e2e-stub-key
+      TOMTOM_BASE_URL: http://stub:8090/search/2
+      # The journeys sign in with username and password. Auth0 tokens are verified against a
+      # domain that doesn't resolve, so they're all rejected: AUTH0_MOCK stays off here too.
+      AUTH0_MOCK: "0"
+      AUTH0_DOMAIN: auth0.invalid
+      AUTH0_AUDIENCE: https://is-it-open.invalid/api
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/openapi.json"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # Adds the known account and places (apps/users/management/commands/seed_e2e.py), then exits.
+  seed:
+    <<: *backend
+    command: ["python", "manage.py", "seed_e2e"]
+    ports: []
+    depends_on:
+      firestore:
+        condition: service_healthy
+    healthcheck:
+      disable: true

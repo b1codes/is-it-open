@@ -5,6 +5,7 @@
 	test test-backend test-frontend test-widgetbook \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
+	e2e-up e2e-down e2e-logs \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -88,6 +89,20 @@ coverage-frontend:
 # Regenerate contracts/openapi.json after an intended API change
 contracts-update:
 	docker compose run --rm -e SECRET_KEY=test-only-not-secret -e UPDATE_CONTRACTS=1 backend pytest tests/contracts/test_openapi_snapshot.py
+
+# --- E2E stack (see e2e/README.md) ---
+
+E2E_COMPOSE = docker compose -f docker-compose.e2e.yml
+
+# Build and start the stack from scratch (empty emulator, then seeded), and wait until it's healthy
+e2e-up:
+	$(E2E_COMPOSE) up -d --build --force-recreate --wait
+
+e2e-down:
+	$(E2E_COMPOSE) down -v
+
+e2e-logs:
+	$(E2E_COMPOSE) logs -f
 
 # --- Mutation testing (slow; runs nightly in CI) ---
 
