@@ -403,61 +403,21 @@ class _MapScreenState extends State<MapScreen> {
     if (user != null) {
       if (user.homeLat != null && user.homeLng != null) {
         markers.add(
-          Marker(
-            point: LatLng(user.homeLat!, user.homeLng!),
-            width: 40,
-            height: 40,
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.markerHome,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Icon(Icons.location_on, color: theme.markerHome, size: 40),
-                Positioned(
-                  top: 8,
-                  child: const Icon(Icons.home, color: Colors.white, size: 16),
-                ),
-              ],
-            ),
+          _pinMarker(
+            LatLng(user.homeLat!, user.homeLng!),
+            label: 'Home',
+            color: theme.markerHome,
+            icon: Icons.home,
           ),
         );
       }
       if (user.workLat != null && user.workLng != null) {
         markers.add(
-          Marker(
-            point: LatLng(user.workLat!, user.workLng!),
-            width: 40,
-            height: 40,
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.markerWork,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Icon(Icons.location_on, color: theme.markerWork, size: 40),
-                Positioned(
-                  top: 8,
-                  child: const Icon(Icons.work, color: Colors.white, size: 16),
-                ),
-              ],
-            ),
+          _pinMarker(
+            LatLng(user.workLat!, user.workLng!),
+            label: 'Work',
+            color: theme.markerWork,
+            icon: Icons.work,
           ),
         );
       }
@@ -466,45 +426,14 @@ class _MapScreenState extends State<MapScreen> {
     int colorIndex = 0;
     for (final sp in _savedPlaces) {
       if (_checkedPlaceIds.contains(sp.place.tomtomId)) {
-        final color = GraphicsHelper.colorForSavedPlace(sp, colorIndex);
         final iconName = sp.icon ?? 'star';
-        final iconData = _availableIcons[iconName] ?? Icons.star;
-        final lat = sp.place.location.latitude;
-        final lon = sp.place.location.longitude;
-
         markers.add(
-          Marker(
-            point: LatLng(lat, lon),
-            width: 40,
-            height: 40,
-            child: GestureDetector(
-              onTap: () {
-                if (widget.onPlaceTapped != null) {
-                  widget.onPlaceTapped!(sp);
-                }
-              },
-              child: Stack(
-                alignment: Alignment.topCenter,
-                children: [
-                  Positioned(
-                    top: 6,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.location_on, color: color, size: 40),
-                  Positioned(
-                    top: 8,
-                    child: Icon(iconData, color: Colors.white, size: 16),
-                  ),
-                ],
-              ),
-            ),
+          _pinMarker(
+            LatLng(sp.place.location.latitude, sp.place.location.longitude),
+            label: _displayName(sp),
+            color: GraphicsHelper.colorForSavedPlace(sp, colorIndex),
+            icon: _availableIcons[iconName] ?? Icons.star,
+            onTap: () => widget.onPlaceTapped?.call(sp),
           ),
         );
       }
@@ -517,18 +446,22 @@ class _MapScreenState extends State<MapScreen> {
           point: _userPosition!,
           width: 22,
           height: 22,
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.markerPosition,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.markerPosition.withValues(alpha: 0.4),
-                  spreadRadius: 4,
-                  blurRadius: 6,
-                ),
-              ],
+          child: Semantics(
+            container: true,
+            label: 'Your location',
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.markerPosition,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.markerPosition.withValues(alpha: 0.4),
+                    spreadRadius: 4,
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -539,21 +472,76 @@ class _MapScreenState extends State<MapScreen> {
       listenWhen: (previous, current) =>
           _homeOf(current) != null && _homeOf(current) != _homeOf(previous),
       listener: (context, state) => _recenterOnNewHome(state),
-      child: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: _currentLocation!,
-          initialZoom: 13.0,
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: EnvConfig.mapTileUrl(
-              dark: Theme.of(context).brightness == Brightness.dark,
-            ),
-            userAgentPackageName: 'com.brandonlc.isitopen',
+      // The map's own gesture detector exposes a tap action; name it.
+      child: Semantics(
+        label: 'Map',
+        container: true,
+        child: FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _currentLocation!,
+            initialZoom: 13.0,
           ),
-          if (markers.isNotEmpty) MarkerLayer(markers: markers),
-        ],
+          children: [
+            TileLayer(
+              urlTemplate: EnvConfig.mapTileUrl(
+                dark: Theme.of(context).brightness == Brightness.dark,
+              ),
+              userAgentPackageName: 'com.brandonlc.isitopen',
+            ),
+            if (markers.isNotEmpty) MarkerLayer(markers: markers),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A map pin, announced to screen readers by [label]. The marker is a 48px
+  /// square, the minimum tap target, with the 40px pin drawn where it was
+  /// in the old 40px marker.
+  Marker _pinMarker(
+    LatLng point, {
+    required String label,
+    required Color color,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return Marker(
+      point: point,
+      width: 48,
+      height: 48,
+      child: Semantics(
+        container: true,
+        button: onTap != null,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                Positioned(
+                  top: 6,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Icon(Icons.location_on, color: color, size: 40),
+                Positioned(
+                  top: 8,
+                  child: Icon(icon, color: Colors.white, size: 16),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -657,6 +645,7 @@ class _MapScreenState extends State<MapScreen> {
                                   ),
                                 IconButton(
                                   icon: const Icon(Icons.refresh, size: 18),
+                                  tooltip: 'Refresh Places',
                                   onPressed: () {
                                     setState(() => _isLoadingPlaces = true);
                                     _loadSavedPlaces();
@@ -696,6 +685,7 @@ class _MapScreenState extends State<MapScreen> {
                   Builder(
                     builder: (context) => IconButton(
                       icon: const Icon(Icons.filter_list),
+                      tooltip: 'Places on the map',
                       onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
                   ),

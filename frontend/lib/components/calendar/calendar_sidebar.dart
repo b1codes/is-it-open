@@ -542,6 +542,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                           ),
                         )
                       : Icon(Icons.sync, size: 20, color: theme.ink),
+                  tooltip: 'Sync Subscription',
                   onPressed: dataState.isLoadingRemote
                       ? null
                       : () => context.read<CalendarDataBloc>().add(
@@ -550,6 +551,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                 ),
               IconButton(
                 icon: Icon(Icons.settings, size: 20, color: theme.ink),
+                tooltip: 'Subscription Settings',
                 onPressed: () => _showSubscriptionDialog(context, url),
               ),
             ],
@@ -598,6 +600,7 @@ class CalendarSidebarWidget extends StatelessWidget {
           'My Places',
           trailing: IconButton(
             icon: Icon(Icons.refresh, size: 20, color: theme.ink),
+            tooltip: 'Refresh Places',
             onPressed: () =>
                 context.read<CalendarDataBloc>().add(LoadSavedPlaces()),
           ),
@@ -613,6 +616,7 @@ class CalendarSidebarWidget extends StatelessWidget {
           trailing: dataState.hasCalendarPermission
               ? IconButton(
                   icon: Icon(Icons.sync, size: 20, color: theme.ink),
+                  tooltip: 'Sync Device Calendars',
                   onPressed: () => context.read<CalendarDataBloc>().add(
                     const InitDeviceCalendar(fromButton: true),
                   ),

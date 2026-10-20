@@ -108,12 +108,14 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         foregroundColor: theme.ink,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (_saved != null)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_horiz_rounded, color: theme.inkMuted),
+              tooltip: 'More options',
               color: theme.paperRaised,
               onSelected: (v) {
                 if (v == 'remove') _removeFromSaved();

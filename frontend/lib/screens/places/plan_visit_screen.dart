@@ -75,6 +75,7 @@ class _PlanVisitScreenState extends State<PlanVisitScreen> {
         foregroundColor: theme.ink,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => Navigator.pop(context, _current),
         ),
         title: Text('Plan visit', style: PlacesType.headline(theme.ink)),

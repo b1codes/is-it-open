@@ -446,6 +446,7 @@ class _MeScreenState extends State<MeScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
                   onPressed: () {
                     Navigator.push(
                       context,

@@ -75,6 +75,8 @@ class _ThermalButtonState extends State<ThermalButton>
               ),
               child: Opacity(
                 opacity: widget.isLoading ? 0.0 : 1.0,
+                // Keeps the button's label while the spinner replaces it.
+                alwaysIncludeSemantics: true,
                 child: DefaultTextStyle(
                   style: Theme.of(context).textTheme.labelLarge!.copyWith(
                     color: Colors.white,

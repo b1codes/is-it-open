@@ -405,6 +405,7 @@ class _CalendarScreenContent extends StatelessWidget {
                     Builder(
                       builder: (ctx) => IconButton(
                         icon: Icon(Icons.filter_list, color: theme.ink),
+                        tooltip: 'Calendar options',
                         onPressed: () => Scaffold.of(ctx).openEndDrawer(),
                       ),
                     ),

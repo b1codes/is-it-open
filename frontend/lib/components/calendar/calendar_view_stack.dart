@@ -16,6 +16,18 @@ String _weekDayShortName(int weekday) {
   return names[weekday - 1];
 }
 
+/// The empty background of a day column. calendar_view's default puts a tap
+/// detector on every 15-minute slot for creating events, which this app
+/// doesn't do, so screen readers would announce a column of unlabeled
+/// buttons that do nothing.
+Widget _emptySlots({
+  required DateTime date,
+  required double height,
+  required double width,
+  required double heightPerMinute,
+  required MinuteSlotSize minuteSlotSize,
+}) => SizedBox(width: width, height: height);
+
 Widget _buildTimeLineLabel(
   DateTime date,
   bool use24HourFormat,
@@ -123,6 +135,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         backgroundColor: theme.paper,
         headerStyle: HeaderStyle(decoration: BoxDecoration(color: theme.paper)),
         eventArranger: const StackEventArranger(),
+        dayDetectorBuilder: _emptySlots,
         eventTileBuilder:
             (date, events, boundary, startDuration, endDuration) =>
                 CalendarEventTileWidget(
@@ -212,6 +225,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         headerStyle: HeaderStyle(decoration: BoxDecoration(color: theme.paper)),
         weekTitleBackgroundColor: theme.paper,
         eventArranger: const StackEventArranger(),
+        weekDetectorBuilder: _emptySlots,
         eventTileBuilder:
             (date, events, boundary, startDuration, endDuration) =>
                 CalendarEventTileWidget(
@@ -342,6 +356,7 @@ class CalendarViewStackWidget extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 color: textColor,
+                tooltip: 'Previous',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
                     uiState.baseDate.subtract(Duration(days: daysToAdvance)),
@@ -361,6 +376,7 @@ class CalendarViewStackWidget extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 color: textColor,
+                tooltip: 'Next',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
                     uiState.baseDate.add(Duration(days: daysToAdvance)),

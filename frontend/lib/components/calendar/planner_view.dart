@@ -69,6 +69,7 @@ class PlannerView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.chevron_left),
             color: theme.ink,
+            tooltip: 'Previous',
             onPressed: onNavigateLeft,
           ),
           Expanded(
@@ -81,6 +82,7 @@ class PlannerView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.chevron_right),
             color: theme.ink,
+            tooltip: 'Next',
             onPressed: onNavigateRight,
           ),
           if (!isTodayVisible)

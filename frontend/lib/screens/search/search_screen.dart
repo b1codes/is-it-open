@@ -178,6 +178,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               prefixIcon: const Icon(Icons.search),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.clear),
+                                tooltip: 'Clear search',
                                 onPressed: () => _clearSearch(context),
                               ),
                               border: const OutlineInputBorder(),
