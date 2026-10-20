@@ -255,9 +255,9 @@ class _PlacesBody extends StatelessWidget {
                   horizontal: PlacesSpacing.lg,
                 ),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 320,
-                    mainAxisExtent: 168,
+                    mainAxisExtent: SavedPlaceTile.gridExtent(context),
                     crossAxisSpacing: PlacesSpacing.md,
                     mainAxisSpacing: PlacesSpacing.md,
                   ),
@@ -1183,12 +1183,14 @@ class _PrimaryAction extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: theme.anchorOnContrast),
               const SizedBox(width: PlacesSpacing.sm),
-              Text(
-                label,
-                style: TextStyle(
-                  color: theme.anchorOnContrast,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: theme.anchorOnContrast,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1230,12 +1232,14 @@ class _SecondaryAction extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: theme.ink),
             const SizedBox(width: PlacesSpacing.sm),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: theme.ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

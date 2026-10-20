@@ -33,8 +33,12 @@ class StatusPill extends StatelessWidget {
           border: Border.all(color: theme.unknownOutline, width: 1),
           borderRadius: BorderRadius.circular(PlacesRadius.pill),
         ),
+        // One line, like the other statuses: wrapped, it made the pill
+        // taller than a grid tile has room for at large text sizes.
         child: Text(
           'Hours unknown',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: theme.inkMuted,
             fontSize: fontSize,

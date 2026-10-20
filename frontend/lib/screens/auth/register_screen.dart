@@ -154,8 +154,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 48),
 
                   // Secondary Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wraps the link under the question when they don't fit
+                  // side by side (large text on a phone).
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Already a member?',

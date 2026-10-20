@@ -86,7 +86,7 @@ Widget buildSavedPlaceTileUseCase(BuildContext context) {
   );
   final height = context.knobs.double.slider(
     label: 'Cell height',
-    initialValue: 200,
+    initialValue: SavedPlaceTile.gridExtent(context),
     min: 160,
     max: 320,
   );
@@ -116,9 +116,9 @@ Widget buildSavedPlaceTileGridUseCase(BuildContext context) {
   return Scaffold(
     body: GridView.builder(
       padding: const EdgeInsets.all(PlacesSpacing.lg),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 220,
-        mainAxisExtent: 200,
+        mainAxisExtent: SavedPlaceTile.gridExtent(context),
         crossAxisSpacing: PlacesSpacing.md,
         mainAxisSpacing: PlacesSpacing.md,
       ),

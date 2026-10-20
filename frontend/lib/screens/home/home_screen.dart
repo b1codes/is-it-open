@@ -136,11 +136,14 @@ class _HomeScreenState extends State<HomeScreen>
                   children: [
                     Icon(Icons.search_rounded, color: theme.inkMuted),
                     const SizedBox(width: 12),
-                    Text(
-                      'Search or plan route...',
-                      style: PlacesType.bodySmall(theme.inkMuted),
+                    Expanded(
+                      child: Text(
+                        'Search or plan route...',
+                        style: PlacesType.bodySmall(theme.inkMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,

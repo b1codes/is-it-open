@@ -60,49 +60,6 @@ const _devices = [
 const _themes = ['Light', 'Dark'];
 const _textScales = [1.0, 2.0];
 
-/// Layout overflows the goldens currently show (as yellow-and-black stripes),
-/// by use case and the source location of the widget that overflows. Tracked
-/// in https://github.com/b1codes/is-it-open/issues/47.
-///
-/// A listed overflow doesn't fail its test; any other overflow does. A listed
-/// one that no longer happens anywhere in its use case's matrix fails too, so
-/// remove it from here once it's fixed (and update the goldens).
-const _knownOverflows = <String, Set<String>>{
-  'components/calendar/plannerview/default': {
-    'lib/components/calendar/planner_view.dart:305',
-  },
-  'components/places/savedplacetile/default': {
-    'lib/components/places/saved_place_tile.dart:50',
-  },
-  'components/places/savedplacetile/grid': {
-    'lib/components/places/saved_place_tile.dart:50',
-  },
-  'components/shared/auth0universallogindialog/default': {
-    'lib/components/shared/auth0_universal_login_dialog.dart:336',
-    'lib/components/shared/auth0_universal_login_dialog.dart:395',
-  },
-  'screens/auth/loginscreen/default': _loginScreenOverflows,
-  'screens/auth/loginscreen/signing-in': _loginScreenOverflows,
-  'screens/auth/registerscreen/default': {
-    'lib/screens/auth/register_screen.dart:155',
-  },
-  'screens/auth/registerscreen/creating-account': {
-    'lib/screens/auth/register_screen.dart:155',
-  },
-  'screens/home/homescreen/signed-in': {
-    'lib/screens/home/home_screen.dart:135',
-  },
-  'screens/places/myplacesscreen/empty': {
-    'lib/screens/places/my_places_screen.dart:1225',
-  },
-};
-
-const _loginScreenOverflows = {
-  'lib/screens/auth/login_screen.dart:237',
-  'lib/screens/auth/login_screen.dart:284',
-  'lib/screens/auth/login_screen.dart:309',
-};
-
 /// `light-phone-2x`.
 String _caseName(String theme, _Device device, double scale) =>
     '${theme.toLowerCase()}-${device.name}-${scale.toInt()}x';
@@ -112,16 +69,6 @@ String _caseName(String theme, _Device device, double scale) =>
 /// relative to test/.
 String _goldenPath(String path, String caseName) =>
     'goldens/${path.replaceAll(RegExp(r'[^a-z0-9/-]'), '')}/$caseName.png';
-
-/// `lib/components/calendar/planner_view.dart:305` for an overflow reported
-/// on a widget created at that line of the app (or the catalog).
-String? _overflowLocation(FlutterErrorDetails details) {
-  if (!details.exceptionAsString().contains('overflowed by')) return null;
-  final match = RegExp(
-    r'file://\S*?/frontend/((?:widgetbook/)?lib/[^:\s]+:\d+)',
-  ).firstMatch(details.toString());
-  return match?.group(1) ?? 'unknown location';
-}
 
 void main() {
   final skip = Platform.isLinux
@@ -170,16 +117,11 @@ void main() {
 
   for (final path in useCasePaths) {
     group(path, () {
-      final known = _knownOverflows[path] ?? const {};
-      final seen = <String>{};
-      var ran = 0;
-
       for (final theme in _themes) {
         for (final device in _devices) {
           for (final scale in _textScales) {
             final name = _caseName(theme, device, scale);
             testWidgets(name, (tester) async {
-              ran++;
               tester.view
                 ..physicalSize = device.size
                 ..devicePixelRatio = 1
@@ -187,24 +129,12 @@ void main() {
                 ..viewPadding = device.padding;
               addTearDown(tester.view.reset);
 
-              final onError = FlutterError.onError;
-              FlutterError.onError = (details) {
-                final location = _overflowLocation(details);
-                if (location != null && known.contains(location)) {
-                  seen.add(location);
-                } else {
-                  onError?.call(details);
-                }
-              };
-              addTearDown(() => FlutterError.onError = onError);
-
               await withClock(Clock.fixed(_now), () async {
                 await pumpUseCase(tester, path, theme: theme, textScale: scale);
                 // A text style that asks for a font variant that isn't
                 // bundled fails here, instead of rendering a fallback.
                 await tester.runAsync(GoogleFonts.pendingFonts);
                 await tester.pump();
-                FlutterError.onError = onError;
 
                 final image = await _capture(
                   tester,
@@ -221,21 +151,6 @@ void main() {
           }
         }
       }
-
-      tearDownAll(() {
-        // Only meaningful when the whole matrix ran (not under --name).
-        if (ran < _themes.length * _devices.length * _textScales.length) {
-          return;
-        }
-        final fixed = known.difference(seen);
-        expect(
-          fixed,
-          isEmpty,
-          reason:
-              'These no longer overflow in $path; remove them from '
-              '_knownOverflows.',
-        );
-      });
     }, skip: skip);
   }
 }

@@ -235,8 +235,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 48),
 
                   // Secondary Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wraps the link under the question when they don't fit
+                  // side by side (large text on a phone).
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('New here?', style: theme.textTheme.bodyMedium),
                       TextButton(
@@ -287,9 +290,12 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Icon(icon, size: 18, color: onSurface),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -311,14 +317,17 @@ class _LoginScreenState extends State<LoginScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.mail, size: 18, color: AppColors.terracotta),
-          SizedBox(width: 12),
-          Text(
-            'Continue with Email',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          Icon(CupertinoIcons.mail, size: 18, color: anchor),
+          const SizedBox(width: 12),
+          const Flexible(
+            child: Text(
+              'Continue with Email',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

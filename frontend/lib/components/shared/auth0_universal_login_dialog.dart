@@ -341,8 +341,9 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                   const SizedBox(height: 20),
 
                   // Toggle Signup/Login
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         _isSignUp
@@ -405,9 +406,12 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
         children: [
           Icon(icon, size: 20, color: AppColors.inkWarm),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

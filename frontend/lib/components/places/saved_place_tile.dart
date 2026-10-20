@@ -27,6 +27,21 @@ class SavedPlaceTile extends StatelessWidget {
   final VoidCallback onToggleToday;
   final VoidCallback onLongPress;
 
+  /// The grid cell height that fits a tile with a two-line name and address
+  /// at the user's text size. A fixed height overflowed with large text.
+  static double gridExtent(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    // Rounded up per line, as text lays out on whole pixels.
+    double lines(TextStyle style, int count) =>
+        count * (scaler.scale(style.fontSize!) * style.height!).ceilToDouble();
+    return 2 * PlacesSpacing.md + // padding
+        lines(PlacesType.title(Colors.black), 2) +
+        PlacesSpacing.sm +
+        lines(PlacesType.bodySmall(Colors.black), 2) +
+        PlacesSpacing.sm +
+        48; // the status row: the today toggle's tap target
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
