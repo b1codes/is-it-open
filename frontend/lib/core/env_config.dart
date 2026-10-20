@@ -55,6 +55,13 @@ class EnvConfig {
     return _config?['auth0_audience'] as String? ?? 'https://is-it-open/api';
   }
 
+  /// How long the API may take to start answering. envs/e2e.json raises it:
+  /// CI runners and the Firestore emulator are slower than production.
+  static Duration get apiReceiveTimeout {
+    final seconds = _config?['api_receive_timeout_seconds'];
+    return Duration(seconds: seconds is int ? seconds : 3);
+  }
+
   /// The map's tile URL template. envs/e2e.json points it at the E2E stub's
   /// blank tiles, so the journeys never fetch real tiles.
   static String mapTileUrl({required bool dark}) {

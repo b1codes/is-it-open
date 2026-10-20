@@ -151,8 +151,10 @@ void placesJourneys() {
     // A custom place's label goes through the bookmark-graphic endpoint.
     await tester.tapAndSettle(find.text("Dad's house").first);
     await tester.waitFor(find.byType(PlaceDetailScreen));
+    // The custom-place section appears once the bookmark has loaded.
+    await tester.waitFor(find.text('Plan visit'));
     final label = find.widgetWithText(TextField, 'Label');
-    await tester.waitFor(label);
+    await tester.reveal(label);
     await tester.typeInto(label, "Dad's place");
     await tester.tapAndSettle(find.text('Save label'));
     await tester.waitFor(find.text("Dad's place"));

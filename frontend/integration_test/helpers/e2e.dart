@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/components/core/refractive_glass.dart';
 import 'package:frontend/components/shared/side_menu.dart';
 import 'package:frontend/core/env_config.dart';
 import 'package:frontend/main.dart';
@@ -31,10 +32,14 @@ const stubEventTitle = 'E2E Dentist Appointment';
 const stubGeocodeLat = 39.80178;
 const stubGeocodeLng = -89.64352;
 
-/// What main() does before runApp. Call once, from setUpAll.
+/// What main() does before runApp, then a first request to the backend.
+/// Call once, from setUpAll.
 Future<void> initApp() async {
   tz.initializeTimeZones();
   await EnvConfig.init();
+  // A cold backend (first password hash, first Firestore connection) can be
+  // slow; take that hit here rather than in the first journey.
+  await BackendApi().register('warmup');
 }
 
 /// A journey: a testWidgets that saves a screenshot when it fails (on the
@@ -258,6 +263,25 @@ extension E2eTester on WidgetTester {
         ? find.byType(SideMenu)
         : find.byType(BottomNavigationBar);
     await tapAndSettle(find.descendant(of: nav, matching: find.text(label)));
+    if (!isDesktopLayout && label != 'Map') await _expandSheet(label);
+  }
+
+  /// On a phone, a tab opens in a sheet at half height. Drags it fully open,
+  /// as a user would on a short screen, so lists show more than a row or two.
+  Future<void> _expandSheet(String label) async {
+    final sheet = find
+        .descendant(
+          of: find.byType(DraggableScrollableSheet),
+          matching: find.byType(RefractiveGlass),
+        )
+        .first;
+    // The calendar scrolls its own views, so its sheet is dragged by the
+    // handle; every other tab's content drags the sheet.
+    final grab =
+        getTopLeft(sheet) +
+        Offset(getSize(sheet).width / 2, label == 'Calendar' ? 12 : 80);
+    await dragFrom(grab, Offset(0, -view.physicalSize.height));
+    await settle();
   }
 
   Future<void> signIn(String username, String password) async {

@@ -8,5 +8,6 @@
   "map_tile_url_dark": "http://127.0.0.1:18090/tiles/{z}/{x}/{y}.png",
   "auth0_domain": "auth0.invalid",
   "auth0_client_id": "e2e",
-  "auth0_audience": "https://is-it-open.invalid/api"
+  "auth0_audience": "https://is-it-open.invalid/api",
+  "api_receive_timeout_seconds": 20
 }

@@ -74,6 +74,7 @@ jobs:
         with:
           name: e2e-failure-ios
           path: e2e/.native/*.log
+          include-hidden-files: true  # e2e/.native is a dot directory
           if-no-files-found: ignore
 
   android:
