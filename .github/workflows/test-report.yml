@@ -46,3 +46,13 @@ jobs:
           path: '*.json'
           reporter: flutter-json
           fail-on-empty: false
+
+      - name: Golden tests
+        continue-on-error: true
+        uses: dorny/test-reporter@v2
+        with:
+          artifact: test-results-goldens
+          name: Golden tests
+          path: '*.json'
+          reporter: flutter-json
+          fail-on-empty: false

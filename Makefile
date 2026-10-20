@@ -2,7 +2,7 @@
 
 .PHONY: up down build logs shell firestore-reset \
 	check lint lint-backend lint-frontend format \
-	test test-backend test-frontend test-widgetbook \
+	test test-backend test-frontend test-widgetbook test-goldens goldens-pull \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
@@ -64,7 +64,7 @@ format:
 
 # --- Tests ---
 
-test: test-backend test-frontend test-widgetbook
+test: test-backend test-frontend test-widgetbook test-goldens
 
 # Backend suite against the Firestore emulator (skips tests marked quarantine)
 test-backend:
@@ -74,7 +74,15 @@ test-frontend:
 	cd frontend && flutter test -x quarantine
 
 test-widgetbook:
-	cd frontend/widgetbook && flutter test -x quarantine
+	cd frontend/widgetbook && flutter test -x quarantine -x golden
+
+# Golden tests: compared on Linux only (skipped elsewhere). See "Visual regression" in TESTING.md
+test-goldens:
+	cd frontend/widgetbook && TZ=UTC flutter test --tags golden
+
+# Replace the goldens with the set the Goldens CI job regenerated (RUN=<id>, default: this branch's latest run)
+goldens-pull:
+	frontend/widgetbook/tool/pull_goldens.sh $(RUN)
 
 # --- Coverage (fails below the minimums above) ---
 

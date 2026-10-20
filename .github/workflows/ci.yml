@@ -222,14 +222,100 @@ jobs:
         run: flutter analyze
 
       - name: Test
+        # The goldens run in their own job.
         run: |
           mkdir -p test-results
-          flutter test -x quarantine --file-reporter json:test-results/flutter.json
+          flutter test -x quarantine -x golden --file-reporter json:test-results/flutter.json
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-widgetbook
+          path: frontend/widgetbook/test-results/
+          if-no-files-found: ignore
+
+  # Visual regression: every Widgetbook use case compared against test/goldens/. Font rasterization
+  # changes between OS images and Flutter engine versions, so the goldens are only valid for the
+  # runner image and Flutter version below, which generated them. Bump them together, then
+  # regenerate (see "Visual regression" in TESTING.md). On a mismatch, the job uploads the failure
+  # images and a regenerated set, which `make goldens-pull` fetches for review.
+  goldens:
+    name: Goldens
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/widgetbook
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Compare
+        id: compare
+        run: |
+          mkdir -p test-results
+          flutter test --tags golden --file-reporter json:test-results/flutter.json
+
+      - name: Regenerate
+        id: regenerate
+        if: failure() && steps.compare.outcome == 'failure'
+        # Still fails on a test failure that isn't a golden mismatch (a new overflow, say), but
+        # writes every golden first.
+        continue-on-error: true
+        run: |
+          rm -rf test/goldens
+          flutter test --tags golden --update-goldens
+
+      - name: Summary
+        if: failure() && steps.compare.outcome == 'failure'
+        run: |
+          changed=$(git status --porcelain -- test/goldens | wc -l)
+          {
+            echo "## Goldens"
+            echo
+            echo "$changed golden file(s) differ from the committed set (added, changed or deleted)."
+            echo
+            echo "- The **golden-failures** artifact has, per mismatch, the expected (\`_masterImage\`) and"
+            echo "  rendered (\`_testImage\`) images, and the differing pixels (\`_isolatedDiff\`, \`_maskedDiff\`)."
+            echo "- If the change is intended, run \`make goldens-pull\` and commit the result. It replaces"
+            echo "  \`frontend/widgetbook/test/goldens/\` with the **goldens-updated** artifact."
+            if [ "${{ steps.regenerate.outcome }}" = failure ]; then
+              echo
+              echo "Regenerating also failed, so something other than a golden mismatch is wrong; see the"
+              echo "Regenerate step's log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.compare.outcome == 'failure'
+        with:
+          name: golden-failures
+          path: frontend/widgetbook/test/failures/
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.compare.outcome == 'failure'
+        with:
+          name: goldens-updated
+          path: frontend/widgetbook/test/goldens/
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-goldens
           path: frontend/widgetbook/test-results/
           if-no-files-found: ignore
 
@@ -324,7 +410,7 @@ jobs:
   # skipped because its paths didn't change.
   ci:
     name: ci
-    needs: [changes, backend, frontend, widgetbook, e2e, api-breaking-changes]
+    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -136,8 +136,10 @@ void main() {
   }
 
   setUpAll(() {
+    // setUpAll runs even when every test is skipped.
+    if (skip != null) return;
     // DateTime(...) above is local time, so the zone decides which instant
-    // "now" is. The CI job and `make goldens` set TZ=UTC.
+    // "now" is. The CI job and `make test-goldens` set TZ=UTC.
     expect(
       _now.timeZoneOffset,
       Duration.zero,
