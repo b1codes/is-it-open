@@ -5,6 +5,8 @@ name: Performance
 # The per-request Firestore cost is checked per PR instead, in the Backend job. See "Performance"
 # in TESTING.md.
 on:
+  # TEMPORARY: to calibrate the budgets on a CI runner; removed before merge.
+  pull_request:
   workflow_call:
   workflow_dispatch:
     inputs:
