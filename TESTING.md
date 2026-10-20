@@ -1,6 +1,6 @@
 # Testing
 
-How the automated checks are organized, how to run them locally, and what CI enforces.
+How the automated checks are organized, how to run them locally, and what CI enforces. What they can't check (native permission prompts, device pickers, screen readers, real-device feel) is in the [manual QA checklist](MANUAL_QA.md).
 
 ## Quick reference
 
@@ -121,7 +121,7 @@ When you add something:
 
 Contrast is checked by `TextStyleContrastGuideline` (`test/support/text_contrast.dart`), not Flutter's `textContrastGuideline`. Flutter's takes the two most common colors around a piece of text as text and background, which depends on how the platform anti-aliases glyphs. On CI's Linux runner it read ink on paper as 1.5:1. Ours takes the text's color from its style and reads only the background from the rendered pixels. It skips icons, disabled controls, and transparent or covered text. The only use cases it doesn't check are components shown on the catalog's multicolor glass backdrop (`_contrastExempt`). Calendar event blocks are exempt from the tap target size, since their height is the event's duration on the time grid.
 
-What automation can't check (TalkBack and VoiceOver reading order, and how the app feels with them on a device) stays manual.
+What automation can't check (TalkBack and VoiceOver reading order, and how the app feels with them on a device) stays manual; see [MANUAL_QA.md](MANUAL_QA.md).
 
 ## Security
 
