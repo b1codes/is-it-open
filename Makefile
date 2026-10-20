@@ -7,7 +7,7 @@
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
 	e2e-native-up e2e-native-down \
-	load test-load \
+	load test-load app-size app-size-pull \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -167,6 +167,17 @@ test-load:
 	docker run --rm --network is-it-open-e2e_default --user "$$(id -u):$$(id -g)" \
 		-v "$(CURDIR)/perf:/perf" -e BASE_URL=http://backend:8000/api -e SUMMARY_DIR=/perf/results \
 		-e VUS -e DURATION -e PLACES grafana/k6:2.3.0 run --quiet /perf/load.js
+
+# Release build sizes against frontend/app_size.json. Locally the sizes are only indicative: the
+# baseline is measured by CI, with the Flutter version pinned in perf.yml.
+app-size:
+	cd frontend && flutter build apk --release --analyze-size --target-platform android-arm64 && flutter build web --release
+	cd frontend && dart run tool/app_size.dart check --analysis="$$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
+
+# Replaces frontend/app_size.json with the sizes the App size CI job measured (RUN=<run id>, or the latest
+# Performance or Nightly run on this branch), after an intended size change or a Flutter upgrade
+app-size-pull:
+	frontend/tool/pull_app_size.sh $(RUN)
 
 # --- Mutation testing (slow; runs nightly in CI) ---
 

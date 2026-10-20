@@ -1,7 +1,7 @@
 name: Performance
 
-# Catches slowdowns before users do: an API load test with p95 latency and error-rate budgets.
-# Called by nightly.yml (or run by hand); not per PR, since timings need a quiet, full-length run.
+# Catches slowdowns before users do: an API load test with p95 latency and error-rate budgets, and
+# a check that the release builds haven't grown more than 5%. Called by nightly.yml (or run by hand); not per PR, since timings need a quiet, full-length run.
 # The per-request Firestore cost is checked per PR instead, in the Backend job. See "Performance"
 # in TESTING.md.
 on:
@@ -51,4 +51,46 @@ jobs:
         with:
           name: load-test
           path: perf/results/
+          if-no-files-found: ignore
+
+  # Release build sizes against the baseline in frontend/app_size.json (tool/app_size.dart).
+  app-size:
+    name: App size
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'  # for the Android Gradle build
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          channel: 'stable'
+          # Sizes change with Flutter, so the baseline was measured with this version. After a
+          # bump, accept the new sizes with `make app-size-pull` (see "Performance" in TESTING.md).
+          flutter-version: '3.47.7'
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          flutter build apk --release --analyze-size --target-platform android-arm64
+          flutter build web --release
+
+      - name: Check
+        run: dart run tool/app_size.dart check --analysis="$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
+
+      # The measurements, for `make app-size-pull` to accept as the new baseline.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-size
+          path: frontend/build/app-size/measured.json
           if-no-files-found: ignore
