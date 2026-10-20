@@ -2,7 +2,7 @@
 
 .PHONY: up down build logs shell firestore-reset \
 	check lint lint-backend lint-frontend format audit \
-	test test-backend test-frontend test-widgetbook test-goldens goldens-pull \
+	test test-backend test-frontend test-widgetbook test-goldens goldens-pull test-rules \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
@@ -63,7 +63,8 @@ audit:
 	cd backend && uv export --frozen --all-groups --no-emit-project --format requirements-txt -o "$${TMPDIR:-/tmp}/is-it-open-requirements.txt" -q
 	uvx pip-audit==2.10.1 -r "$${TMPDIR:-/tmp}/is-it-open-requirements.txt" --require-hashes --disable-pip --progress-spinner off
 	docker run --rm -v "$(CURDIR):/src:ro" -w /src ghcr.io/google/osv-scanner:v2.6.0 scan source --verbosity error \
-		-L frontend/pubspec.lock -L frontend/widgetbook/pubspec.lock -L backend/uv.lock
+		-L frontend/pubspec.lock -L frontend/widgetbook/pubspec.lock -L backend/uv.lock \
+		-L docker/firestore-emulator/rules-test/package-lock.json
 
 # Apply formatting and autofixable lint fixes
 format:
@@ -72,7 +73,7 @@ format:
 
 # --- Tests ---
 
-test: test-backend test-frontend test-widgetbook test-goldens
+test: test-backend test-frontend test-widgetbook test-goldens test-rules
 
 # Backend suite against the Firestore emulator (skips tests marked quarantine)
 test-backend:
@@ -87,6 +88,11 @@ test-widgetbook:
 # Golden tests: compared on Linux only (skipped elsewhere). See "Visual regression" in TESTING.md
 test-goldens:
 	cd frontend/widgetbook && TZ=UTC flutter test --tags golden
+
+# Firestore security rules against the emulator, which it starts (needs Node.js 22+). See "Infrastructure" in TESTING.md
+test-rules:
+	docker compose up -d --wait firestore
+	cd docker/firestore-emulator/rules-test && npm ci --ignore-scripts --no-audit --no-fund && npm test
 
 # Replace the goldens with the set the Goldens CI job regenerated (RUN=<id>, default: this branch's latest run)
 goldens-pull:

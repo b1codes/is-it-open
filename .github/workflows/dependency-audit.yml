@@ -1,10 +1,10 @@
 name: Dependency audit
 
 # Known vulnerabilities in the dependencies: pip-audit for the backend's locked packages (PyPI's
-# advisories), and osv-scanner for those and the Flutter app's and Widgetbook's pub packages. The
-# pubspec.lock files aren't committed, so this resolves them as the Flutter jobs do. Called by ci.yml
-# when the dependencies change (so a PR can't add a vulnerable version) and by nightly.yml (for
-# advisories published since). See "Security" in TESTING.md.
+# advisories), and osv-scanner for those, the Flutter app's and Widgetbook's pub packages, and the
+# Firestore rules tests' npm packages. The pubspec.lock files aren't committed, so this resolves them
+# as the Flutter jobs do. Called by ci.yml when the dependencies change (so a PR can't add a
+# vulnerable version) and by nightly.yml (for advisories published since). See "Security" in TESTING.md.
 on:
   workflow_call:
 
@@ -56,6 +56,7 @@ jobs:
           status=0
           docker run --rm -v "$PWD:/src:ro" -w /src ghcr.io/google/osv-scanner:v2.6.0 scan source --verbosity error \
             -L frontend/pubspec.lock -L frontend/widgetbook/pubspec.lock -L backend/uv.lock \
+            -L docker/firestore-emulator/rules-test/package-lock.json \
             --format markdown > "$RUNNER_TEMP/osv.md" || status=$?
           { echo "## osv-scanner"; echo; cat "$RUNNER_TEMP/osv.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
