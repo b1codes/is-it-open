@@ -261,12 +261,15 @@ class CalendarViewStackWidget extends StatelessWidget {
                   );
                 }
               },
-              child: Center(
+              // On a narrow phone, or with a large text setting, the header
+              // is shrunk to fit its cell instead of overflowing it.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     vertical: 4,
                     horizontal: 8,
-                  ), // Reduced from 6 to 4 to fix overflow
+                  ),
                   decoration: isToday
                       ? BoxDecoration(
                           color: theme.anchor,

@@ -42,8 +42,10 @@ void main() {
     CalendarViewType view, {
     DateTime? base,
     bool use24 = false,
+    Size size = desktopSize,
+    double textScale = 1,
   }) async {
-    tester.setViewport(desktopSize);
+    tester.setViewport(size);
     cubit = CalendarUiCubit(initialDate: base ?? _now)..changeViewType(view);
     addTearDown(cubit.close);
     await tester.pumpWidget(
@@ -51,6 +53,12 @@ void main() {
         controller: controller,
         child: MaterialApp(
           theme: AppTheme.lightTheme,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           home: Scaffold(
             body: BlocProvider.value(
               value: cubit,
@@ -85,6 +93,22 @@ void main() {
       // Today is on screen, so no "Today" shortcut.
       expect(find.widgetWithText(TextButton, 'Today'), findsNothing);
       expect(find.text('Standup'), findsOneWidget);
+    });
+  });
+
+  // The E2E run on an Android emulator found the day headers overflowing.
+  testWidgets('the week day headers fit a narrow phone with large text', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_now), () async {
+      await pump(
+        tester,
+        CalendarViewType.week,
+        size: const Size(320, 640),
+        textScale: 1.3,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('WED'), findsOneWidget);
     });
   });
 
