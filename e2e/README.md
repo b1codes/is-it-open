@@ -34,7 +34,7 @@ A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
   - **An iCal feed** at `/calendar/e2e.ics`, with one event a day from yesterday to tomorrow.
   - **Blank map tiles**, so the app never loads OpenStreetMap or Carto (`envs/e2e.json` points the map here).
 - **Auth:** journeys sign in with a username and password, the app's own token path. Auth0 isn't used: `AUTH0_MOCK` is off and Auth0 tokens are checked against a domain that doesn't resolve, so all of them are rejected. Never turn `AUTH0_MOCK` on outside a throwaway stack.
-- **The app:** `--dart-define=ENV=e2e` loads `frontend/envs/e2e.json`, which points the API at `127.0.0.1:18000` and the map tiles at the stub.
+- **The app:** `--dart-define=ENV=e2e` loads `frontend/envs/e2e.json`. It points the API at `127.0.0.1:18000` and the map tiles at the stub, and raises the API receive timeout from 3 to 20 seconds, because CI runners and the emulator are slower than production.
 
 ### Without Docker
 
@@ -59,10 +59,12 @@ A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
 Helpers (`helpers/e2e.dart`):
 
 - `journey()`: a `testWidgets` that screenshots failures.
+- `initApp`: what `main()` does, plus one request that warms up a cold backend.
 - `launchApp` / `relaunchApp`.
 - `waitFor`: the backend is real, so wait for what you expect. `pumpAndSettle` can return before a response arrives.
 - `tapAndSettle`: waits out route transitions and scrolls lazy lists first.
-- `typeInto`, `openTab`, `signIn`, `logOut`.
+- `typeInto`, `signIn`, `logOut`.
+- `openTab`: in the phone layout, it also drags the tab's sheet fully open.
 - `BackendApi`, to create accounts and check what the backend stored.
 - `eventually`.
 
@@ -70,7 +72,7 @@ Helpers (`helpers/e2e.dart`):
 
 - Check the outcome on the backend (`BackendApi`), not only on screen.
 - Find widgets by what the user sees: text, labels, and widget types the screen owns.
-- Make it pass in both layouts. Where a layout can't reach a feature, skip with a reason that links an issue.
+- Make it pass in both layouts, including a short phone (`E2E_BROWSER_SIZE=360x640`). Where a layout can't reach a feature, skip with a reason that links an issue.
 
 ## Where it runs
 
