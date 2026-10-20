@@ -30,5 +30,6 @@ fi
 
 cp "$tmp/measured.json" app_size.json
 echo "app_size.json from run $run:"
-git --no-pager diff --stat -- app_size.json
+git status --short -- app_size.json
+git --no-pager diff -- app_size.json
 echo "Check the sizes in the run's summary, then commit frontend/app_size.json."
