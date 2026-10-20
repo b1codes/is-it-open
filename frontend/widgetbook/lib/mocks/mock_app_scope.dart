@@ -170,7 +170,7 @@ class _MockAppScopeHostState extends State<_MockAppScopeHost> {
               seed: config.calendarData ?? _defaultCalendarData(),
             ),
           ),
-          BlocProvider<ThemeCubit>(create: (_) => ThemeCubit()),
+          BlocProvider<ThemeCubit>(create: (_) => ThemeCubit(prefs: _prefs)),
           BlocProvider<PreferencesCubit>(
             create: (_) => PreferencesCubit(prefs: _prefs),
           ),
