@@ -16,11 +16,12 @@ import 'package:integration_test/integration_test_driver.dart';
 /// - `rasterP90`: the 90th percentile time to rasterize a frame, in ms. CI
 ///   rasterizes in software, far slower than a phone's GPU (the glass blurs
 ///   most of all), so this is only comparable between CI runs: the budget is
-///   about twice what a CI runner measured.
+///   about twice what a CI runner measured (23, 68 and 139 ms with Flutter
+///   3.47.7).
 const _budgets = {
-  'map_pan_zoom': (jank: 0.10, rasterP90: 30.0),
-  'calendar_scroll': (jank: 0.10, rasterP90: 90.0),
-  'search_typing': (jank: 0.10, rasterP90: 220.0),
+  'map_pan_zoom': (jank: 0.10, rasterP90: 50.0),
+  'calendar_scroll': (jank: 0.10, rasterP90: 140.0),
+  'search_typing': (jank: 0.10, rasterP90: 280.0),
 };
 
 Future<void> main() => integrationDriver(

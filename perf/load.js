@@ -18,19 +18,19 @@ const DURATION = __ENV.DURATION || '2m';
 // Places created around Manhattan before the run, so nearby and search read a realistic amount.
 const PLACES = Number(__ENV.PLACES || 200);
 
-// p95 latency budget per endpoint, in milliseconds: about twice what a GitHub runner measured at 20
-// users, so a doubling fails but runner noise doesn't.
+// p95 latency budget per endpoint, in milliseconds: about twice the slowest of three GitHub runner
+// runs at 20 users (runners varied by up to 4x), so a doubling fails but runner noise doesn't.
 const BUDGETS = {
   // Both return every match, so a query matching the 200 places here is slow (#51). Tighten these
   // once they're capped or paged.
-  search: 1800,
-  nearby: 2000,
+  search: 3000,
+  nearby: 3000,
   suggestions: 150,
-  'save place': 200,
+  'save place': 250,
   bookmark: 200,
-  bookmarks: 150,
+  bookmarks: 200,
   pin: 200,
-  unbookmark: 100,
+  unbookmark: 150,
 };
 
 // Queries the stub's TomTom search answers (e2e/stub/server.py), plus one only local places match.
