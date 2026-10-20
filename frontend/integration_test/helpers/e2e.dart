@@ -120,6 +120,23 @@ class BackendApi {
       );
 }
 
+/// Retries [check] until it passes: for state the app saves in the
+/// background, checked on the backend.
+Future<void> eventually(
+  Future<void> Function() check, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (true) {
+    try {
+      return await check();
+    } on TestFailure {
+      if (DateTime.now().isAfter(deadline)) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+  }
+}
+
 /// Stores [user]'s session the way a previous sign-in would, so the next
 /// launch restores it.
 Future<void> storeSession(E2eUser user) async {
@@ -190,9 +207,22 @@ extension E2eTester on WidgetTester {
   /// lands on the route that's leaving), then lets the result settle.
   Future<void> tapAndSettle(Finder finder) async {
     await settle(const Duration(milliseconds: 400));
+    await reveal(finder);
     await ensureVisible(finder.first);
     await tap(finder.first);
     await settle();
+  }
+
+  /// Scrolls the screen's main list until [finder] is built: a lazy list
+  /// (a ListView on a phone-sized screen) doesn't build what's below the fold.
+  Future<void> reveal(Finder finder) async {
+    if (any(finder)) return;
+    final lists = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    );
+    if (!any(lists)) return;
+    await scrollUntilVisible(finder, 200, scrollable: lists.last);
+    await pump();
   }
 
   /// Types into a text field, focusing it with a tap first, as a user would.

@@ -104,7 +104,10 @@ void placesJourneys() {
     await tester.tapAndSettle(find.text('Plan visit'));
     await tester.waitFor(find.byType(PlanVisitScreen));
     await tester.tapAndSettle(find.text('45 min'));
-    await tester.waitFor(find.textContaining("We'll use 45 min"));
+    await eventually(() async {
+      final saved = (await api.bookmarks(user)).single;
+      expect(saved['average_visit_length'], 45);
+    });
     await tester.back();
     await tester.back();
 
@@ -113,7 +116,6 @@ void placesJourneys() {
     var saved = (await api.bookmarks(user)).single;
     expect(saved['place']['name'], "Joe's Pizza");
     expect(saved['is_pinned'], isFalse);
-    expect(saved['average_visit_length'], 45);
 
     await tester.longPressPlace("Joe's Pizza");
     await tester.tapAndSettle(find.text('Pin'));
