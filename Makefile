@@ -7,7 +7,7 @@
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
 	e2e-native-up e2e-native-down \
-	load test-load app-size app-size-pull \
+	load test-load app-size app-size-pull perf-frames \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -167,6 +167,14 @@ test-load:
 	docker run --rm --network is-it-open-e2e_default --user "$$(id -u):$$(id -g)" \
 		-v "$(CURDIR)/perf:/perf" -e BASE_URL=http://backend:8000/api -e SUMMARY_DIR=/perf/results \
 		-e VUS -e DURATION -e PLACES grafana/k6:2.3.0 run --quiet /perf/load.js
+
+# Frame timing of map pan/zoom, calendar scrolling and search typing (frontend/integration_test/perf_test.dart)
+# against a running E2E stack (make e2e-up). It needs profile mode on a desktop: Linux, as CI runs it
+# (macOS doesn't build with Xcode 26+, #45). PERF_DEVICE picks another device.
+PERF_DEVICE ?= linux
+perf-frames:
+	cd frontend && flutter drive --profile -d $(PERF_DEVICE) --driver=test_driver/perf_driver.dart \
+		--target=integration_test/perf_test.dart --dart-define=ENV=e2e
 
 # Release build sizes against frontend/app_size.json. Locally the sizes are only indicative: the
 # baseline is measured by CI, with the Flutter version pinned in perf.yml.

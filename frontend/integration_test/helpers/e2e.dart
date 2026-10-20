@@ -136,6 +136,30 @@ class BackendApi {
         data: data,
         options: Options(headers: {'Authorization': 'Bearer ${user.token}'}),
       );
+
+  /// Saves [place] (shaped like the API's PlaceCreateSchema) and bookmarks
+  /// it for [user], pinned if [pinned] (pinned places show on the map).
+  Future<void> bookmarkNewPlace(
+    E2eUser user,
+    Map<String, dynamic> place, {
+    bool pinned = false,
+  }) async {
+    final options = Options(headers: {'Authorization': 'Bearer ${user.token}'});
+    final id = place['tomtom_id'] as String;
+    await _dio.post('/places/', data: place, options: options);
+    await _dio.post(
+      '/places/bookmark',
+      data: {'tomtom_id': id},
+      options: options,
+    );
+    if (pinned) {
+      await _dio.patch(
+        '/places/bookmarks/${Uri.encodeComponent(id)}/pin',
+        data: {'is_pinned': true},
+        options: options,
+      );
+    }
+  }
 }
 
 /// Retries [check] until it passes: for state the app saves in the

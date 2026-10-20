@@ -1,9 +1,9 @@
 name: Performance
 
 # Catches slowdowns before users do: an API load test with p95 latency and error-rate budgets, and
-# a check that the release builds haven't grown more than 5%. Called by nightly.yml (or run by hand); not per PR, since timings need a quiet, full-length run.
-# The per-request Firestore cost is checked per PR instead, in the Backend job. See "Performance"
-# in TESTING.md.
+# a check that the release builds haven't grown more than 5%. Called by nightly.yml (or run by
+# hand); not per PR, since timings need a quiet, full-length run. The per-request Firestore cost is
+# checked per PR instead, in the Backend job. See "Performance" in TESTING.md.
 on:
   # TEMPORARY: to calibrate the budgets on a CI runner; removed before merge.
   pull_request:
@@ -93,4 +93,51 @@ jobs:
         with:
           name: app-size
           path: frontend/build/app-size/measured.json
+          if-no-files-found: ignore
+
+  # Frame timing of map pan/zoom, calendar scrolling and search typing (integration_test/perf_test.dart),
+  # as a Linux desktop app in profile mode (traceAction needs the VM timeline: not on the web, and
+  # emulators don't run profile builds), against the E2E stack.
+  frame-timing:
+    name: Frame timing
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Linux desktop toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xvfb
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          channel: 'stable'
+          # Frame times change with the engine; the budgets in test_driver/perf_driver.dart were
+          # set with this version.
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Frame timing
+        run: xvfb-run -a -s '-screen 0 1280x800x24' make perf-frames
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > frontend/build/stack-logs.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frame-timing
+          path: |
+            frontend/build/*.timeline.json
+            frontend/build/*.timeline_summary.json
+            frontend/build/stack-logs.txt
           if-no-files-found: ignore
