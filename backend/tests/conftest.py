@@ -30,7 +30,6 @@ from apps.places import repository as places
 from apps.users import auth as auth_module
 from apps.users import repository as users
 from services.firestore import clear_emulator
-from services.tomtom import TomTomClient
 from tests import factories
 from tests.base import TEST_PROJECT
 
@@ -47,6 +46,7 @@ hypothesis_settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
 def _isolate(settings):
     """Keep a developer's .env and state left by earlier tests out of every test."""
     settings.TOMTOM_API_KEY = ""
+    settings.TOMTOM_BASE_URL = TOMTOM_BASE
     settings.AUTH0_MOCK = True
     settings.AUTH0_DOMAIN = ""
     settings.AUTH0_AUDIENCE = ""
@@ -84,6 +84,7 @@ def http_mock(settings):
 
 
 TOMTOM_KEY = "test-tomtom-key"
+TOMTOM_BASE = "https://api.tomtom.com/search/2"
 
 
 @pytest.fixture
@@ -91,9 +92,6 @@ def tomtom(settings, http_mock):
     """Enables TomTomClient with a test key. Register its endpoints on the returned mock."""
     settings.TOMTOM_API_KEY = TOMTOM_KEY
     return http_mock
-
-
-TOMTOM_BASE = TomTomClient.BASE_URL
 
 
 # --- Factories ---

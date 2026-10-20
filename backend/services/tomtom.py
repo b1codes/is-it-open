@@ -29,10 +29,9 @@ def _format_time(time: dict) -> str:
 
 
 class TomTomClient:
-    BASE_URL = "https://api.tomtom.com/search/2"
-
     def __init__(self):
         self.api_key = settings.TOMTOM_API_KEY
+        self.base_url = settings.TOMTOM_BASE_URL.rstrip("/")
 
     def search_place(self, query):
         """
@@ -42,7 +41,7 @@ class TomTomClient:
         if not self.api_key:
             return []
 
-        url = f"{self.BASE_URL}/poiSearch/{_path_segment(query)}.json"
+        url = f"{self.base_url}/poiSearch/{_path_segment(query)}.json"
         params = {
             "key": self.api_key,
             "limit": 10,
@@ -63,7 +62,7 @@ class TomTomClient:
         if not self.api_key:
             return []
 
-        url = f"{self.BASE_URL}/nearbySearch/.json"
+        url = f"{self.base_url}/nearbySearch/.json"
         params = {
             "key": self.api_key,
             "lat": lat,
@@ -181,9 +180,8 @@ class TomTomClient:
         if not self.api_key or not tomtom_id:
             return None
 
-        # Use the Place by ID endpoint
-        # https://api.tomtom.com/search/2/place.json?entityId={entityId}&key={Your_API_Key}
-        url = "https://api.tomtom.com/search/2/place.json"
+        # Use the Place by ID endpoint: {base}/place.json?entityId={entityId}&key={Your_API_Key}
+        url = f"{self.base_url}/place.json"
         params = {
             "key": self.api_key,
             "entityId": tomtom_id,
@@ -216,7 +214,7 @@ class TomTomClient:
         if cached_result:
             return cached_result
 
-        url = f"{self.BASE_URL}/geocode/{_path_segment(address)}.json"
+        url = f"{self.base_url}/geocode/{_path_segment(address)}.json"
         params = {"key": self.api_key, "limit": 1}
         try:
             response = requests.get(url, params=params, timeout=5)

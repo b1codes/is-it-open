@@ -211,6 +211,28 @@ class TestGetPlaceDetails:
         assert len(http_mock.calls) == 0
 
 
+# --- TOMTOM_BASE_URL (the E2E stack points it at a stub) ---
+
+
+@pytest.mark.parametrize(
+    ("call", "path"),
+    [
+        (lambda c: c.search_place("pizza"), "/poiSearch/pizza.json"),
+        (lambda c: c.nearby_search(40.7, -74.0), "/nearbySearch/.json"),
+        (lambda c: c.get_place_details("tt-1"), "/place.json"),
+        (lambda c: c.geocode_address("1 Main St"), "/geocode/1%20Main%20St.json"),
+    ],
+    ids=["search", "nearby", "place-details", "geocode"],
+)
+def test_every_call_uses_the_configured_base_url(settings, tomtom, call, path):
+    settings.TOMTOM_BASE_URL = "http://stub:8090/search/2/"  # a trailing slash is ignored
+    tomtom.get(re.compile(r"http://stub:8090/search/2/.+"), json=factories.tomtom_response())
+
+    call(TomTomClient())
+
+    assert tomtom.calls[0].request.url.split("?")[0] == f"http://stub:8090/search/2{path}"
+
+
 # --- geocode_address ---
 
 

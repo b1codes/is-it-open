@@ -72,6 +72,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 TOMTOM_API_KEY = config("TOMTOM_API_KEY", default="")
+# Only the E2E stack changes this, to point TomTom calls at its stub server (see e2e/README.md).
+TOMTOM_BASE_URL = config("TOMTOM_BASE_URL", default="https://api.tomtom.com/search/2")
 
 # Auth0 Configuration
 AUTH0_DOMAIN = config("AUTH0_DOMAIN", default="")
