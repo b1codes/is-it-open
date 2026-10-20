@@ -61,6 +61,7 @@ jobs:
 
       - name: Run the journeys
         working-directory: frontend
+        timeout-minutes: 30
         run: >
           flutter test integration_test/app_test.dart -r expanded
           -d "${{ steps.simulator.outputs.udid }}"
@@ -68,7 +69,7 @@ jobs:
           --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: e2e-failure-ios
           path: e2e/.native/*.log
@@ -106,6 +107,7 @@ jobs:
         run: flutter pub get
 
       - name: Run the journeys
+        timeout-minutes: 30
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -120,11 +122,11 @@ jobs:
             flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e
 
       - name: Stack logs
-        if: failure()
+        if: failure() || cancelled()
         run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: e2e-failure-android
           path: e2e-stack.log

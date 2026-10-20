@@ -44,8 +44,12 @@ Future<void> initApp() async {
 
 /// A journey: a testWidgets that saves a screenshot when it fails (on the
 /// web, `flutter drive` writes it to build/e2e-screenshots).
+/// A journey that hangs fails after 3 minutes, naming itself, instead of
+/// running until the CI job is cancelled.
 void journey(String description, WidgetTesterCallback body) {
-  testWidgets(description, (tester) async {
+  testWidgets(description, timeout: const Timeout(Duration(minutes: 3)), (
+    tester,
+  ) async {
     try {
       await body(tester);
     } catch (_) {
@@ -94,6 +98,8 @@ class BackendApi {
         BaseOptions(
           baseUrl: EnvConfig.apiBaseUrl,
           headers: {'Content-Type': 'application/json'},
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 30),
         ),
       );
 
