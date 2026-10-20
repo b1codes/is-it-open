@@ -1,7 +1,7 @@
 name: Nightly
 
 # Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test and API fuzzing
-# runs, the live TomTom contract check, and mutation testing.
+# runs, the live TomTom contract check, the E2E journeys on mobile, and mutation testing.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
@@ -167,6 +167,11 @@ jobs:
           name: test-results-frontend
           path: frontend/test-results/
           if-no-files-found: ignore
+
+  # The E2E journeys on an iOS simulator and an Android emulator (see e2e/README.md).
+  e2e-mobile:
+    name: E2E on mobile
+    uses: ./.github/workflows/e2e-mobile.yml
 
   mutation-backend:
     name: Backend mutation testing

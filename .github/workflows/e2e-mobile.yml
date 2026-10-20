@@ -6,9 +6,6 @@ name: E2E on mobile
 on:
   workflow_call:
   workflow_dispatch:
-  # TEMPORARY: verifies this workflow on its PR. Remove before merging.
-  pull_request:
-    branches: [ main ]
 
 permissions:
   contents: read
