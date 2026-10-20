@@ -7,7 +7,8 @@ How the automated checks are organized, how to run them locally, and what CI enf
 | Command | What it runs |
 | --- | --- |
 | `make check` | Every lint and test suite below (what CI runs on a PR) |
-| `make lint` | ruff (backend and the E2E stub), mypy, `dart format`, `flutter analyze` |
+| `make lint` | ruff (backend and the E2E stub), mypy, bandit, `dart format`, `flutter analyze` |
+| `make audit` | Known vulnerabilities in the locked dependencies: pip-audit and osv-scanner (see [Security](#security)) |
 | `make format` | Applies ruff fixes/formatting and `dart format` |
 | `make test-backend` | Backend pytest suite against the Firestore emulator |
 | `make test-frontend` | Flutter unit, bloc, and widget tests |
@@ -33,13 +34,15 @@ Backend targets run inside the dev container (`docker compose`), which starts th
   | `tests/auth/` | `GlobalAuth`: local tokens, Auth0 JWT verification, the JWKS cache |
   | `tests/property/` | Hypothesis property tests (hours parsing, geo, document IDs, the search index) |
   | `tests/contracts/` | The API and TomTom contracts in `contracts/`: schema snapshot, Schemathesis provider tests, TomTom fixtures and the live check (see [contracts/README.md](contracts/README.md)) |
+  | `tests/security/` | Authorization across users, the auth settings, forged JWTs, and SSRF in the calendar proxy (see [Security](#security)) |
 
 - **Database:** tests run against the emulator under a separate `demo-is-it-open-test` project, which is wiped before each test, so your local dev data is never touched. New tests use the `firestore_db` fixture (or a factory that depends on it); older ones subclass `tests.base.FirestoreTestCase`.
 - **Fixtures** (`tests/conftest.py`):
   - Data: `make_user`, `make_place`, and `make_bookmark` factories, plus `user` and `place`. Payload builders are in `tests/factories.py`.
   - Clients: `api_client` (anonymous), `auth_client` (local API token), `auth0_client` (mock-mode Auth0 JWT), and `any_auth_client`, which runs a test once with each.
   - HTTP: `http_mock` ([responses](https://github.com/getsentry/responses)) fails any outbound request that isn't registered, so no test reaches a real service. `tomtom` enables `TomTomClient` with a test key. `auth0_tenant` turns off mock mode and serves an RS256 tenant's JWKS; sign tokens with `auth0_tenant.token(...)`.
-  - An autouse fixture blanks `TOMTOM_API_KEY` and the Auth0 settings and clears the caches, so a local `.env` can't leak into a test.
+  - DNS: `dns` (autouse) fakes name lookups for `services/safe_fetch.py`, so the calendar proxy's address check never looks a name up. Unknown names resolve to a public address; add entries to point a name elsewhere (`dns["feed.example.com"] = ["10.0.0.1"]`).
+  - An autouse fixture blanks `TOMTOM_API_KEY` and the Auth0 settings (mock mode off, as in production) and clears the caches, so a local `.env` can't leak into a test.
 - **Time:** use [freezegun](https://github.com/spulec/freezegun) (`freeze_time`), but keep Firestore calls outside the frozen block. The gRPC client hangs on a frozen clock.
 - **Property tests:** the `HYPOTHESIS_PROFILE` environment variable picks the profile. Locally, `dev` draws 100 new examples per run. CI uses `ci`, a fixed set of 200, so a PR can't fail on a newly drawn example. The nightly run uses `nightly`, with 5,000 random examples. A failure prints `@reproduce_failure(...)`; add it to the test to replay the example.
 - **Contract tests:** `SCHEMATHESIS_MAX_EXAMPLES` sets how many requests the provider tests send per operation (50 by default). The TomTom live tests run only when `TOMTOM_LIVE_API_KEY` is set.
@@ -51,7 +54,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
     uv run pytest
   ```
 
-- **Lint/types:** `uv run ruff check .`, `uv run ruff format .`, `uv run mypy .` (config in `backend/pyproject.toml`).
+- **Lint/types:** `uv run ruff check .`, `uv run ruff format .`, `uv run mypy .`, `uv run bandit -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'` (config in `backend/pyproject.toml`).
 - **Coverage:** `uv run pytest --cov` (branch coverage over `apps/`, `config/`, `services/`).
 
 ## Frontend (`frontend/`)
@@ -113,6 +116,18 @@ Contrast is checked by `TextStyleContrastGuideline` (`test/support/text_contrast
 
 What automation can't check (TalkBack and VoiceOver reading order, and how the app feels with them on a device) stays manual.
 
+## Security
+
+- **Tests** (`backend/tests/security/`, in the Backend job):
+  - `test_authorization.py`: every operation in the served schema is either public (login, register) or needs sign-in, and rejects anonymous callers. Alice runs every `/auth/me` and `/places/bookmarks*` route against data Bob also has, and his profile and bookmarks stay unchanged and never appear in her responses. A new operation fails until it's classified, and a new bookmark route until it's in the cross-user checks.
+  - `test_auth_config.py`: `AUTH0_MOCK` is off unless set, and the settings refuse to load with it on and `DEBUG` off. Without `AUTH0_DOMAIN` every Auth0 token is rejected. Each case imports the settings in a fresh interpreter, with no `.env`.
+  - `test_jwt.py`: forged and invalid tokens (`alg=none`, stripped or wrong signatures, HS256 signed with the public key, tampered payloads, `jwk`/`jku`/`x5u` key injection, wrong issuer or audience, expired, not yet valid, no `exp` or `sub`) are all a 401 and create no account.
+  - `test_ssrf.py`: `/calendar/proxy` only fetches from public addresses (`services/safe_fetch.py`). It refuses the metadata service, loopback, private and reserved ranges in every spelling, names that resolve to them, and redirects to them. It connects to the address it checked, so DNS rebinding fails too. It ignores proxy environment variables and returns only iCalendar files, up to 10 MB, within 30 seconds. Most cases use `http_mock` and the fake `dns`; the connection-time checks use a real server on 127.0.0.1. The E2E stack lets the proxy reach its stub with `SAFE_FETCH_PRIVATE_HOSTS`, which nothing else should set.
+- **Static analysis:** bandit runs in the Backend job and `make lint`, on app code only. Any finding fails it, so mark a deliberate one `# nosec <id>`, with the reason in a comment on the line above (bandit reads words after `nosec` as rule IDs). CodeQL (`codeql.yml`) analyzes the backend and the workflows on every PR, push to `main` and weekly, with the `security-extended` queries. Results are under Security > Code scanning. GitHub's secret scanning and push protection are on in the repository settings.
+- **Dependencies:** `dependency-audit.yml` runs pip-audit on the backend's locked packages, all groups, and osv-scanner on `backend/uv.lock` and both `pubspec.lock` files. CI runs it when a lockfile changes, as part of the required check, and nightly for advisories published since. `make audit` runs it locally. Fix a finding by upgrading the package (`uv lock --upgrade-package <name>`, or `flutter pub upgrade <name>`).
+- **DAST** (nightly): OWASP ZAP's API scan, driven by the served OpenAPI schema (the one in `contracts/openapi.json`) and signed in as the seeded account. There's no staging backend yet, so it scans the E2E stack, which runs the production image. Any alert fails the job unless `.zap/rules.tsv` accepts it, with a reason. The HTML report is in the `zap-report` artifact. To run it locally, with the stack up (`make e2e-up`), pass a token from `POST /api/auth/login` as `ZAP_AUTH_HEADER_VALUE="Bearer <token>"` and `ZAP_AUTH_HEADER_SITE=host.docker.internal` to `docker run -v "$PWD/.zap:/zap/wrk" ghcr.io/zaproxy/zaproxy:2.17.0 zap-api-scan.py -t http://host.docker.internal:18000/api/openapi.json -f openapi -c rules.tsv`.
+- **Not covered yet:** rate limiting, which isn't implemented ([its ClickUp task](https://app.clickup.com/t/86ba3a34w)). Add tests for it in `tests/security/` when it lands.
+
 ## E2E (`frontend/integration_test/`, `e2e/`)
 
 The real app, driven through its UI, against the production backend image, the Firestore emulator, and a stub for TomTom, the iCal feed and map tiles. The journeys cover sign-up, sign-in and session restore; the profile and home address; search; the bookmark lifecycle; quick add; settings across a restart; the calendar subscription; and error paths (backend down, TomTom outage, revoked session). Run them with `make e2e`. Details, including how to write a journey, are in [e2e/README.md](e2e/README.md).
@@ -121,9 +136,10 @@ The real app, driven through its UI, against the production backend image, the F
 
 | Workflow | When | Jobs |
 | --- | --- | --- |
-| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, `widgetbook` and `goldens` run in parallel. Each runs only when its paths change (both backend and frontend run when `contracts/` changes). `E2E (desktop)` and `E2E (phone)` run the journeys in headless Chrome when the backend, frontend or E2E files change. On PRs that change `contracts/`, `API breaking changes` diffs the API contract against the base branch. The `ci` job is the required check and passes only if every job passed or was skipped. |
+| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, `widgetbook` and `goldens` run in parallel. Each runs only when its paths change (both backend and frontend run when `contracts/` changes). `E2E (desktop)` and `E2E (phone)` run the journeys in headless Chrome when the backend, frontend or E2E files change. On PRs that change `contracts/`, `API breaking changes` diffs the API contract against the base branch. When a lockfile changes, `Dependency audit` checks it for known vulnerabilities. The `ci` job is the required check and passes only if every job passed or was skipped. |
+| `codeql.yml` | Every PR, push to `main`, and weekly | CodeQL for Python and the workflows (see [Security](#security)) |
 | `test-report.yml` | After CI or Nightly | Publishes test results as check runs on the commit |
-| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, API contract fuzzing with 1,000 requests per operation, the live TomTom contract check (needs a `TOMTOM_API_KEY` secret), the E2E journeys on an iOS simulator and an Android emulator (`e2e-mobile.yml`), and mutation testing (non-blocking) |
+| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, API contract fuzzing with 1,000 requests per operation, the live TomTom contract check (needs a `TOMTOM_API_KEY` secret), the E2E journeys on an iOS simulator and an Android emulator (`e2e-mobile.yml`), mutation testing, the dependency audit (`dependency-audit.yml`), and the ZAP API scan. None of them block a merge |
 
 Each job writes a coverage table to its run summary. On PRs it also reports diff coverage, meaning coverage of just the changed lines. Diff coverage is informational for now.
 
