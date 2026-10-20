@@ -270,12 +270,17 @@ class TestMockMode:
 
         assert (user.username, user.email) == ("auth0|dev", "dev@example.com")
 
-    def test_without_a_domain_mock_mode_is_used_even_if_disabled(self, settings, authenticate, make_auth0_token):
-        # Documented in README_DEPLOY.md: production must set AUTH0_DOMAIN and AUTH0_MOCK=0.
+    def test_without_a_domain_every_auth0_token_is_rejected(
+        self, settings, authenticate, make_auth0_token, http_mock, rsa_private_key
+    ):
+        # It used to fall back to mock mode, so a deploy without AUTH0_DOMAIN accepted unsigned tokens (#29).
         settings.AUTH0_MOCK = False
         settings.AUTH0_DOMAIN = ""
+        signed = jwt.encode({"sub": "auth0|dev"}, rsa_private_key, algorithm="RS256", headers={"kid": "k"})
 
-        assert authenticate(make_auth0_token("auth0|dev"))[0] is not None
+        assert authenticate(make_auth0_token("auth0|dev"))[0] is None
+        assert authenticate(signed)[0] is None
+        assert len(http_mock.calls) == 0
 
     def test_mock_mode_off_rejects_unsigned_tokens(self, authenticate, auth0_tenant, make_auth0_token, settings):
         token = make_auth0_token("auth0|dev")

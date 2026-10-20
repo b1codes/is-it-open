@@ -47,7 +47,7 @@ def _isolate(settings):
     """Keep a developer's .env and state left by earlier tests out of every test."""
     settings.TOMTOM_API_KEY = ""
     settings.TOMTOM_BASE_URL = TOMTOM_BASE
-    settings.AUTH0_MOCK = True
+    settings.AUTH0_MOCK = False  # the default; make_auth0_token turns mock mode on
     settings.AUTH0_DOMAIN = ""
     settings.AUTH0_AUDIENCE = ""
     cache.clear()
@@ -194,7 +194,7 @@ _MOCK_SIGNING_KEY = "mock-mode-signing-key-not-verified"
 
 @pytest.fixture
 def make_auth0_token(settings):
-    """Mock-mode Auth0 JWTs (AUTH0_MOCK=True, the dev default): decoded without verification."""
+    """Mock-mode Auth0 JWTs (AUTH0_MOCK=True, as in local development): decoded without verification."""
     settings.AUTH0_MOCK = True
 
     def make(sub="auth0|alice", **claims) -> str:

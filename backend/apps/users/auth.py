@@ -57,15 +57,18 @@ class GlobalAuth(HttpBearer):
     def verify_auth0_token(self, token):
         domain = getattr(settings, "AUTH0_DOMAIN", "")
         audience = getattr(settings, "AUTH0_AUDIENCE", "")
-        mock = getattr(settings, "AUTH0_MOCK", True) or not domain
 
-        if mock:
+        if getattr(settings, "AUTH0_MOCK", False):
             try:
                 # In mock mode, we decode without verification
                 payload = jwt.decode(token, options={"verify_signature": False})
                 return payload
             except jwt.DecodeError:
                 return None
+
+        # Without a tenant to verify against, no Auth0 token is valid.
+        if not domain:
+            return None
 
         # Real verification using Auth0 JWKS
         try:

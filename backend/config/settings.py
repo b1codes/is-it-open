@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 
 from decouple import config
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,7 +79,11 @@ TOMTOM_BASE_URL = config("TOMTOM_BASE_URL", default="https://api.tomtom.com/sear
 # Auth0 Configuration
 AUTH0_DOMAIN = config("AUTH0_DOMAIN", default="")
 AUTH0_AUDIENCE = config("AUTH0_AUDIENCE", default="")
-AUTH0_MOCK = config("AUTH0_MOCK", default=True, cast=bool)
+# Mock mode accepts Auth0 tokens without checking their signature, so anyone can sign in as anyone.
+# It's for local development only (docker-compose.yml turns it on, for the app's mock sign-in dialog).
+AUTH0_MOCK = config("AUTH0_MOCK", default=False, cast=bool)
+if AUTH0_MOCK and not DEBUG:
+    raise ImproperlyConfigured("AUTH0_MOCK accepts unsigned tokens; it can only be on with DEBUG=1")
 
 # Database
 # All app data lives in Google Cloud Firestore (see services/firestore.py), so Django's ORM

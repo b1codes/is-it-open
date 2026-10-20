@@ -75,8 +75,10 @@ when you use a key file, or drop both flags once `COMPOSE_FILE` is set.
    - `CORS_ALLOW_ALL_ORIGINS`: `settings.py` doesn't read `CORS_ALLOWED_ORIGINS` yet, so with `0` every
      cross-origin browser request is refused. Set `1` if a web build of the app calls the API from
      another origin. The mobile apps aren't affected.
-   - `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `AUTH0_MOCK=0`: Without a domain, or with mock mode on, the
-     backend accepts **unsigned** Auth0 tokens, so anyone could sign in as any Auth0 user.
+   - `AUTH0_DOMAIN` and `AUTH0_AUDIENCE`: Auth0 tokens are verified against this tenant. Without a
+     domain, every Auth0 token is rejected (username and password sign-in still works). Leave
+     `AUTH0_MOCK` out or `0`: mock mode accepts **unsigned** tokens, so anyone could sign in as any
+     Auth0 user, and the backend refuses to start with it on and `DEBUG` off.
    - Leave `FIRESTORE_EMULATOR_HOST` out. Compose forces it empty, and `DEBUG` to `0`, in production.
 
 The container refuses to start, and logs `backend/.env: ...`, if `SECRET_KEY` or

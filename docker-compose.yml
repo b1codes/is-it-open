@@ -32,6 +32,8 @@ services:
         condition: service_healthy
     environment:
       - DEBUG=1
+      # The app's Auth0 sign-in dialog makes unsigned tokens, which only mock mode accepts. Never in production.
+      - AUTH0_MOCK=1
       - GOOGLE_CLOUD_PROJECT=demo-is-it-open
       - FIRESTORE_EMULATOR_HOST=firestore:8080
 
