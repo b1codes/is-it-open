@@ -3,6 +3,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'helpers/e2e.dart';
 import 'journeys/auth_journey.dart';
+import 'journeys/calendar_journey.dart';
 import 'journeys/places_journey.dart';
 import 'journeys/profile_journey.dart';
 import 'journeys/settings_journey.dart';
@@ -19,4 +20,5 @@ void main() {
   group('profile', profileJourneys);
   group('places', placesJourneys);
   group('settings', settingsJourneys);
+  group('calendar', calendarJourneys);
 }
