@@ -50,6 +50,7 @@ jobs:
               - 'docker-compose.prod.yml'
               - '.github/workflows/production-image.yml'
               - 'e2e/stub/**'
+              - 'smoke/**'
             frontend:
               - *shared
               - 'frontend/**'
@@ -62,6 +63,7 @@ jobs:
               - 'docker/**'
               - 'e2e/**'
               - 'docker-compose.e2e.yml'
+              - 'smoke/**'
             rules:
               - '.github/workflows/ci.yml'
               - 'docker/firestore-emulator/**'
@@ -106,10 +108,11 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint (ruff)
-        # ../e2e is the E2E stub server, linted with the backend's settings.
+        # ../e2e is the E2E stub server and ../smoke the post-deploy smoke test, linted with the
+        # backend's settings.
         run: |
-          uv run ruff check --output-format=github . ../e2e
-          uv run ruff format --check . ../e2e
+          uv run ruff check --output-format=github . ../e2e ../smoke
+          uv run ruff format --check . ../e2e ../smoke
 
       - name: Type check (mypy)
         run: uv run mypy .
@@ -359,6 +362,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Start the E2E stack
+        id: stack
         run: docker compose -f docker-compose.e2e.yml up -d --build --wait
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
@@ -375,6 +379,19 @@ jobs:
           E2E_BROWSER_SIZE: ${{ matrix.size }}
         # The runner image ships Chrome with a matching chromedriver in $CHROMEWEBDRIVER.
         run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" e2e/run-web.sh
+
+      - name: Smoke test
+        # The post-deploy smoke test (smoke/), against the stack as if it were a deploy, so a change
+        # that would break it fails here first. After the journeys, since it saves a place. Once is
+        # enough: the layout doesn't matter to it.
+        if: matrix.layout == 'desktop' && !cancelled() && steps.stack.outcome == 'success'
+        env:
+          SMOKE_USERNAME: smoke
+          SMOKE_PASSWORD: smoke-password
+        run: |
+          curl -fsS -o /dev/null -X POST http://localhost:18000/api/auth/register -H 'Content-Type: application/json' \
+            -d "{\"username\": \"$SMOKE_USERNAME\", \"password\": \"$SMOKE_PASSWORD\"}"
+          python3 smoke/smoke.py http://localhost:18000
 
       - name: Stack logs
         if: failure()

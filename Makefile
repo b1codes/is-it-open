@@ -6,7 +6,7 @@
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
-	e2e-native-up e2e-native-down \
+	e2e-native-up e2e-native-down smoke test-smoke \
 	load test-load app-size app-size-pull perf-frames \
 	mutation-backend mutation-frontend
 
@@ -17,8 +17,9 @@ FRONTEND_MIN_COVERAGE ?= 95
 # Backend commands run in the dev container, which has the test tooling and reaches the emulator.
 # SECRET_KEY is only for tests; the dev compose file doesn't set one.
 BACKEND_RUN = docker compose run --rm -e SECRET_KEY=test-only-not-secret backend
-# Same, with the E2E stub server mounted at /e2e so ruff checks it with the backend's settings (as CI does).
-BACKEND_RUN_WITH_E2E = docker compose run --rm -e SECRET_KEY=test-only-not-secret -v ./e2e:/e2e backend
+# Same, with the E2E stub server and the smoke test mounted at /e2e and /smoke so ruff checks them with the
+# backend's settings (as CI does).
+BACKEND_RUN_WITH_E2E = docker compose run --rm -e SECRET_KEY=test-only-not-secret -v ./e2e:/e2e -v ./smoke:/smoke backend
 
 # Start the containers in the background
 up:
@@ -52,7 +53,7 @@ check: lint test
 lint: lint-backend lint-frontend lint-infra
 
 lint-backend:
-	$(BACKEND_RUN_WITH_E2E) sh -c "ruff check . /e2e && ruff format --check . /e2e && mypy . && bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'"
+	$(BACKEND_RUN_WITH_E2E) sh -c "ruff check . /e2e /smoke && ruff format --check . /e2e /smoke && mypy . && bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'"
 
 lint-frontend:
 	cd frontend && dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver && flutter analyze lib test tool integration_test test_driver
@@ -77,7 +78,7 @@ audit:
 
 # Apply formatting and autofixable lint fixes
 format:
-	$(BACKEND_RUN_WITH_E2E) sh -c 'ruff check --fix . /e2e && ruff format . /e2e'
+	$(BACKEND_RUN_WITH_E2E) sh -c 'ruff check --fix . /e2e /smoke && ruff format . /e2e /smoke'
 	cd frontend && dart format lib test tool integration_test test_driver
 
 # --- Tests ---
@@ -167,6 +168,20 @@ e2e-native-up:
 
 e2e-native-down:
 	e2e/start-native.sh stop
+
+# --- Smoke test (see smoke/README.md) ---
+
+# The post-deploy smoke test against a deployed backend, e.g.
+# make smoke URL=https://api.example.com SMOKE_USERNAME=... SMOKE_PASSWORD=...
+smoke:
+	@test -n "$(URL)" || { echo "Usage: make smoke URL=https://... (with SMOKE_USERNAME and SMOKE_PASSWORD set)"; exit 2; }
+	python3 smoke/smoke.py $(URL)
+
+# The smoke test against a running E2E stack (make e2e-up), as CI runs it, with an account it registers
+test-smoke:
+	curl -sS -o /dev/null -X POST http://localhost:18000/api/auth/register -H 'Content-Type: application/json' \
+		-d '{"username": "smoke", "password": "smoke-password"}'
+	SMOKE_USERNAME=smoke SMOKE_PASSWORD=smoke-password python3 smoke/smoke.py http://localhost:18000
 
 # --- Performance (slow; runs nightly in CI; see "Performance" in TESTING.md) ---
 
