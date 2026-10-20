@@ -47,6 +47,9 @@ extension on WidgetTester {
         (w) => w is SavedPlaceRow || w is SavedPlaceTile,
       ),
     );
+    await reveal(row);
+    await ensureVisible(row.first);
+    await pump();
     await longPress(row.first);
     await settle();
   }

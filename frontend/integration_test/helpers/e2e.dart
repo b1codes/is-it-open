@@ -221,6 +221,9 @@ extension E2eTester on WidgetTester {
     await settle(const Duration(milliseconds: 400));
     await reveal(finder);
     await ensureVisible(finder.first);
+    // Lay out the scroll before tapping: the tap aims at the last layout,
+    // and on iOS the keyboard had just shrunk the list.
+    await pump();
     await tap(finder.first);
     await settle();
   }
