@@ -46,6 +46,7 @@ jobs:
               - 'docker/**'
               - 'docker-compose.yml'
               - 'docker-compose.prod.yml'
+              - '.github/workflows/production-image.yml'
               - 'e2e/stub/**'
             frontend:
               - *shared
@@ -132,9 +133,6 @@ jobs:
         run: |
           uvx diff-cover==10.6.0 coverage.xml --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
           { echo "## Backend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Build production image
-        run: docker build -t is-it-open-backend .
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -419,6 +417,14 @@ jobs:
           --fail-on ERR --format githubactions
           --err-ignore contracts/breaking-changes-ignore.txt
 
+  # The backend as docker-compose.prod.yml runs it: boots, answers /health, refuses a broken .env,
+  # and has no fixable HIGH/CRITICAL CVE (production-image.yml).
+  production-image:
+    name: Production image
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: ./.github/workflows/production-image.yml
+
   # Known vulnerabilities in the dependencies, when they change. nightly.yml runs the
   # same audit every day, for advisories published since.
   dependency-audit:
@@ -431,7 +437,7 @@ jobs:
   # skipped because its paths didn't change.
   ci:
     name: ci
-    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes, dependency-audit]
+    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes, production-image, dependency-audit]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -4,6 +4,10 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y curl \
     && rm -rf /var/lib/apt/lists/*
 
+# The app runs from the uv-managed venv below, so the base image's own setuptools and wheel are
+# never used; removing them keeps their (and their vendored packages') CVEs out of the image scan.
+RUN pip uninstall -y setuptools wheel
+
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 

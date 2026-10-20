@@ -2,7 +2,7 @@ name: Nightly
 
 # Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test and API fuzzing
 # runs, the live TomTom contract check, the E2E journeys on mobile, mutation testing, the dependency
-# audit, and a DAST scan of the API.
+# audit, a scan of the production image, and a DAST scan of the API.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
@@ -178,6 +178,11 @@ jobs:
   dependency-audit:
     name: Dependency audit
     uses: ./.github/workflows/dependency-audit.yml
+
+  # Trivy's scan of the production image, for CVEs published since it last changed (production-image.yml).
+  production-image:
+    name: Production image
+    uses: ./.github/workflows/production-image.yml
 
   # OWASP ZAP's API scan of the E2E stack (dast.yml).
   dast:
