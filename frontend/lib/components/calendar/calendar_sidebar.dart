@@ -340,7 +340,10 @@ class CalendarSidebarWidget extends StatelessWidget {
                 );
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: PlacesMotion.of(
+                  context,
+                  const Duration(milliseconds: 200),
+                ),
                 constraints: const BoxConstraints(minHeight: 48),
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(

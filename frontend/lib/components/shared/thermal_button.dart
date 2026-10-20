@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/places_theme.dart';
 
 class ThermalButton extends StatefulWidget {
   final VoidCallback? onPressed;
@@ -39,6 +40,8 @@ class _ThermalButtonState extends State<ThermalButton>
 
   void _handleTapDown(TapDownDetails details) {
     if (widget.onPressed == null || widget.isLoading) return;
+    // The glow is decoration only; skip it for reduced motion.
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
     setState(() {
       _tapPosition = details.localPosition;
     });
@@ -65,7 +68,10 @@ class _ThermalButtonState extends State<ThermalButton>
           children: [
             // The base button
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: PlacesMotion.of(
+                context,
+                const Duration(milliseconds: 200),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
                 color: isEnabled

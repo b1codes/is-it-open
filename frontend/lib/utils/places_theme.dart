@@ -277,6 +277,14 @@ class PlacesMotion {
   static const Duration fast = Duration(milliseconds: 120);
   static const Duration standard = Duration(milliseconds: 200);
   static const Curve curve = Curves.easeOutQuart;
+
+  /// [duration], or zero when the user has turned on reduced motion
+  /// (MediaQuery.disableAnimations: "Remove animations" on Android, "Reduce
+  /// Motion" on iOS), so the change happens at once.
+  static Duration of(BuildContext context, Duration duration) =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false
+      ? Duration.zero
+      : duration;
 }
 
 extension PlacesThemeContext on BuildContext {

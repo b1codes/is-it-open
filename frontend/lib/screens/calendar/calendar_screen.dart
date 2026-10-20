@@ -446,7 +446,10 @@ class _CalendarScreenContent extends StatelessWidget {
                   if (!isMobile) ...[
                     VerticalDivider(width: 1, color: theme.ashSoft),
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
+                      duration: PlacesMotion.of(
+                        context,
+                        const Duration(milliseconds: 300),
+                      ),
                       curve: Curves.easeInOut,
                       width: uiState.isSidebarCollapsed ? 64 : 320,
                       color: theme.paperRaised,
@@ -487,7 +490,10 @@ class _CalendarScreenContent extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 44),
           alignment: Alignment.center,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: PlacesMotion.of(
+              context,
+              const Duration(milliseconds: 200),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isActive

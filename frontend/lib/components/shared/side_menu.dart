@@ -122,7 +122,7 @@ class SideMenu extends StatelessWidget {
           onTap: () => onIndexChanged(index),
           borderRadius: BorderRadius.circular(PlacesRadius.md),
           child: AnimatedContainer(
-            duration: PlacesMotion.standard,
+            duration: PlacesMotion.of(context, PlacesMotion.standard),
             curve: PlacesMotion.curve,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(

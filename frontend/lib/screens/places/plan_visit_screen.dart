@@ -205,7 +205,7 @@ class _DurationChip extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(PlacesRadius.pill),
           child: AnimatedContainer(
-            duration: PlacesMotion.standard,
+            duration: PlacesMotion.of(context, PlacesMotion.standard),
             curve: PlacesMotion.curve,
             constraints: const BoxConstraints(minHeight: 48),
             alignment: Alignment.center,

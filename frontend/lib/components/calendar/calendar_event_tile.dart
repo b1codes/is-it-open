@@ -31,7 +31,7 @@ class CalendarEventTileWidget extends StatelessWidget {
     final isBusinessBlock = !isPersonalEvent;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: PlacesMotion.of(context, const Duration(milliseconds: 300)),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
         color: isBusinessBlock

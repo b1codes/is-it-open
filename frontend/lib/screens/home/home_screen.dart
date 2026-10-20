@@ -32,10 +32,8 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _sheetAnimation = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..addListener(_applySheetAnimation);
+    _sheetAnimation = AnimationController(vsync: this)
+      ..addListener(_applySheetAnimation);
     _sheetController.addListener(() {
       final currentSize = _sheetController.size;
       // If user drags sheet down, sync index to Map
@@ -76,11 +74,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Only the phone layout has a sheet; on desktop there is nothing to move.
+  // With reduced motion on, the sheet jumps straight to its new size.
   void _animateSheet(double size) {
     _sheetTouched = false;
     if (!_sheetController.isAttached) return;
     _sheetFrom = _sheetController.size;
     _sheetTo = size;
+    _sheetAnimation.duration = PlacesMotion.of(
+      context,
+      const Duration(milliseconds: 300),
+    );
     _sheetAnimation.forward(from: 0);
   }
 

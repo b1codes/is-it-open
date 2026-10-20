@@ -699,7 +699,10 @@ class _MapScreenState extends State<MapScreen> {
                       Expanded(child: _buildMap()),
                       const VerticalDivider(width: 1),
                       AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
+                        duration: PlacesMotion.of(
+                          context,
+                          const Duration(milliseconds: 300),
+                        ),
                         curve: Curves.easeInOut,
                         width: uiState.isSidebarCollapsed ? 64 : 300,
                         child: sidebarContent,
