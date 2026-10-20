@@ -103,8 +103,14 @@ class GlobalAuth(HttpBearer):
             public_key = RSAAlgorithm.from_jwk(rsa_key)
             if not isinstance(public_key, RSAPublicKey):
                 return None
+            # PyJWT only checks `exp` when it's there; a token without one would never expire.
             payload = jwt.decode(
-                token, public_key, algorithms=["RS256"], audience=audience, issuer=f"https://{domain}/"
+                token,
+                public_key,
+                algorithms=["RS256"],
+                audience=audience,
+                issuer=f"https://{domain}/",
+                options={"require": ["exp", "iss", "aud", "sub"]},
             )
             return payload
         except Exception:
