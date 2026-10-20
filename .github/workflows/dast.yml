@@ -7,7 +7,6 @@ name: DAST
 on:
   workflow_call:
   workflow_dispatch:
-  pull_request:  # TEMPORARY: to verify the scan on PR #40; remove before merging
 
 permissions:
   contents: read
