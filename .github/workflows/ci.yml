@@ -29,6 +29,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       contracts: ${{ steps.filter.outputs.contracts }}
+      e2e: ${{ steps.filter.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -43,11 +44,19 @@ jobs:
               - 'backend/**'
               - 'docker/**'
               - 'docker-compose.yml'
+              - 'e2e/stub/**'
             frontend:
               - *shared
               - 'frontend/**'
             contracts:
               - 'contracts/**'
+            e2e:
+              - *shared
+              - 'backend/**'
+              - 'frontend/**'
+              - 'docker/**'
+              - 'e2e/**'
+              - 'docker-compose.e2e.yml'
 
   backend:
     name: Backend
@@ -78,9 +87,10 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint (ruff)
+        # ../e2e is the E2E stub server, linted with the backend's settings.
         run: |
-          uv run ruff check --output-format=github .
-          uv run ruff format --check .
+          uv run ruff check --output-format=github . ../e2e
+          uv run ruff format --check . ../e2e
 
       - name: Type check (mypy)
         run: uv run mypy .
@@ -149,11 +159,11 @@ jobs:
         run: flutter pub get
 
       - name: Format
-        run: dart format --output=none --set-exit-if-changed lib test tool
+        run: dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver
 
       - name: Analyze
         # Scoped so the nested widgetbook/ package (analyzed in its own job) isn't picked up without its deps.
-        run: flutter analyze lib test tool
+        run: flutter analyze lib test tool integration_test test_driver
 
       - name: Test
         run: |
@@ -223,6 +233,57 @@ jobs:
           path: frontend/widgetbook/test-results/
           if-no-files-found: ignore
 
+  # The Flutter app in headless Chrome against the production backend image, the Firestore
+  # emulator and a stub for every external service (docker-compose.e2e.yml). See e2e/README.md.
+  e2e:
+    name: E2E (${{ matrix.layout }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: desktop
+            size: 1600x1024
+          - layout: phone
+            size: 390x844
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Run the journeys
+        env:
+          E2E_BROWSER_SIZE: ${{ matrix.size }}
+        # The runner image ships Chrome with a matching chromedriver in $CHROMEWEBDRIVER.
+        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" e2e/run-web.sh
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-${{ matrix.layout }}
+          path: |
+            frontend/build/e2e-screenshots/
+            frontend/build/chromedriver.log
+            e2e-stack.log
+          if-no-files-found: ignore
+
   # Released app builds keep calling the API after a deploy, so a PR may not break the contract
   # (contracts/openapi.json) that main's build relies on. See contracts/README.md.
   api-breaking-changes:
@@ -263,7 +324,7 @@ jobs:
   # skipped because its paths didn't change.
   ci:
     name: ci
-    needs: [changes, backend, frontend, widgetbook, api-breaking-changes]
+    needs: [changes, backend, frontend, widgetbook, e2e, api-breaking-changes]
     if: always()
     runs-on: ubuntu-latest
     steps:

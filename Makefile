@@ -5,7 +5,7 @@
 	test test-backend test-frontend test-widgetbook \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
-	e2e-up e2e-down e2e-logs \
+	e2e-up e2e-down e2e-logs test-e2e \
 	mutation-backend mutation-frontend
 
 # Coverage minimums; keep in sync with BACKEND_MIN_COVERAGE/FRONTEND_MIN_COVERAGE in .github/workflows/ci.yml.
@@ -51,13 +51,13 @@ lint-backend:
 	$(BACKEND_RUN) sh -c 'ruff check . && ruff format --check . && mypy .'
 
 lint-frontend:
-	cd frontend && dart format --output=none --set-exit-if-changed lib test tool && flutter analyze lib test tool
+	cd frontend && dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver && flutter analyze lib test tool integration_test test_driver
 	cd frontend/widgetbook && flutter analyze
 
 # Apply formatting and autofixable lint fixes
 format:
 	$(BACKEND_RUN) sh -c 'ruff check --fix . && ruff format .'
-	cd frontend && dart format lib test tool
+	cd frontend && dart format lib test tool integration_test test_driver
 
 # --- Tests ---
 
@@ -103,6 +103,11 @@ e2e-down:
 
 e2e-logs:
 	$(E2E_COMPOSE) logs -f
+
+# The Flutter journeys in headless Chrome (needs chromedriver; see e2e/README.md).
+# E2E_BROWSER_SIZE=390x844 runs them in the phone layout.
+test-e2e:
+	e2e/run-web.sh
 
 # --- Mutation testing (slow; runs nightly in CI) ---
 

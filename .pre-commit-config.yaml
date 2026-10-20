@@ -20,4 +20,4 @@ repos:
         entry: dart format
         language: system
         types: [dart]
-        files: ^frontend/(lib|test|tool)/
+        files: ^frontend/(lib|test|tool|integration_test|test_driver)/
