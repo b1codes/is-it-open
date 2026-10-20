@@ -35,5 +35,5 @@ rm -rf test/goldens
 mkdir -p test/goldens
 cp -R "$tmp"/. test/goldens/
 echo "Goldens from CI run $run (${sha:0:7}):"
-git status --short -- test/goldens | awk '{print $1}' | sort | uniq -c
+git status --short --untracked-files=all -- test/goldens | awk '{print $1}' | sort | uniq -c
 echo "Review the changed images (git diff, or your Git client's image diff), then commit test/goldens/."
