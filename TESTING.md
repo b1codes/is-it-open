@@ -99,7 +99,7 @@ To bump Flutter or the runner image for this job, change both in `ci.yml` in the
 
 Two suites, both part of the regular CI jobs:
 
-- **Every screen and component** (`frontend/widgetbook/test/accessibility_test.dart`, in the Widgetbook job): each catalog use case, in light and dark at phone and desktop widths, must meet Flutter's accessibility guidelines: tap targets of at least 48×48 (`androidTapTargetGuideline`) and 44×44 (`iOSTapTargetGuideline`), a label on everything tappable (`labeledTapTargetGuideline`), and WCAG AA text contrast (`textContrastGuideline`: 4.5:1, or 3:1 for large text). Each use case must also lay out at 2× text, at phone, tablet and desktop widths, without overflowing. These run on every platform.
+- **Every screen and component** (`frontend/widgetbook/test/accessibility_test.dart`, in the Widgetbook job): each catalog use case, in light and dark at phone and desktop widths, must meet Flutter's tap target guidelines: at least 48×48 (`androidTapTargetGuideline`) and 44×44 (`iOSTapTargetGuideline`), and a label on everything tappable (`labeledTapTargetGuideline`). Its text must meet WCAG AA contrast: 4.5:1, or 3:1 for large text. Each use case must also lay out at 2× text, at phone, tablet and desktop widths, without overflowing. These run on every platform.
 - **App behavior** (`frontend/test/accessibility/`, in the Frontend job): what a screen reader gets (labels on icon-only buttons, status pills that say the status in words, map markers it can reach and press); reduced motion (with the system setting on, `MediaQuery.disableAnimations`, transitions are instant); and WCAG AA contrast for the theme's text colors, computed from the colors themselves.
 
 When you add something:
@@ -109,7 +109,7 @@ When you add something:
 - **Text in a `Row`:** wrap it in `Flexible` or `Expanded` so it can wrap or truncate at 2× text. For a fixed-height container, size it from `MediaQuery.textScalerOf(context)` (see `SavedPlaceTile.gridExtent`).
 - **A new text color:** add the pair to `test/accessibility/contrast_test.dart`.
 
-The contrast guideline measures rendered pixels: it takes the two most common colors around a piece of text as text and background. That misreads small text on a busy background (the calendar grid, a gradient, the catalog's glass backdrop). Such cases are listed in `_contrastExempt` in `accessibility_test.dart`, each with its reason; check them by hand before adding one. Calendar event blocks are exempt from the tap target size, since their height is the event's duration; `CalendarEventTileWidget.semanticsIdentifier` marks them.
+Contrast is checked by `TextStyleContrastGuideline` (`test/support/text_contrast.dart`), not Flutter's `textContrastGuideline`. Flutter's takes the two most common colors around a piece of text as text and background, which depends on how the platform anti-aliases glyphs. On CI's Linux runner it read ink on paper as 1.5:1. Ours takes the text's color from its style and reads only the background from the rendered pixels. It skips icons, disabled controls, and transparent or covered text. The only use cases it doesn't check are components shown on the catalog's multicolor glass backdrop (`_contrastExempt`). Calendar event blocks are exempt from the tap target size, since their height is the event's duration on the time grid.
 
 What automation can't check (TalkBack and VoiceOver reading order, and how the app feels with them on a device) stays manual.
 
