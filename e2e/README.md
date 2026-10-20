@@ -5,15 +5,24 @@ The real Flutter app, driven through its UI, against the real backend. Only the 
 ## Quick start
 
 ```sh
-make e2e-up      # build and start the stack (an empty emulator, then seeded), wait until healthy
-make test-e2e    # run the journeys in headless Chrome
+make e2e         # all in one, as CI does: start the stack, run both layouts, tear it down
+
+make e2e-up      # or step by step: build and start the stack (empty emulator, then seeded)
+make test-e2e    # the journeys in headless Chrome, desktop layout
+make test-e2e-phone  #   ...and in the phone layout (390x844)
 make e2e-down
 ```
 
-`make test-e2e` needs Chrome and a matching chromedriver, on your `PATH` or at `CHROMEDRIVER=/path/to/chromedriver`. `npx @puppeteer/browsers install chromedriver@<your Chrome version>` downloads one. Other options for `e2e/run-web.sh`:
+| Target | What it does |
+| --- | --- |
+| `make e2e` | `e2e-up`, both layouts, then `e2e-down`, also when a journey fails |
+| `make e2e-up` / `make e2e-down` | Start the stack from scratch and wait until it's healthy / stop it and drop its data |
+| `make e2e-logs` | Follow the stack's logs |
+| `make e2e-seed` | Reset the seeded account on a running stack, e.g. after trying things by hand |
+| `make test-e2e` / `make test-e2e-phone` | The journeys against a running stack. `ARGS=` passes flags to `flutter drive`; `ARGS=--no-headless` opens a browser window you can watch |
+| `make e2e-native-up` / `make e2e-native-down` | The stack without Docker (see below) |
 
-- `E2E_BROWSER_SIZE=390x844` runs the phone layout. The default, `1600x1024`, is the desktop layout with the side menu.
-- Arguments are passed to `flutter drive`. For example, `e2e/run-web.sh --no-headless` opens a browser window you can watch.
+The journeys need Chrome. `e2e/run-web.sh` (behind the test targets) uses `CHROMEDRIVER=/path/to/chromedriver` if you set it. Otherwise it uses a `chromedriver` on your `PATH` if it matches your Chrome, or downloads one that does into `frontend/build/chromedriver` (with `npx`). Chrome updates itself, so a chromedriver fetched once goes stale. `E2E_BROWSER_SIZE=WIDTHxHEIGHT` sets any other screen size.
 
 A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
 
@@ -38,7 +47,7 @@ A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
 
 ### Without Docker
 
-`e2e/start-native.sh` runs the same stack directly on the machine. The iOS job uses it, because GitHub's macOS runners have no Docker. It needs uv, Node.js, Java 21+ and python3. Stop it with `e2e/start-native.sh stop`. Two differences from the Docker stack:
+`e2e/start-native.sh` (`make e2e-native-up`) runs the same stack directly on the machine. The iOS job uses it, because GitHub's macOS runners have no Docker. It needs uv, Node.js, Java 21+ and python3. Stop it with `make e2e-native-down`. Two differences from the Docker stack:
 
 - The emulator listens on port 18080.
 - The backend reaches the stub at 127.0.0.1, so pass `--dart-define=E2E_STUB_URL=http://127.0.0.1:18090` to the journeys.

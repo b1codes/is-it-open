@@ -7,7 +7,7 @@ How the automated checks are organized, how to run them locally, and what CI enf
 | Command | What it runs |
 | --- | --- |
 | `make check` | Every lint and test suite below (what CI runs on a PR) |
-| `make lint` | ruff, mypy, `dart format`, `flutter analyze` |
+| `make lint` | ruff (backend and the E2E stub), mypy, `dart format`, `flutter analyze` |
 | `make format` | Applies ruff fixes/formatting and `dart format` |
 | `make test-backend` | Backend pytest suite against the Firestore emulator |
 | `make test-frontend` | Flutter unit, bloc, and widget tests |
@@ -15,7 +15,7 @@ How the automated checks are organized, how to run them locally, and what CI enf
 | `make coverage` | Both suites with coverage; fails below the minimums |
 | `make mutation-backend` / `make mutation-frontend` | Mutation testing (slow; runs nightly in CI) |
 | `make contracts-update` | Regenerates `contracts/openapi.json` after an intended API change |
-| `make e2e-up` / `make test-e2e` / `make e2e-down` | The E2E stack and the journeys against it, in headless Chrome (see [e2e/README.md](e2e/README.md)) |
+| `make e2e` | The E2E journeys in headless Chrome, both layouts, against a stack it starts and stops (step by step: `make e2e-up`, `make test-e2e`, `make e2e-down`; see [e2e/README.md](e2e/README.md)) |
 
 Backend targets run inside the dev container (`docker compose`), which starts the Firestore emulator for you. Frontend targets need the Flutter SDK on your machine. After a backend dependency changes, rebuild the container with `make build`.
 
@@ -74,7 +74,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 
 ## E2E (`frontend/integration_test/`, `e2e/`)
 
-The real app, driven through its UI, against the production backend image, the Firestore emulator, and a stub for TomTom, the iCal feed and map tiles. The journeys cover sign-up, sign-in and session restore; the profile and home address; search; the bookmark lifecycle; quick add; settings across a restart; the calendar subscription; and error paths (backend down, TomTom outage, revoked session). Run them with `make e2e-up && make test-e2e`. Details, including how to write a journey, are in [e2e/README.md](e2e/README.md).
+The real app, driven through its UI, against the production backend image, the Firestore emulator, and a stub for TomTom, the iCal feed and map tiles. The journeys cover sign-up, sign-in and session restore; the profile and home address; search; the bookmark lifecycle; quick add; settings across a restart; the calendar subscription; and error paths (backend down, TomTom outage, revoked session). Run them with `make e2e`. Details, including how to write a journey, are in [e2e/README.md](e2e/README.md).
 
 ## CI (`.github/workflows/`)
 
