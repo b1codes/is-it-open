@@ -27,7 +27,7 @@ jobs:
       SECRET_KEY: ci-only-not-secret
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -59,7 +59,7 @@ jobs:
       HYPOTHESIS_PROFILE: nightly  # random examples, far more than the per-PR run
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -90,7 +90,7 @@ jobs:
       SCHEMATHESIS_MAX_EXAMPLES: '1000'
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -121,7 +121,7 @@ jobs:
       TOMTOM_LIVE_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -152,7 +152,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
           channel: 'stable'
           cache: true
@@ -198,7 +198,7 @@ jobs:
       SECRET_KEY: ci-only-not-secret
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -244,7 +244,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
           channel: 'stable'
           cache: true
