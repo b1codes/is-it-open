@@ -42,4 +42,4 @@ services:
         exec "$$@"
       - entrypoint
     # The Dockerfile's CMD (an entrypoint override clears it, so it is repeated here).
-    command: ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-log", "-"]
+    command: ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-logfile", "-"]

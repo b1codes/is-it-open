@@ -40,4 +40,4 @@ RUN SECRET_KEY=build-time-only python manage.py collectstatic --noinput
 EXPOSE 8000
 
 # Use gunicorn with uvicorn workers for ASGI support
-CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-log", "-"]
+CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-logfile", "-"]
