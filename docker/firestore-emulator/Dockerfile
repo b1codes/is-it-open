@@ -1,6 +1,6 @@
 # docker/firestore-emulator/Dockerfile
 # Local Google Cloud Firestore emulator (plus the Emulator UI) via the Firebase CLI.
-FROM node:22.20.0-trixie-slim
+FROM node:26.12.0-trixie-slim
 
 # The Firebase emulators need Java 21+; curl backs the healthcheck.
 RUN apt-get update && apt-get install -y --no-install-recommends \
