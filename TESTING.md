@@ -35,6 +35,7 @@ Backend targets run inside the dev container (`docker compose`), which starts th
   | `tests/property/` | Hypothesis property tests (hours parsing, geo, document IDs, the search index) |
   | `tests/contracts/` | The API and TomTom contracts in `contracts/`: schema snapshot, Schemathesis provider tests, TomTom fixtures and the live check (see [contracts/README.md](contracts/README.md)) |
   | `tests/security/` | Authorization across users, the auth settings, forged JWTs, and SSRF in the calendar proxy (see [Security](#security)) |
+  | `tests/performance/` | Firestore reads, writes and round trips per request, and no N+1 reads (see [Performance](#performance)) |
 
 - **Database:** tests run against the emulator under a separate `demo-is-it-open-test` project, which is wiped before each test, so your local dev data is never touched. New tests use the `firestore_db` fixture (or a factory that depends on it); older ones subclass `tests.base.FirestoreTestCase`.
 - **Fixtures** (`tests/conftest.py`):
@@ -127,6 +128,10 @@ What automation can't check (TalkBack and VoiceOver reading order, and how the a
 - **Dependencies:** `dependency-audit.yml` runs pip-audit on the backend's locked packages, all groups, and osv-scanner on `backend/uv.lock` and the app's and Widgetbook's `pubspec.lock`. Those two aren't committed, so the job runs `flutter pub get` first, as the Flutter jobs do. CI runs the audit when `pyproject.toml`, `uv.lock` or a `pubspec.yaml` changes, as part of the required check, and nightly for advisories published since. `make audit` runs it locally, against your own `pubspec.lock` files. Fix a finding by upgrading the package (`uv lock --upgrade-package <name>`, or `flutter pub upgrade <name>`).
 - **DAST** (nightly): OWASP ZAP's API scan, driven by the served OpenAPI schema (the one in `contracts/openapi.json`) and signed in as the seeded account. There's no staging backend yet, so it scans the E2E stack, which runs the production image. Any alert fails the job unless `.zap/rules.tsv` accepts it, with a reason. The HTML report is in the `zap-report` artifact. To run it locally, with the stack up (`make e2e-up`), pass a token from `POST /api/auth/login` as `ZAP_AUTH_HEADER_VALUE="Bearer <token>"` and `ZAP_AUTH_HEADER_SITE=host.docker.internal` to `docker run -v "$PWD/.zap:/zap/wrk" ghcr.io/zaproxy/zaproxy:2.17.0 zap-api-scan.py -t http://host.docker.internal:18000/api/openapi.json -f openapi -c rules.tsv`.
 - **Not covered yet:** rate limiting, which isn't implemented ([its ClickUp task](https://app.clickup.com/t/86ba3a34w)). Add tests for it in `tests/security/` when it lands.
+
+## Performance
+
+- **Firestore cost** (`backend/tests/performance/`, in the Backend job): the `firestore_usage` fixture counts the document reads and writes a block of code makes, which is what Firestore bills, and its round trips, which is what the user waits for. It wraps the client library's RPC layer, so it counts every call, from any thread. A read is each document a query returns (at least one per query, even an empty one) and each document looked up by reference, found or not. `test_firestore_cost.py` pins the cost of a typical request to every operation in the served schema, so a new route fails until it has an entry. It also checks that the list routes (bookmarks, nearby, suggestions, search) make a fixed number of round trips however much data there is, and that search stops at its candidate limit. When a route should cost more, or less, update its entry in `EXPECTED_COSTS`.
 
 ## E2E (`frontend/integration_test/`, `e2e/`)
 
