@@ -183,8 +183,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith("/search/2/") and "outage" in path.lower():
             return self._json(503, {"errorText": "Service unavailable (E2E outage)"})
-        if m := re.fullmatch(r"/search/2/poiSearch/(.+)\.json", path):
-            return self._json(200, search_response(m[1]))
+        query = path.removeprefix("/search/2/poiSearch/").removesuffix(".json")
+        if path.startswith("/search/2/poiSearch/") and path.endswith(".json") and query:
+            return self._json(200, search_response(query))
         if path == "/search/2/nearbySearch/.json":
             return self._json(200, _starting_today(_load("nearby_search")))
         if path == "/search/2/place.json":
