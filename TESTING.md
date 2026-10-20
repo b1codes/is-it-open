@@ -15,6 +15,7 @@ How the automated checks are organized, how to run them locally, and what CI enf
 | `make coverage` | Both suites with coverage; fails below the minimums |
 | `make mutation-backend` / `make mutation-frontend` | Mutation testing (slow; runs nightly in CI) |
 | `make contracts-update` | Regenerates `contracts/openapi.json` after an intended API change |
+| `make e2e-up` / `make test-e2e` / `make e2e-down` | The E2E stack and the journeys against it, in headless Chrome (see [e2e/README.md](e2e/README.md)) |
 
 Backend targets run inside the dev container (`docker compose`), which starts the Firestore emulator for you. Frontend targets need the Flutter SDK on your machine. After a backend dependency changes, rebuild the container with `make build`.
 
@@ -71,13 +72,17 @@ Backend targets run inside the dev container (`docker compose`), which starts th
 
 - **Lint:** `dart format lib test tool integration_test test_driver` and `flutter analyze lib test tool integration_test test_driver` (lints from `analysis_options.yaml`). Scope it to those directories: plain `flutter analyze` also picks up the nested `widgetbook/` package.
 
+## E2E (`frontend/integration_test/`, `e2e/`)
+
+The real app, driven through its UI, against the production backend image, the Firestore emulator, and a stub for TomTom, the iCal feed and map tiles. The journeys cover sign-up, sign-in and session restore; the profile and home address; search; the bookmark lifecycle; quick add; settings across a restart; the calendar subscription; and error paths (backend down, TomTom outage, revoked session). Run them with `make e2e-up && make test-e2e`. Details, including how to write a journey, are in [e2e/README.md](e2e/README.md).
+
 ## CI (`.github/workflows/`)
 
 | Workflow | When | Jobs |
 | --- | --- | --- |
-| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, and `widgetbook` run in parallel. Each runs only when its paths change (both backend and frontend run when `contracts/` changes). On PRs that change `contracts/`, `API breaking changes` diffs the API contract against the base branch. The `ci` job is the required check and passes only if every job passed or was skipped. |
+| `ci.yml` | Every PR and push to `main` | `backend`, `frontend`, and `widgetbook` run in parallel. Each runs only when its paths change (both backend and frontend run when `contracts/` changes). `E2E (desktop)` and `E2E (phone)` run the journeys in headless Chrome when the backend, frontend or E2E files change. On PRs that change `contracts/`, `API breaking changes` diffs the API contract against the base branch. The `ci` job is the required check and passes only if every job passed or was skipped. |
 | `test-report.yml` | After CI or Nightly | Publishes test results as check runs on the commit |
-| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, API contract fuzzing with 1,000 requests per operation, the live TomTom contract check (needs a `TOMTOM_API_KEY` secret), and mutation testing (non-blocking) |
+| `nightly.yml` | 07:00 UTC daily, or manually | Quarantined tests, backend property tests with 5,000 examples each, API contract fuzzing with 1,000 requests per operation, the live TomTom contract check (needs a `TOMTOM_API_KEY` secret), the E2E journeys on an iOS simulator and an Android emulator (`e2e-mobile.yml`), and mutation testing (non-blocking) |
 
 Each job writes a coverage table to its run summary. On PRs it also reports diff coverage, meaning coverage of just the changed lines. Diff coverage is informational for now.
 
