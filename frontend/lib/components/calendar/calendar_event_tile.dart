@@ -77,10 +77,12 @@ class CalendarEventTileWidget extends StatelessWidget {
   Widget _buildPersonalBlock(BuildContext context, CalendarEventData event) {
     // White on a dark block; on a light one (dark mode's inkMuted), white
     // would be under 3:1.
-    final textColor =
-        ThemeData.estimateBrightnessForColor(event.color) == Brightness.dark
-        ? Colors.white
-        : PlacesTheme.dark.paper;
+    final textColor = PlacesTheme.onColor(
+      Color.alphaBlend(
+        event.color.withValues(alpha: 0.9),
+        context.places.paper,
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       child: Text(
@@ -155,9 +157,18 @@ class FullDayEventWidget extends StatelessWidget {
                         ),
                         child: Text(
                           event.title,
+                          // Not the 60%-opaque event color the block is
+                          // tinted with, which was under 3:1.
                           style:
                               PlacesType.label(
-                                isBusinessBlock ? event.color : Colors.white,
+                                isBusinessBlock
+                                    ? theme.ink
+                                    : PlacesTheme.onColor(
+                                        Color.alphaBlend(
+                                          event.color.withValues(alpha: 0.9),
+                                          theme.paper,
+                                        ),
+                                      ),
                               ).copyWith(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,

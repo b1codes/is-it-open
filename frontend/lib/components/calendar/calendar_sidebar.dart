@@ -187,7 +187,11 @@ class CalendarSidebarWidget extends StatelessWidget {
                           ),
                           child: Icon(
                             iconData,
-                            color: isChecked ? Colors.white : color,
+                            color: isChecked
+                                ? PlacesTheme.onColor(
+                                    Color.alphaBlend(color, theme.paperRaised),
+                                  )
+                                : color,
                             size: 18,
                           ),
                         ),
@@ -246,7 +250,14 @@ class CalendarSidebarWidget extends StatelessWidget {
                               width: 10,
                               height: 10,
                               decoration: BoxDecoration(
-                                color: isChecked ? Colors.white : color,
+                                color: isChecked
+                                    ? PlacesTheme.onColor(
+                                        Color.alphaBlend(
+                                          color,
+                                          theme.paperRaised,
+                                        ),
+                                      )
+                                    : color,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -363,7 +374,11 @@ class CalendarSidebarWidget extends StatelessWidget {
                   children: [
                     Icon(
                       iconData,
-                      color: isChecked ? Colors.white : color,
+                      color: isChecked
+                          ? PlacesTheme.onColor(
+                              Color.alphaBlend(color, theme.paperRaised),
+                            )
+                          : color,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
@@ -374,7 +389,14 @@ class CalendarSidebarWidget extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style:
                             PlacesType.label(
-                              isChecked ? Colors.white : theme.ink,
+                              isChecked
+                                  ? PlacesTheme.onColor(
+                                      Color.alphaBlend(
+                                        color,
+                                        theme.paperRaised,
+                                      ),
+                                    )
+                                  : theme.ink,
                             ).copyWith(
                               fontWeight: isChecked
                                   ? FontWeight.w600

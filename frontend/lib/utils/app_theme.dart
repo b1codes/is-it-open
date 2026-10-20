@@ -6,7 +6,7 @@ class AppColors {
   // Brand Anchor
   // PlacesTheme.light.anchor. The earlier #D66A4D gave white button labels
   // and terracotta links on paper only about 3.3:1, under WCAG AA's 4.5:1.
-  static const Color terracotta = Color(0xFFB14E27); // ≈ oklch(54% 0.14 45)
+  static const Color terracotta = Color(0xFF9F4623); // ≈ oklch(50% 0.13 45)
 
   // Neutrals (Paper & Ink)
   static const Color paperWarm = Color(0xFFF9F7F2); // oklch(97% 0.008 60)
@@ -191,7 +191,7 @@ class AppTheme {
     colorScheme: const ColorScheme(
       brightness: Brightness.dark,
       primary: Color(
-        0xFFD97A52,
+        0xFFDC8560,
       ), // AppColors.terracotta brightened for dark surfaces
       onPrimary: Color(0xFF1C1916), // Dark paper ink background
       secondary: Color(0xFF26221E), // Elevated paper surface

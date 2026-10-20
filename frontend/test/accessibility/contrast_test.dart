@@ -40,6 +40,18 @@ void main() {
         }
       });
 
+      // Selected chips and toggles put anchor text on an anchor tint of up
+      // to 12%.
+      test('anchor text on an anchor tint', () {
+        for (final surface in [theme.paper, theme.paperRaised]) {
+          final tint = Color.alphaBlend(
+            theme.anchor.withValues(alpha: 0.12),
+            surface,
+          );
+          expect(_contrast(theme.anchor, tint), _meetsAA('anchor on tint'));
+        }
+      });
+
       test('labels on filled buttons and status pills', () {
         expect(
           _contrast(theme.anchorOnContrast, theme.anchor),
@@ -98,6 +110,21 @@ void main() {
       });
     });
   }
+
+  test('PlacesTheme.onColor is readable on any color', () {
+    // Every 17th step of each channel: 4,096 colors.
+    for (var r = 0; r < 256; r += 17) {
+      for (var g = 0; g < 256; g += 17) {
+        for (var b = 0; b < 256; b += 17) {
+          final color = Color.fromARGB(255, r, g, b);
+          expect(
+            _contrast(PlacesTheme.onColor(color), color),
+            _meetsAA('on $color'),
+          );
+        }
+      }
+    }
+  });
 
   group('app theme', () {
     test('filled button labels', () {

@@ -75,7 +75,11 @@ void main() {
     expect(find.text('Holiday'), findsOneWidget);
     expect(find.text('Trip'), findsOneWidget);
     expect(tester.widget<Text>(find.text('Trip')).style?.color, Colors.white);
-    expect(tester.widget<Text>(find.text('Holiday')).style?.color, Colors.teal);
+    // In ink, not the event's color, which the block is only tinted with.
+    expect(
+      tester.widget<Text>(find.text('Holiday')).style?.color,
+      PlacesTheme.light.ink,
+    );
   });
 
   group('StackEventArranger', () {

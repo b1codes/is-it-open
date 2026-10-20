@@ -481,6 +481,9 @@ class _MapScreenState extends State<MapScreen> {
           options: MapOptions(
             initialCenter: _currentLocation!,
             initialZoom: 13.0,
+            // Shown until tiles load (and offline). The default light grey
+            // left dark mode's map, and the phone sheet over it, light.
+            backgroundColor: theme.paper,
           ),
           children: [
             TileLayer(

@@ -154,10 +154,20 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     );
   }
 
+  /// Black or white, whichever is the more readable on [background]: on any
+  /// opaque color one of them is at least 4.58:1. For text on colors the
+  /// theme doesn't choose, like a place's or a calendar event's.
+  static Color onColor(Color background) {
+    final l = background.computeLuminance();
+    return (l + 0.05) / 0.05 >= 1.05 / (l + 0.05) ? Colors.black : Colors.white;
+  }
+
   // Translated from DESIGN.md OKLCH targets. The light theme is the design's home
   // (sunlight scene sentence, §3 of the brief); dark is a system-respecting variant.
   static const light = PlacesTheme(
-    anchor: Color(0xFFB14E27), // ≈ oklch(54% 0.14 45)
+    // ≈ oklch(50% 0.13 45). Dark enough for anchor text on a 15% anchor
+    // tint (a selected chip) to meet WCAG AA; #B14E27 was 3.9:1 there.
+    anchor: Color(0xFF9F4623),
     anchorOnContrast: Color(0xFFF7F3EC),
     paper: Color(0xFFF7F3EC), // ≈ oklch(96% 0.008 70)
     paperRaised: Color(0xFFFFFAF1), // ≈ oklch(98% 0.008 70)
@@ -176,11 +186,12 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     unknownOutline: Color(0xFFB0A899),
     markerHome: Color(0xFF3F617A), // Muted Slate Blue
     markerWork: Color(0xFF9E632A), // Muted Bronze Amber
-    markerPosition: Color(0xFFB14E27), // Terracotta Anchor
+    markerPosition: Color(0xFF9F4623), // Terracotta Anchor
   );
 
   static const dark = PlacesTheme(
-    anchor: Color(0xFFD97A52), // brightened to hold contrast on dark surface
+    // Brightened to hold contrast on dark surfaces, tints included.
+    anchor: Color(0xFFDC8560),
     anchorOnContrast: Color(0xFF1C1916),
     paper: Color(0xFF1C1916), // warm near-black, never pure #000
     paperRaised: Color(0xFF26221E),
@@ -197,7 +208,7 @@ class PlacesTheme extends ThemeExtension<PlacesTheme> {
     unknownOutline: Color(0xFF6B6258),
     markerHome: Color(0xFF5B85A6), // Brightened Slate Blue
     markerWork: Color(0xFFC4864B), // Brightened Bronze Amber
-    markerPosition: Color(0xFFD97A52), // Brightened Terracotta
+    markerPosition: Color(0xFFDC8560), // Brightened Terracotta
   );
 }
 

@@ -152,8 +152,12 @@ class _HomeScreenState extends State<HomeScreen>
                         horizontal: 10,
                         vertical: 6,
                       ),
+                      // Outlined: an anchor tint under the anchor label,
+                      // on the translucent sheet, was under 4.5:1.
                       decoration: BoxDecoration(
-                        color: theme.anchor.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: theme.anchor.withValues(alpha: 0.5),
+                        ),
                         borderRadius: BorderRadius.circular(PlacesRadius.sm),
                       ),
                       child: Row(

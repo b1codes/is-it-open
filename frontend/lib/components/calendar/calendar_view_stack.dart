@@ -299,7 +299,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                         _weekDayShortName(date.weekday).toUpperCase(),
                         style:
                             PlacesType.label(
-                              isToday ? Colors.white : textColor,
+                              isToday ? theme.anchorOnContrast : textColor,
                             ).copyWith(
                               fontSize: 10,
                               fontWeight: isToday
@@ -316,7 +316,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                             '${date.day}',
                             style:
                                 PlacesType.title(
-                                  isToday ? Colors.white : textColor,
+                                  isToday ? theme.anchorOnContrast : textColor,
                                 ).copyWith(
                                   fontSize: 15,
                                   fontWeight: isToday
@@ -330,7 +330,9 @@ class CalendarViewStackWidget extends StatelessWidget {
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: isToday ? Colors.white : theme.anchor,
+                                color: isToday
+                                    ? theme.anchorOnContrast
+                                    : theme.anchor,
                                 shape: BoxShape.circle,
                               ),
                             ),
