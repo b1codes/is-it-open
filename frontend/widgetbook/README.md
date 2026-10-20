@@ -90,6 +90,9 @@ nested navigator and shows the popped result with a "Reopen" button.
 
 4. Run `flutter test`. The smoke test renders every use case in the app's
    real fonts and fails on any exception, RenderFlex overflows included.
+   The accessibility test checks it against Flutter's accessibility
+   guidelines (tap target size, labels, text contrast) and at 2× text. See
+   "Accessibility" in `../../TESTING.md`.
 
 5. Push, and let CI's Goldens job render the new use case's goldens (light
    and dark × phone, tablet and desktop × text scale 1.0 and 2.0). It fails
