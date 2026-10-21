@@ -6,6 +6,7 @@ serves its JWKS through `http_mock`. tests/test_auth0.py covers mock mode.
 """
 
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import jwt
@@ -221,8 +222,9 @@ class TestJwksCache:
             {"body": requests.Timeout("timed out")},
             {"body": requests.ConnectionError("refused")},
             {"body": "not json"},
+            {"json": [{"kid": "test-key-1"}]},
         ],
-        ids=["500", "404", "timeout", "connection-error", "malformed"],
+        ids=["500", "404", "timeout", "connection-error", "malformed", "not-an-object"],
     )
     def test_failed_fetch_rejects_the_token_and_is_retried_next_time(
         self, authenticate, auth0_tenant, http_mock, rsa_private_key, failure
@@ -248,17 +250,110 @@ class TestJwksCache:
         assert (auth0_tenant.jwks_response.call_count, other_jwks.call_count) == (1, 1)
         assert set(auth_module._jwks_cache) == {auth0_tenant.domain, other_domain}
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="The JWKS is cached for the life of the process, so after Auth0 rotates its signing key, "
-        "tokens with the new kid are rejected until the server restarts.",
+
+class TestJwksRefetch:
+    """
+    The cached JWKS is refetched when a token's kid isn't in it (Auth0 rotated its key) and once it's
+    JWKS_MAX_AGE old (Auth0 revoked a key), but at most once per JWKS_MIN_REFETCH_INTERVAL.
+
+    These verify on a frozen clock, so they call verify_auth0_token: the Firestore (gRPC) client hangs on one.
+    """
+
+    @pytest.fixture
+    def clock(self):
+        with freeze_time("2026-01-15 12:00:00") as frozen:
+            yield frozen
+
+    @pytest.fixture
+    def verify(self, auth0_tenant):
+        return GlobalAuth().verify_auth0_token
+
+    @staticmethod
+    def rotate(auth0_tenant, http_mock, *keys):
+        """Serves a JWKS with `keys`, as (private key, kid) pairs, in place of the tenant's."""
+        http_mock.replace("GET", auth0_tenant.jwks_url, json={"keys": [public_jwk(key, kid) for key, kid in keys]})
+
+    def test_rotated_signing_key_is_picked_up(
+        self, verify, auth0_tenant, http_mock, rsa_private_key, other_private_key
+    ):
+        assert verify(auth0_tenant.token()) is not None  # caches the current JWKS
+
+        self.rotate(auth0_tenant, http_mock, (rsa_private_key, auth0_tenant.kid), (other_private_key, "rotated-key"))
+
+        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is not None
+        assert verify(auth0_tenant.token()) is not None  # the previous key is still in the new JWKS
+        assert len(http_mock.calls) == 2
+
+    def test_kid_still_unknown_after_the_refetch_is_rejected(self, authenticate, auth0_tenant, http_mock):
+        assert authenticate(auth0_tenant.token())[0] is not None
+
+        assert authenticate(auth0_tenant.token(kid="never-published"))[0] is None
+        assert len(http_mock.calls) == 2
+
+    def test_unknown_kids_refetch_at_most_once_per_interval(
+        self, clock, verify, auth0_tenant, http_mock, rsa_private_key, other_private_key
+    ):
+        assert verify(auth0_tenant.token()) is not None
+        for i in range(5):
+            assert verify(auth0_tenant.token(kid=f"made-up-{i}")) is None
+        assert len(http_mock.calls) == 2  # the first fetch, and one refetch
+
+        # A key rotated to within the interval is only picked up once it has passed.
+        self.rotate(auth0_tenant, http_mock, (other_private_key, "rotated-key"))
+        clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL - 1)
+        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is None
+        assert verify(auth0_tenant.token()) is not None  # the cached keys still work meanwhile
+        assert len(http_mock.calls) == 2
+
+        clock.tick(1)
+        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is not None
+        assert verify(auth0_tenant.token(kid="made-up-again")) is None
+        assert len(http_mock.calls) == 3
+
+    def test_concurrent_unknown_kids_refetch_once(self, verify, auth0_tenant, http_mock):
+        assert verify(auth0_tenant.token()) is not None
+        tokens = [auth0_tenant.token(kid=f"made-up-{i}") for i in range(8)]
+
+        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
+            assert list(pool.map(verify, tokens)) == [None] * len(tokens)
+
+        assert len(http_mock.calls) == 2
+
+    def test_refetched_once_max_age_old_so_a_revoked_key_stops_working(
+        self, clock, verify, auth0_tenant, http_mock, other_private_key
+    ):
+        assert verify(auth0_tenant.token()) is not None
+        self.rotate(auth0_tenant, http_mock, (other_private_key, "rotated-key"))  # the old key is revoked
+
+        clock.tick(auth_module.JWKS_MAX_AGE - 1)
+        assert verify(auth0_tenant.token()) is not None
+        assert len(http_mock.calls) == 1
+
+        clock.tick(1)
+        assert verify(auth0_tenant.token()) is None
+        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is not None
+        assert len(http_mock.calls) == 2
+
+    @pytest.mark.parametrize(
+        "failure", [{"status": 503}, {"body": requests.ConnectionError("refused")}], ids=["503", "connection-error"]
     )
-    def test_rotated_signing_key_is_picked_up(self, authenticate, auth0_tenant, http_mock, other_private_key):
-        assert authenticate(auth0_tenant.token())[0] is not None  # caches the current JWKS
+    def test_failed_refetch_keeps_the_cached_keys_and_is_retried_after_the_interval(
+        self, clock, verify, auth0_tenant, http_mock, rsa_private_key, failure
+    ):
+        assert verify(auth0_tenant.token()) is not None
+        http_mock.replace("GET", auth0_tenant.jwks_url, **failure)
 
-        http_mock.replace("GET", auth0_tenant.jwks_url, json={"keys": [public_jwk(other_private_key, "rotated-key")]})
+        clock.tick(auth_module.JWKS_MAX_AGE)
+        assert verify(auth0_tenant.token()) is not None
+        assert verify(auth0_tenant.token(kid="made-up")) is None
+        assert len(http_mock.calls) == 2
 
-        assert authenticate(auth0_tenant.token(key=other_private_key, kid="rotated-key"))[0] is not None
+        self.rotate(auth0_tenant, http_mock, (rsa_private_key, auth0_tenant.kid))
+        clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL)
+        assert verify(auth0_tenant.token()) is not None
+        assert len(http_mock.calls) == 3
+        assert verify(auth0_tenant.token()) is not None  # fresh again: no more fetches
+        assert len(http_mock.calls) == 3
 
 
 # --- Mock mode (local development) ---
