@@ -59,6 +59,8 @@ jobs:
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
           SMOKE_QUERY: ${{ vars.SMOKE_QUERY }}
         run: |
+          # Without pipefail the pipeline's status is tee's, so a failing smoke test would pass.
+          set -o pipefail
           status=0
           python3 smoke/smoke.py "$BASE_URL" 2>&1 | tee "$RUNNER_TEMP/smoke.txt" || status=$?
           { echo "## Smoke test: $BASE_URL"; echo; echo '```'; cat "$RUNNER_TEMP/smoke.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
