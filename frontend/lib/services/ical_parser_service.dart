@@ -149,22 +149,41 @@ class IcalParserService {
           .join(';');
 
       try {
-        final rule = RecurrenceRule.fromString('RRULE:$sanitizedRrule');
+        final rule = _untilOnWallClock(
+          RecurrenceRule.fromString('RRULE:$sanitizedRrule'),
+          sanitizedRrule,
+          start,
+        );
         final nowLocal = clock.now();
         final defaultRangeStart = nowLocal.subtract(const Duration(days: 30));
         final firstStart = start.toLocal();
-        final rangeStart = firstStart.isBefore(defaultRangeStart)
+        // Instances from 30 days ago on, or from the first one if later.
+        final rangeStart = firstStart.isAfter(defaultRangeStart)
             ? firstStart
             : defaultRangeStart;
         final rangeEnd = nowLocal.add(const Duration(days: 180));
         final excluded = _exdates(entry);
+
+        // rrule still iterates from DTSTART, so COUNT and the rule's phase
+        // are kept, but only yields instances from `after` on, so an old
+        // series doesn't convert years of past instances. `after` is a day
+        // early so a DST change can't drop one; the rangeStart check below
+        // is the exact cut.
+        final after = start
+            .wallOf(rangeStart)
+            .subtract(const Duration(days: 1));
 
         // Expand on the event's own wall clock (RFC 5545 3.3.10), so a 9am
         // meeting in a named zone stays at 9am there across DST changes.
         // rrule only accepts UTC DateTimes, which here just carry the
         // wall-clock fields.
         final events = <CalendarEventData<Object?>>[];
-        for (final wall in rule.getInstances(start: start.wall)) {
+        final walls = rule.getInstances(
+          start: start.wall,
+          after: after.isAfter(start.wall) ? after : null,
+          includeAfter: true,
+        );
+        for (final wall in walls) {
           final instance = start.withWall(wall);
           final instanceStart = instance.toLocal();
           if (!instanceStart.isBefore(rangeEnd)) break;
@@ -197,6 +216,33 @@ class IcalParserService {
         isAllDay: isAllDay,
       ),
     ];
+  }
+
+  /// rrule stops at the first instance whose wall-clock fields are past
+  /// UNTIL. RFC 5545 writes UNTIL in UTC when DTSTART has a zone (Google and
+  /// Outlook write the last instance's UTC time), so it is moved onto the
+  /// event's wall clock first; otherwise zones east of UTC lose their last
+  /// instance and zones west of it can gain one. A DATE-only UNTIL on a
+  /// timed event includes that whole day.
+  RecurrenceRule _untilOnWallClock(
+    RecurrenceRule rule,
+    String rrule,
+    _IcsTime start,
+  ) {
+    final until = rule.until;
+    if (until == null || start.zone == _IcsZone.allDay) return rule;
+    final match = RegExp(
+      r'(?:^|;)UNTIL=\d{8}(T\d{6})?(Z)?(?:;|$)',
+      caseSensitive: false,
+    ).firstMatch(rrule);
+    if (match == null) return rule;
+    if (match.group(1) == null) {
+      return rule.copyWith(
+        until: DateTime.utc(until.year, until.month, until.day, 23, 59, 59),
+      );
+    }
+    if (match.group(2) == null || start.zone == _IcsZone.utc) return rule;
+    return rule.copyWith(until: start.wallOf(until));
   }
 
   List<_IcsTime> _exdates(Map<String, dynamic> entry) {
@@ -292,6 +338,24 @@ class _IcsTime {
           wall.second,
         );
     }
+  }
+
+  /// The wall-clock fields [moment] has on this time's clock, held in a UTC
+  /// [DateTime] like [wall].
+  DateTime wallOf(DateTime moment) {
+    final fields = switch (zone) {
+      _IcsZone.utc => moment.toUtc(),
+      _IcsZone.named => tz.TZDateTime.from(moment, location!),
+      _IcsZone.allDay || _IcsZone.floating => moment.toLocal(),
+    };
+    return DateTime.utc(
+      fields.year,
+      fields.month,
+      fields.day,
+      fields.hour,
+      fields.minute,
+      fields.second,
+    );
   }
 
   /// Whether an EXDATE value names this occurrence. All-day values match by

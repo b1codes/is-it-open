@@ -226,16 +226,16 @@ void main() {
     });
 
     test('a TZID event keeps its local time across a spring-forward', () {
-      // Europe/London moves to summer time on 29 Mar 2026.
+      // Europe/London moves to summer time on 28 Mar 2027.
       final events = parse(
         _event('''
-          DTSTART;TZID=Europe/London:20260323T090000
+          DTSTART;TZID=Europe/London:20270322T090000
           RRULE:FREQ=WEEKLY;COUNT=2
         '''),
       );
       expect(events.map((e) => e.startTime.toUtc()), [
-        DateTime.utc(2026, 3, 23, 9),
-        DateTime.utc(2026, 3, 30, 8),
+        DateTime.utc(2027, 3, 22, 9),
+        DateTime.utc(2027, 3, 29, 8),
       ]);
     });
 
@@ -299,14 +299,14 @@ void main() {
       expect(events.length, inInclusiveRange(179, 181));
     });
 
-    test('keeps past instances back to an old DTSTART', () {
+    test('drops instances from more than 30 days ago', () {
       final events = parse(
         _event('''
           DTSTART:20250101T100000Z
           RRULE:FREQ=YEARLY;COUNT=3
         '''),
       );
-      expect(events.map((e) => e.startTime.toUtc().year), [2025, 2026, 2027]);
+      expect(events.map((e) => e.startTime.toUtc().year), [2027]);
     });
 
     test('falls back to the first occurrence for an invalid rule', () {
@@ -317,6 +317,190 @@ void main() {
         '''),
       );
       expect(events.single.startTime.toUtc(), DateTime.utc(2026, 10, 19, 10));
+    });
+  });
+
+  group('an old series', () {
+    // Which day's instance is the first in range depends on the machine's
+    // zone, so these check the cut-off rather than a fixed date.
+    final rangeStart = now.subtract(const Duration(days: 30));
+    const day = Duration(days: 1);
+
+    List<DateTime> starts(String ics) =>
+        parse(ics).map((e) => e.startTime.toUtc() as DateTime).toList();
+
+    void expectFirstInRange(List<DateTime> starts) {
+      expect(starts.first.isBefore(rangeStart), isFalse);
+      expect(starts.first.subtract(day).isBefore(rangeStart), isTrue);
+    }
+
+    test('only yields instances from the last 30 days on', () {
+      final daily = starts(
+        _event('''
+          DTSTART:20190101T100000Z
+          RRULE:FREQ=DAILY
+        '''),
+      );
+      expectFirstInRange(daily);
+      expect(daily.first.hour, 10);
+      for (var i = 1; i < daily.length; i++) {
+        expect(daily[i].difference(daily[i - 1]), day);
+      }
+      // 30 days back to 180 ahead, not every day since 2019.
+      expect(daily.length, inInclusiveRange(209, 211));
+    });
+
+    test('keeps a TZID series on its wall-clock time', () {
+      // 9am in Berlin is 07:00Z in summer time, 08:00Z after 25 Oct.
+      final daily = starts(
+        _event('''
+          DTSTART;TZID=Europe/Berlin:20190101T090000
+          RRULE:FREQ=DAILY
+        '''),
+      );
+      expectFirstInRange(daily);
+      expect(daily.first.hour, 7);
+      expect(daily, contains(DateTime.utc(2026, 10, 24, 7)));
+      expect(daily, contains(DateTime.utc(2026, 10, 25, 8)));
+    });
+
+    test('counts COUNT from DTSTART, not from the range', () {
+      // Instance 2850 of a daily series from 1 Jan 2019 is 20 Oct 2026.
+      final daily = starts(
+        _event('''
+          DTSTART:20190101T100000Z
+          RRULE:FREQ=DAILY;COUNT=2850
+        '''),
+      );
+      expectFirstInRange(daily);
+      expect(daily.last, DateTime.utc(2026, 10, 20, 10));
+    });
+
+    test('still honors EXDATE', () {
+      final daily = starts(
+        _event('''
+          DTSTART:20190101T100000Z
+          RRULE:FREQ=DAILY;COUNT=2850
+          EXDATE:20261001T100000Z
+        '''),
+      );
+      expect(daily, contains(DateTime.utc(2026, 9, 30, 10)));
+      expect(daily, isNot(contains(DateTime.utc(2026, 10, 1, 10))));
+      expect(daily, contains(DateTime.utc(2026, 10, 2, 10)));
+    });
+  });
+
+  group('UNTIL', () {
+    String utcStamp(DateTime moment) {
+      final u = moment.toUtc();
+      String two(int n) => n.toString().padLeft(2, '0');
+      return '${u.year}${two(u.month)}${two(u.day)}'
+          'T${two(u.hour)}${two(u.minute)}${two(u.second)}Z';
+    }
+
+    test('a UTC UNTIL keeps the last instance east of UTC', () {
+      // 15 Dec 09:00 in Berlin is 08:00Z, exactly UNTIL.
+      final events = parse(
+        _event('''
+          DTSTART;TZID=Europe/Berlin:20261201T090000
+          RRULE:FREQ=DAILY;UNTIL=20261215T080000Z
+        '''),
+      );
+      final starts = events.map((e) => e.startTime.toUtc()).toList();
+      expect(starts, hasLength(15));
+      expect(starts.last, DateTime.utc(2026, 12, 15, 8));
+    });
+
+    test('a UTC UNTIL is read at its own offset across DST', () {
+      // Berlin leaves summer time on 25 Oct: 9am on 2 Nov is 08:00Z.
+      final events = parse(
+        _event('''
+          DTSTART;TZID=Europe/Berlin:20261020T090000
+          RRULE:FREQ=DAILY;UNTIL=20261102T080000Z
+        '''),
+      );
+      expect(events.last.startTime.toUtc(), DateTime.utc(2026, 11, 2, 8));
+      expect(events, hasLength(14));
+    });
+
+    test('a UTC UNTIL ends the series on time west of UTC', () {
+      // 8pm in Los Angeles is 04:00Z the next day. 03:00Z on 16 Dec is 7pm
+      // on the 15th, an hour before that day's instance.
+      List<DateTime> until(String value) => parse(
+        _event('''
+          DTSTART;TZID=America/Los_Angeles:20261201T200000
+          RRULE:FREQ=DAILY;UNTIL=$value
+        '''),
+      ).map((e) => e.startTime.toUtc() as DateTime).toList();
+
+      expect(until('20261216T030000Z').last, DateTime.utc(2026, 12, 15, 4));
+      expect(until('20261216T040000Z').last, DateTime.utc(2026, 12, 16, 4));
+    });
+
+    test('a DATE UNTIL includes its day for an all-day series', () {
+      final events = parse(
+        _event('''
+          DTSTART;VALUE=DATE:20261201
+          RRULE:FREQ=DAILY;UNTIL=20261205
+        '''),
+      );
+      expect(events.map((e) => e.date), [
+        for (var day = 1; day <= 5; day++) DateTime(2026, 12, day),
+      ]);
+    });
+
+    test('a DATE UNTIL includes its whole day for a timed series', () {
+      final events = parse(
+        _event('''
+          DTSTART;TZID=Asia/Tokyo:20261201T230000
+          RRULE:FREQ=DAILY;UNTIL=20261203
+        '''),
+      );
+      expect(events.map((e) => e.startTime.toUtc()), [
+        DateTime.utc(2026, 12, 1, 14),
+        DateTime.utc(2026, 12, 2, 14),
+        DateTime.utc(2026, 12, 3, 14),
+      ]);
+    });
+
+    test('a UTC series ends at a UTC UNTIL', () {
+      final events = parse(
+        _event('''
+          DTSTART:20261201T090000Z
+          RRULE:FREQ=DAILY;UNTIL=20261203T090000Z
+        '''),
+      );
+      expect(events.last.startTime.toUtc(), DateTime.utc(2026, 12, 3, 9));
+      expect(events, hasLength(3));
+    });
+
+    test('a floating series ends at a floating UNTIL', () {
+      final events = parse(
+        _event('''
+          DTSTART:20261201T090000
+          RRULE:FREQ=DAILY;UNTIL=20261203T090000
+        '''),
+      );
+      expect(events.map((e) => e.startTime), [
+        DateTime(2026, 12, 1, 9),
+        DateTime(2026, 12, 2, 9),
+        DateTime(2026, 12, 3, 9),
+      ]);
+    });
+
+    test('a floating series reads a UTC UNTIL on the local clock', () {
+      // An hour before the 3 Dec instance, on this machine's clock.
+      final until = utcStamp(DateTime(2026, 12, 3, 8));
+      final events = parse(
+        _event('''
+          DTSTART:20261201T090000
+          RRULE:FREQ=DAILY;UNTIL=$until
+        '''),
+      );
+      expect(events.map((e) => e.startTime), [
+        DateTime(2026, 12, 1, 9),
+        DateTime(2026, 12, 2, 9),
+      ]);
     });
   });
 
