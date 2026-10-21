@@ -23,7 +23,9 @@ jobs:
         with:
           artifact: test-results-backend
           name: Backend tests
-          path: 'test-results/*.xml'
+          # CI's artifact holds test-results/junit.xml (it also uploads coverage.xml), Nightly's
+          # holds junit.xml at its root, so match the file by name at any depth.
+          path: '**/junit.xml'
           reporter: java-junit
           fail-on-empty: false
 
@@ -33,7 +35,7 @@ jobs:
         with:
           artifact: test-results-frontend
           name: Frontend tests
-          path: 'test-results/*.json'
+          path: '**/flutter.json'
           reporter: flutter-json
           fail-on-empty: false
 
