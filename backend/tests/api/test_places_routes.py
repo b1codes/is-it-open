@@ -7,6 +7,7 @@ import pytest
 from responses import matchers
 
 from apps.places import repository as places
+from services.firestore import doc_id, get_client
 from tests import factories
 from tests.conftest import TOMTOM_BASE, TOMTOM_KEY, ApiClient
 
@@ -182,6 +183,7 @@ class TestCreatePlace:
             # Hours the app couldn't read back (it parses HH:MM) were stored as sent.
             ({"hours": [{"day_of_week": 1, "open_time": "", "close_time": "17:00"}]}, {"open_time"}),
             ({"hours": [{"day_of_week": 1, "open_time": "9am", "close_time": "24:00"}]}, {"open_time", "close_time"}),
+            ({"hours": [{"day_of_week": 1, "open_time": "9:00", "close_time": "5:30pm"}]}, {"open_time", "close_time"}),
             ({"hours": [{"day_of_week": 7, "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
             ({"hours": [{"day_of_week": -1, "open_time": "09:00", "close_time": "17:00"}]}, {"day_of_week"}),
             # Values of the wrong JSON type used to be coerced (false -> 0, "1" -> 1).
@@ -591,3 +593,60 @@ class TestPlaceDetails:
     def test_without_a_tomtom_key_unknown_place_is_404(self, auth_client, http_mock):
         assert auth_client.get("/places/nope").status_code == 404
         assert len(http_mock.calls) == 0
+
+
+# --- Hours stored before the API checked them ---
+
+# Any string was stored (cut to 5 characters) before this PR, e.g. by a client calling the API directly.
+LEGACY_HOURS = [
+    {"day_of_week": 0, "open_time": "9:00", "close_time": "5:30p"},
+    {"day_of_week": 1, "open_time": "9am", "close_time": "24:00"},
+    {"day_of_week": 2, "open_time": "noon", "close_time": "17:00"},  # can't be read, so left out
+    {"day_of_week": 9, "open_time": "09:00", "close_time": "17:00"},
+]
+LEGACY_HOURS_AS_RETURNED = factories.hours((0, "09:00", "17:30"), (1, "09:00", "00:00"))
+
+
+class TestHoursStoredBeforeTheyWereChecked:
+    @pytest.fixture
+    def legacy_place(self, make_place):
+        make_place("legacy", name="Old Diner")
+        get_client().collection(places.PLACES).document(doc_id("legacy")).update({"hours": LEGACY_HOURS})
+        return "legacy"
+
+    def test_bookmarks(self, auth_client, legacy_place, make_place, make_bookmark):
+        make_bookmark(auth_client.user, places.get_place(legacy_place))
+        make_bookmark(auth_client.user, make_place("current"))
+
+        response = auth_client.get("/places/bookmarks")
+
+        assert response.status_code == 200
+        assert [b["place"]["hours"] for b in response.json()] == [LEGACY_HOURS_AS_RETURNED, []]
+
+    def test_search(self, auth_client, legacy_place, http_mock):
+        response = auth_client.get("/places/search", query="diner")
+
+        assert response.status_code == 200
+        assert [p["hours"] for p in response.json()] == [LEGACY_HOURS_AS_RETURNED]
+
+    def test_suggestions(self, auth_client, legacy_place, http_mock):
+        response = auth_client.get("/places/suggestions")
+
+        assert response.status_code == 200
+        assert [p["hours"] for p in response.json()] == [LEGACY_HOURS_AS_RETURNED]
+
+    def test_place_details_and_nearby(self, auth_client, legacy_place, http_mock):
+        details = auth_client.get(f"/places/{legacy_place}")
+        nearby = auth_client.get("/places/nearby", lat=40.7128, lng=-74.0060)
+
+        assert (details.status_code, nearby.status_code) == (200, 200)
+        assert details.json()["hours"] == LEGACY_HOURS_AS_RETURNED
+        assert [p["hours"] for p in nearby.json()] == [LEGACY_HOURS_AS_RETURNED]
+
+    def test_the_same_hours_are_still_refused_as_input(self, auth_client):
+        payload = factories.place_data("new") | {"hours": LEGACY_HOURS[:2]}
+
+        response = auth_client.post("/places/", payload)
+
+        assert response.status_code == 422
+        assert places.get_place("new") is None

@@ -12,6 +12,7 @@ InvalidDocumentKey for them.
 
 import datetime
 import math
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from google.api_core.exceptions import NotFound
@@ -85,6 +86,45 @@ def _normalize_hours(hours):
     return sorted(normalized, key=lambda h: (h["day_of_week"], h["open_time"]))
 
 
+# A time as places stored before the API checked them: any string, cut to 5 characters, such as
+# "9:00", "9am", "9:30p" or "24:00".
+_STORED_TIME = re.compile(r"(\d{1,2})(?::?(\d{2}))?\s*(?:([ap])\.?m?\.?)?", re.IGNORECASE)
+
+
+def _read_time(value) -> str | None:
+    """A stored time as the API's 24-hour HH:MM, or None if it can't be read as one."""
+    match = _STORED_TIME.fullmatch(value.strip()) if isinstance(value, str) else None
+    if not match:
+        return None
+    hour, minute, meridiem = int(match[1]), int(match[2] or 0), (match[3] or "").lower()
+    if meridiem:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if meridiem == "p" else 0)
+    if (hour, minute) == (24, 0):
+        hour = 0  # midnight, as the end of the day
+    if hour > 23 or minute > 59:
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _read_hours(hours) -> list[dict]:
+    """
+    Stored business hours as the API returns them. Entries from before the API checked them are
+    converted to its format where they can be, and left out where they can't, rather than failing
+    the response they're part of (a user's whole bookmark list, or every search that finds the place).
+    """
+    readable = []
+    for entry in hours if isinstance(hours, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        day = entry.get("day_of_week")
+        open_time, close_time = _read_time(entry.get("open_time")), _read_time(entry.get("close_time"))
+        if type(day) is int and 0 <= day <= 6 and open_time and close_time:
+            readable.append({"day_of_week": day, "open_time": open_time, "close_time": close_time})
+    return sorted(readable, key=lambda h: (h["day_of_week"], h["open_time"]))
+
+
 def _location_fields(lat, lng):
     return {
         "location": firestore.GeoPoint(lat, lng),
@@ -103,7 +143,7 @@ def _to_place(data: dict) -> dict:
         "phone": data.get("phone"),
         "website": data.get("website"),
         "categories": data.get("categories", []),
-        "hours": data.get("hours", []),
+        "hours": _read_hours(data.get("hours") or []),
     }
 
 

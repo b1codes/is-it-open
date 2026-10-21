@@ -313,3 +313,65 @@ class TestListSavedPlaces:
 
     def test_empty(self, user):
         assert places.list_saved_places(user) == []
+
+
+class TestReadingStoredHours:
+    """Hours stored before the API checked them are returned in its HH:MM format, or left out."""
+
+    @pytest.mark.parametrize(
+        "stored, returned",
+        [
+            ("09:00", "09:00"),
+            ("9:00", "09:00"),
+            ("9:5", None),
+            ("930", "09:30"),
+            ("17", "17:00"),
+            ("9am", "09:00"),
+            ("9 AM", "09:00"),
+            ("9:30p", "21:30"),
+            ("12am", "00:00"),
+            ("12pm", "12:00"),
+            ("9a.m.", "09:00"),
+            ("0am", None),
+            ("13pm", None),
+            ("24:00", "00:00"),
+            ("24:30", None),
+            ("23:60", None),
+            (" 9:00 ", "09:00"),
+            ("", None),
+            ("noon", None),
+            ("9:00:", None),
+            (None, None),
+            (900, None),
+        ],
+    )
+    def test_time(self, stored, returned):
+        assert places._read_time(stored) == returned
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            {"day_of_week": 7, "open_time": "09:00", "close_time": "17:00"},
+            {"day_of_week": -1, "open_time": "09:00", "close_time": "17:00"},
+            {"day_of_week": "1", "open_time": "09:00", "close_time": "17:00"},
+            {"day_of_week": True, "open_time": "09:00", "close_time": "17:00"},
+            {"day_of_week": 1, "open_time": "09:00"},
+            {"day_of_week": 1, "open_time": "09:00", "close_time": "late"},
+            "Mon 9-5",
+        ],
+    )
+    def test_entries_that_cant_be_read_are_left_out(self, entry):
+        good = {"day_of_week": 1, "open_time": "10:00", "close_time": "11:00"}
+
+        assert places._read_hours([entry, good]) == [good]
+
+    def test_sorted_as_read(self):
+        stored = factories.hours((1, "10:00", "12:00"), (1, "9:00", "9:30"), (0, "13:00", "14:00"))
+
+        assert places._read_hours(stored) == factories.hours(
+            (0, "13:00", "14:00"), (1, "09:00", "09:30"), (1, "10:00", "12:00")
+        )
+
+    @pytest.mark.parametrize("stored", [None, "09:00-17:00", {"day_of_week": 1}])
+    def test_hours_that_arent_a_list_are_empty(self, stored):
+        assert places._read_hours(stored) == []
