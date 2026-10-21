@@ -18,6 +18,75 @@ import '../../utils/graphics_helper.dart';
 import '../../utils/places_theme.dart';
 import '../../components/core/refractive_glass.dart';
 
+/// The opening hours of each checked place as {id, startTime, endTime}
+/// blocks, for the six weeks around [baseDate], on the device's wall clock.
+@visibleForTesting
+List<Map<String, dynamic>> businessBlocks(
+  CalendarDataState dataState,
+  DateTime baseDate,
+) {
+  final List<Map<String, dynamic>> blocks = [];
+  final startOfRange = DateTime(
+    baseDate.year,
+    baseDate.month,
+    baseDate.day - 14,
+  );
+
+  for (final sp in dataState.savedPlaces) {
+    if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
+
+    for (int dayOffset = 0; dayOffset <= 42; dayOffset++) {
+      // Calendar arithmetic, so a DST change can't repeat or skip a day.
+      final date = DateTime(
+        startOfRange.year,
+        startOfRange.month,
+        startOfRange.day + dayOffset,
+      );
+      // BusinessHours days are Mon=0..Sun=6; DateTime.weekday is Mon=1..Sun=7.
+      final dayOfWeek = date.weekday - 1;
+
+      for (final hours in sp.place.hours) {
+        if (hours.dayOfWeek == dayOfWeek) {
+          // Strip timezone and use naive DateTime for business hours
+          final startTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            hours.openTime.hour,
+            hours.openTime.minute,
+          );
+          var endTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            hours.closeTime.hour,
+            hours.closeTime.minute,
+          );
+          // Closing at or before opening runs into the next day; 00:00 to
+          // 00:00 is open all day. Calendar arithmetic again, so a DST night
+          // still ends at the closing wall-clock time.
+          if (!endTime.isAfter(startTime)) {
+            endTime = DateTime(
+              date.year,
+              date.month,
+              date.day + 1,
+              hours.closeTime.hour,
+              hours.closeTime.minute,
+            );
+          }
+
+          blocks.add({
+            'id': sp.place.tomtomId,
+            'startTime': startTime,
+            'endTime': endTime,
+          });
+        }
+      }
+    }
+  }
+  return blocks;
+}
+
 class CalendarScreen extends StatelessWidget {
   final bool embedded;
   final ScrollController? scrollController;
@@ -101,63 +170,6 @@ class _CalendarScreenContent extends StatelessWidget {
         .toList();
   }
 
-  List<Map<String, dynamic>> _prepareBusinessBlocks(
-    CalendarDataState dataState,
-    DateTime baseDate,
-  ) {
-    final List<Map<String, dynamic>> blocks = [];
-    final startOfRange = DateTime(
-      baseDate.year,
-      baseDate.month,
-      baseDate.day - 14,
-    );
-
-    for (final sp in dataState.savedPlaces) {
-      if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
-
-      for (int dayOffset = 0; dayOffset <= 42; dayOffset++) {
-        // Calendar arithmetic, so a DST change can't repeat or skip a day.
-        final date = DateTime(
-          startOfRange.year,
-          startOfRange.month,
-          startOfRange.day + dayOffset,
-        );
-        // BusinessHours days are Mon=0..Sun=6; DateTime.weekday is Mon=1..Sun=7.
-        final dayOfWeek = date.weekday - 1;
-
-        for (final hours in sp.place.hours) {
-          if (hours.dayOfWeek == dayOfWeek) {
-            // Strip timezone and use naive DateTime for business hours
-            final startTime = DateTime(
-              date.year,
-              date.month,
-              date.day,
-              hours.openTime.hour,
-              hours.openTime.minute,
-            );
-            var endTime = DateTime(
-              date.year,
-              date.month,
-              date.day,
-              hours.closeTime.hour,
-              hours.closeTime.minute,
-            );
-            if (endTime.isBefore(startTime)) {
-              endTime = endTime.add(const Duration(days: 1));
-            }
-
-            blocks.add({
-              'id': sp.place.tomtomId,
-              'startTime': startTime,
-              'endTime': endTime,
-            });
-          }
-        }
-      }
-    }
-    return blocks;
-  }
-
   EventController<Object?> _buildLegacyController(
     CalendarDataState dataState,
     CalendarUiState uiState,
@@ -194,6 +206,7 @@ class _CalendarScreenContent extends StatelessWidget {
             title: event.title,
             description: event.description,
             date: event.date,
+            endDate: event.endDate,
             startTime: event.startTime,
             endTime: event.endTime,
             color: personalEventColor,
@@ -303,14 +316,9 @@ class _CalendarScreenContent extends StatelessWidget {
         return BlocBuilder<CalendarDataBloc, CalendarDataState>(
           builder: (context, dataState) {
             final personalEvents = _preparePersonalEvents(dataState);
-            final businessBlocks = _prepareBusinessBlocks(
-              dataState,
-              uiState.baseDate,
-            );
-
             // Calculate windows using toggled state
             final windows = AvailabilityCalculator.calculateAvailableWindows(
-              businessBlocks: businessBlocks,
+              businessBlocks: businessBlocks(dataState, uiState.baseDate),
               personalEvents: uiState.showPersonalEvents ? personalEvents : [],
             );
 
