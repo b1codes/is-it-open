@@ -8,6 +8,9 @@
 services:
   # The Django Backend (data lives in Google Cloud Firestore)
   backend:
+    # Its own tag: without one this would build to is-it-open-backend, the dev image (which
+    # has the test tooling), and each stack would replace the other's image.
+    image: is-it-open-backend-prod
     build:
       context: ./backend
       dockerfile: Dockerfile
