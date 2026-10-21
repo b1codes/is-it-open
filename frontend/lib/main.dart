@@ -62,6 +62,11 @@ class MyApp extends StatelessWidget {
           ),
           BlocProvider<TodayRouteCubit>(create: (context) => TodayRouteCubit()),
         ],
+        // Runs on sign-in (into an authenticated state from any other) and
+        // on sign-out (out of an authenticated state). A profile save goes
+        // ProfileUpdating -> ProfileUpdateSuccess/Failure, all authenticated,
+        // so it triggers neither: pushed screens stay open and nothing is
+        // reloaded.
         child: BlocListener<AuthBloc, AuthState>(
           listenWhen: (previous, current) {
             bool login =
@@ -74,7 +79,9 @@ class MyApp extends StatelessWidget {
           listener: (context, state) {
             // Home shows login or the app depending on the auth state, so
             // drop any screens pushed on top of it (register, settings, a
-            // place) when that state flips.
+            // place) when the user signs in or out. Signing in loads that
+            // user's places and calendar; signing out clears them, so the
+            // next person on this device doesn't see them.
             _navigatorKey.currentState?.popUntil((route) => route.isFirst);
             if (state is AuthAuthenticated) {
               context.read<CalendarDataBloc>().add(LoadSavedPlaces());

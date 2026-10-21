@@ -148,6 +148,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, state) {
         if (state is AuthAuthenticated) {
           final user = state.user;
+          // Reading the position, then saving it.
+          final busy = _isUpdating || state is ProfileUpdating;
           return Scaffold(
             appBar: AppBar(
               title: const Text('Settings'),
@@ -185,12 +187,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Allow the app to access your device location',
                         ),
                         value: user.useCurrentLocation,
-                        onChanged: _isUpdating
+                        onChanged: busy
                             ? null
                             : (value) =>
                                   _handleCurrentLocationToggle(value, user),
                       ),
-                      if (_isUpdating)
+                      if (busy)
                         const Padding(
                           padding: EdgeInsets.all(16.0),
                           child: Center(child: CircularProgressIndicator()),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,6 +125,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(geolocator.permissionRequests, 1);
     expect(sentUser(api)!.useCurrentLocation, isTrue);
+  });
+
+  testWidgets('shows a spinner and holds the switch while saving', (
+    tester,
+  ) async {
+    FakeGeolocator.install(addTearDown);
+    final reply = Completer<User>();
+    final api = MockApiService();
+    when(() => api.updateProfile(any())).thenAnswer((_) => reply.future);
+    await tester.pumpApp(const SettingsScreen(), api: api);
+    await tester.tap(locationSwitch);
+    // Not pumpAndSettle: the spinner never settles.
+    await tester.pump();
+    await tester.pump();
+
+    final context = tester.element(find.byType(SettingsScreen));
+    expect(context.read<AuthBloc>().state, isA<ProfileUpdating>());
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(tester.widget<SwitchListTile>(locationSwitch).onChanged, isNull);
+
+    reply.complete(sentUser(api)!);
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.widget<SwitchListTile>(locationSwitch).value, isTrue);
+    expect(tester.widget<SwitchListTile>(locationSwitch).onChanged, isNotNull);
   });
 
   testWidgets('shows a failed save', (tester) async {

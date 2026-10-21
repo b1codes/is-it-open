@@ -121,12 +121,13 @@ void main() {
         'home_lng': -89.6,
       });
 
+      // Through the real AuthBloc and FakeApiService, so the map sees the
+      // same state sequence a save in the app produces.
       Future<void> saveHome(WidgetTester tester, User user) async {
         tester
             .element(find.byType(MapScreen))
             .read<AuthBloc>()
-            // ignore: invalid_use_of_visible_for_testing_member
-            .emit(ProfileUpdateSuccess(user: user));
+            .add(ProfileUpdateRequested(updatedUser: user));
         await tester.pumpAndSettle();
       }
 
@@ -178,6 +179,35 @@ void main() {
         await saveHome(
           tester,
           User.fromJson({...demoUser.toJson(), 'first_name': 'Renamed'}),
+        );
+        expect(_center(tester), const LatLng(10, 10));
+
+        // A new calendar URL doesn't move it either.
+        await saveHome(
+          tester,
+          User.fromJson({
+            ...demoUser.toJson(),
+            'calendar_subscription_url': 'https://cal.example/new.ics',
+          }),
+        );
+        expect(_center(tester), const LatLng(10, 10));
+        await tester.unmount();
+      });
+
+      testWidgets('a failed profile save leaves the map', (tester) async {
+        await pump(
+          tester,
+          geolocator: FakeGeolocator(serviceEnabled: false),
+          apiFails: true,
+        );
+        final controller = tester
+            .widget<FlutterMap>(find.byType(FlutterMap))
+            .mapController!;
+        controller.move(const LatLng(10, 10), 13);
+        await saveHome(tester, newHome);
+        expect(
+          tester.element(find.byType(MapScreen)).read<AuthBloc>().state,
+          isA<ProfileUpdateFailure>(),
         );
         expect(_center(tester), const LatLng(10, 10));
         await tester.unmount();

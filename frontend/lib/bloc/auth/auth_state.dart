@@ -21,6 +21,13 @@ class AuthAuthenticated extends AuthState {
   List<Object?> get props => [user];
 }
 
+/// A profile save is in flight. Still signed in as [user] (the profile from
+/// before the save), so listeners that compare the previous and current
+/// state don't mistake the save for a sign-in or a sign-out.
+class ProfileUpdating extends AuthAuthenticated {
+  const ProfileUpdating({required super.user});
+}
+
 class ProfileUpdateSuccess extends AuthAuthenticated {
   const ProfileUpdateSuccess({required super.user});
 }

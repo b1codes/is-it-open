@@ -377,7 +377,7 @@ class _MeScreenState extends State<MeScreen> {
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton(
-                            onPressed: state is AuthLoading
+                            onPressed: state is ProfileUpdating
                                 ? null
                                 : () => _saveProfile(user),
                             style: ElevatedButton.styleFrom(
@@ -386,7 +386,7 @@ class _MeScreenState extends State<MeScreen> {
                               ),
                               elevation: 2,
                             ),
-                            child: state is AuthLoading
+                            child: state is ProfileUpdating
                                 ? const SizedBox(
                                     width: 24,
                                     height: 24,

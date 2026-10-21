@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -88,6 +90,32 @@ void main() {
     expect(sent.homeLat, isNull, reason: 'lets the server geocode it');
     expect(sent.homeLng, isNull);
     expect(sent.workLat, demoUser.workLat, reason: 'work is unchanged');
+  });
+
+  testWidgets('the save button shows a spinner while saving', (tester) async {
+    final reply = Completer<User>();
+    final api = MockApiService();
+    when(() => api.updateProfile(any())).thenAnswer((_) => reply.future);
+    await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
+    await tester.ensureVisible(find.text('Save Profile'));
+    await tester.tap(find.text('Save Profile'));
+    // Not pumpAndSettle: the spinner never settles.
+    await tester.pump();
+
+    final button = find.widgetWithText(ElevatedButton, 'Save Profile');
+    expect(button, findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(ElevatedButton),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+
+    reply.complete(demoUser);
+    await tester.pumpAndSettle();
+    expect(tester.widget<ElevatedButton>(button).onPressed, isNotNull);
+    expect(find.text('Profile saved successfully!'), findsOneWidget);
   });
 
   testWidgets('shows a failed save', (tester) async {

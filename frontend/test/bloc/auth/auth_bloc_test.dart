@@ -308,7 +308,9 @@ void main() {
       build: build,
       seed: () => AuthAuthenticated(user: _user),
       act: (bloc) => bloc.add(LogoutRequested()),
-      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+      // Straight from authenticated to unauthenticated: an AuthLoading in
+      // between hid the sign-out from listeners comparing the two states.
+      expect: () => [isA<AuthUnauthenticated>()],
       verify: (_) async {
         verify(() => api.setAuthToken(null)).called(1);
         expect(await _stored(), {'use_24_hour_format': true});
@@ -335,7 +337,11 @@ void main() {
       },
       seed: () => AuthAuthenticated(user: _user),
       act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
-      expect: () => [isA<AuthLoading>(), ProfileUpdateSuccess(user: edited)],
+      // Signed in throughout, so a save never looks like a fresh sign-in.
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateSuccess(user: edited),
+      ],
       verify: (_) async {
         final stored = await _stored();
         expect(
@@ -356,7 +362,7 @@ void main() {
       seed: () => AuthAuthenticated(user: _user),
       act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: demoUser)),
       expect: () => [
-        isA<AuthLoading>(),
+        ProfileUpdating(user: _user),
         isA<ProfileUpdateSuccess>().having((s) => s.user.toJson(), 'user', {
           ...demoUser.toJson(),
           'token': 'tok',
@@ -375,12 +381,40 @@ void main() {
       seed: () => AuthAuthenticated(user: _user),
       act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
       expect: () => [
-        isA<AuthLoading>(),
+        ProfileUpdating(user: _user),
         ProfileUpdateFailure(
           user: _user,
           error: 'Exception: Failed to update profile: 422',
         ),
       ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'reports a repeated failure again',
+      build: () {
+        when(
+          () => api.updateProfile(any()),
+        ).thenThrow(ApiException('Failed to update profile: 422'));
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) async {
+        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+      },
+      expect: () {
+        final failed = ProfileUpdateFailure(
+          user: _user,
+          error: 'Exception: Failed to update profile: 422',
+        );
+        return [
+          ProfileUpdating(user: _user),
+          failed,
+          ProfileUpdating(user: _user),
+          failed,
+        ];
+      },
     );
   });
 
@@ -399,5 +433,17 @@ void main() {
     expect(ProfileUpdateRequested(updatedUser: _user).props, [_user]);
     expect(AppStarted().props, isEmpty);
     expect(ProfileUpdateFailure(user: _user, error: 'e').props, [_user, 'e']);
+    expect(ProfileUpdating(user: _user), isNot(AuthAuthenticated(user: _user)));
+  });
+
+  test('every profile-save state is still signed in', () {
+    // main.dart and MapScreen tell a sign-in or sign-out from a save by
+    // whether both states are AuthAuthenticated.
+    expect(ProfileUpdating(user: _user), isA<AuthAuthenticated>());
+    expect(ProfileUpdateSuccess(user: _user), isA<AuthAuthenticated>());
+    expect(
+      ProfileUpdateFailure(user: _user, error: 'e'),
+      isA<AuthAuthenticated>(),
+    );
   });
 }

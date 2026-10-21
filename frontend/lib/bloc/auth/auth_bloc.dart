@@ -134,7 +134,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     LogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    // No AuthLoading first: listeners spot a sign-out as authenticated ->
+    // unauthenticated, and an in-between state would hide it.
     apiClient.setAuthToken(null);
     await _clearSession(await SharedPreferences.getInstance());
     emit(AuthUnauthenticated());
@@ -162,7 +163,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Only update if currently authenticated
     if (state is AuthAuthenticated) {
       final currentState = state as AuthAuthenticated;
-      emit(AuthLoading());
+      // Stays authenticated throughout. AuthLoading here made listeners
+      // that compare states see a fresh sign-in once the save finished.
+      emit(ProfileUpdating(user: currentState.user));
       try {
         final user = await apiClient.updateProfile(event.updatedUser);
         // Keep the current token if the update didn't return one.

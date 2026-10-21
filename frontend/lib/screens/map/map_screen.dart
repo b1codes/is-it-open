@@ -469,6 +469,8 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     return BlocListener<AuthBloc, AuthState>(
+      // A profile save stays authenticated with the old user until it
+      // lands (ProfileUpdating), so only a save that moves home gets here.
       listenWhen: (previous, current) =>
           _homeOf(current) != null && _homeOf(current) != _homeOf(previous),
       listener: (context, state) => _recenterOnNewHome(state),
