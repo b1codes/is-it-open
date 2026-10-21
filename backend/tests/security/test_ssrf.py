@@ -313,6 +313,27 @@ class _Server:
                             time.sleep(0.05)
                     except OSError:
                         pass
+                elif self.path == "/stall":  # starts the body, then stops sending
+                    self.send_response(200)
+                    self.send_header("Content-Length", "1000")
+                    self.end_headers()
+                    try:
+                        self.wfile.write(ICS[:15])
+                        self.wfile.flush()
+                        time.sleep(3)
+                    except OSError:
+                        pass
+                elif self.path == "/truncated":  # closes the connection partway through the body
+                    self.send_response(200)
+                    self.send_header("Content-Length", "1000")
+                    self.end_headers()
+                    self.wfile.write(ICS[:15])
+                elif self.path == "/bad-gzip":  # says it's gzipped, but isn't
+                    self.send_response(200)
+                    self.send_header("Content-Encoding", "gzip")
+                    self.send_header("Content-Length", str(len(ICS)))
+                    self.end_headers()
+                    self.wfile.write(ICS)
                 else:
                     self.send_response(200)
                     self.send_header("Content-Length", str(len(ICS)))
@@ -436,3 +457,25 @@ def test_no_checked_address_answers(settings, auth_client, dns):
     response = _proxy(auth_client, f"http://down.invalid:{port}/feed.ics")
 
     assert response.json() == {"detail": "Failed to fetch calendar: the server couldn't be reached"}
+
+
+@pytest.mark.parametrize(
+    "path, reason",
+    [
+        ("/stall", "the server took too long"),
+        ("/truncated", "the server's response couldn't be read"),
+        ("/bad-gzip", "the server's response couldn't be read"),
+    ],
+    ids=["stalled-body", "truncated-body", "bad-gzip"],
+)
+def test_body_that_fails_to_read_is_400(settings, auth_client, server, monkeypatch, path, reason):
+    """urllib3 raises its own errors (ReadTimeoutError, ProtocolError, DecodeError) while the body is read."""
+    settings.SAFE_FETCH_PRIVATE_HOSTS = ["127.0.0.1"]
+    monkeypatch.setattr(safe_fetch, "TIMEOUT", 0.5)
+
+    response = _proxy(auth_client, server.url(path))
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": f"Failed to fetch calendar: {reason}"}
+    assert b"VCALENDAR" not in response.content
+    assert server.requests == [path]

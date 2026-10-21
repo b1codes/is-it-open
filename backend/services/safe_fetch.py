@@ -21,6 +21,7 @@ from collections.abc import Callable
 from urllib.parse import urljoin
 
 import requests
+import urllib3.exceptions
 from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPConnection, HTTPSConnection
@@ -186,3 +187,8 @@ def fetch(url: str, *, max_bytes: int) -> bytes:
             raise FetchError("the server took too long") from e
         except requests.RequestException as e:
             raise FetchError("the server couldn't be reached") from e
+        # Reading the body (_read) goes to urllib3 directly, so its errors aren't wrapped in requests'.
+        except urllib3.exceptions.ReadTimeoutError as e:  # the body stalled
+            raise FetchError("the server took too long") from e
+        except urllib3.exceptions.HTTPError as e:  # the body was cut off, or its Content-Encoding is wrong
+            raise FetchError("the server's response couldn't be read") from e
