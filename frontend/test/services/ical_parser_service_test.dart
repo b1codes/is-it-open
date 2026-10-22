@@ -16,7 +16,7 @@ String _event(String props) => _calendar('BEGIN:VEVENT\n$props\nEND:VEVENT');
 
 void main() {
   final service = IcalParserService();
-  // Recurrences expand from 30 days before "now" to 180 days after.
+  // Recurrences expand from a year before "now" to 180 days after.
   final now = DateTime(2026, 10, 19, 12);
 
   List<dynamic> parse(String ics, {Color color = Colors.blue}) =>
@@ -337,14 +337,27 @@ void main() {
       expect(events.length, inInclusiveRange(179, 181));
     });
 
-    test('drops instances from more than 30 days ago', () {
+    test('drops instances from more than a year ago', () {
       final events = parse(
         _event('''
-          DTSTART:20250101T100000Z
-          RRULE:FREQ=YEARLY;COUNT=3
+          DTSTART:20240101T100000Z
+          RRULE:FREQ=YEARLY;COUNT=4
         '''),
       );
-      expect(events.map((e) => e.startTime.toUtc().year), [2027]);
+      expect(events.map((e) => e.startTime.toUtc().year), [2026, 2027]);
+    });
+
+    test('keeps the earlier months of a series from this year', () {
+      // A weekly Monday meeting since January: looking back at August still
+      // shows it.
+      final weekly = parse(
+        _event('''
+          DTSTART;TZID=America/New_York:20260105T100000
+          RRULE:FREQ=WEEKLY
+        '''),
+      ).map((e) => e.startTime.toUtc() as DateTime);
+      expect(weekly.first, DateTime.utc(2026, 1, 5, 15));
+      expect(weekly, contains(DateTime.utc(2026, 8, 10, 14)));
     });
 
     test('falls back to the first occurrence for an invalid rule', () {
@@ -361,7 +374,7 @@ void main() {
   group('an old series', () {
     // Which day's instance is the first in range depends on the machine's
     // zone, so these check the cut-off rather than a fixed date.
-    final rangeStart = now.subtract(const Duration(days: 30));
+    final rangeStart = now.subtract(IcalParserService.recurrenceLookback);
     const day = Duration(days: 1);
 
     List<DateTime> starts(String ics) =>
@@ -372,7 +385,7 @@ void main() {
       expect(starts.first.subtract(day).isBefore(rangeStart), isTrue);
     }
 
-    test('only yields instances from the last 30 days on', () {
+    test('only yields instances from the last year on', () {
       final daily = starts(
         _event('''
           DTSTART:20190101T100000Z
@@ -384,8 +397,8 @@ void main() {
       for (var i = 1; i < daily.length; i++) {
         expect(daily[i].difference(daily[i - 1]), day);
       }
-      // 30 days back to 180 ahead, not every day since 2019.
-      expect(daily.length, inInclusiveRange(209, 211));
+      // A year back to 180 days ahead, not every day since 2019.
+      expect(daily.length, inInclusiveRange(544, 546));
     });
 
     test('keeps a TZID series on its wall-clock time', () {

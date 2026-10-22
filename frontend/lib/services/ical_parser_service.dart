@@ -6,6 +6,14 @@ import 'package:rrule/rrule.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 class IcalParserService {
+  /// How far back and ahead of now a repeating event is expanded. Only the
+  /// expanded instances are kept, so a week the calendar is moved to outside
+  /// this range shows none of a series' instances (one-off events show at
+  /// any date). A year back covers looking back over recent months without
+  /// a daily series since 2019 turning into thousands of instances.
+  static const recurrenceLookback = Duration(days: 365);
+  static const recurrenceLookahead = Duration(days: 180);
+
   static const Map<String, String> _tzidMap = {
     'Eastern Standard Time': 'America/New_York',
     'Eastern Day Time': 'America/New_York',
@@ -161,13 +169,13 @@ class IcalParserService {
           start,
         );
         final nowLocal = clock.now();
-        final defaultRangeStart = nowLocal.subtract(const Duration(days: 30));
+        final defaultRangeStart = nowLocal.subtract(recurrenceLookback);
         final firstStart = start.toLocal();
-        // Instances from 30 days ago on, or from the first one if later.
+        // Instances from a year ago on, or from the first one if later.
         final rangeStart = firstStart.isAfter(defaultRangeStart)
             ? firstStart
             : defaultRangeStart;
-        final rangeEnd = nowLocal.add(const Duration(days: 180));
+        final rangeEnd = nowLocal.add(recurrenceLookahead);
         final excluded = _exdates(entry);
 
         // rrule still iterates from DTSTART, so COUNT and the rule's phase
