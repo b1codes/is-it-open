@@ -67,7 +67,27 @@ def test_upstream_failure_is_400(auth_client, http_mock, upstream):
 
 
 @pytest.mark.parametrize(
-    "url", ["not a url", "ftp://example.com/cal.ics", "webcal://example.com/cal.ics", "", "  ", "x https://a.b/"]
+    "url",
+    [
+        "webcal://calendar.example.com/feed.ics",
+        "webcals://calendar.example.com/feed.ics",
+        "  WEBCAL://calendar.example.com/feed.ics\n",
+    ],
+    ids=["webcal", "webcals", "pasted-upper-case-webcal"],
+)
+def test_subscribe_link_is_fetched_over_https(auth_client, http_mock, url):
+    # What Apple's and Google's "subscribe" buttons hand out.
+    http_mock.get(FEED_URL, body=ICS)
+
+    response = auth_client.get("/calendar/proxy", url=url)
+
+    assert response.status_code == 200
+    assert response.content == ICS
+    assert http_mock.calls[0].request.url == FEED_URL
+
+
+@pytest.mark.parametrize(
+    "url", ["not a url", "ftp://example.com/cal.ics", "webcalx://example.com/cal.ics", "", "  ", "x https://a.b/"]
 )
 def test_url_that_is_not_http_is_422(auth_client, http_mock, url):
     response = auth_client.get("/calendar/proxy", url=url)
