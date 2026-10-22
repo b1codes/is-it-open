@@ -1224,7 +1224,7 @@
             "in": "query",
             "name": "url",
             "schema": {
-              "pattern": "^https?://",
+              "pattern": "^\\s*[Hh][Tt][Tt][Pp][Ss]?://",
               "title": "Url",
               "type": "string"
             },

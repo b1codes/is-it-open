@@ -24,11 +24,16 @@ def _is_icalendar(body: bytes) -> bool:
     return body.removeprefix(b"\xef\xbb\xbf").lstrip()[:15].upper() == b"BEGIN:VCALENDAR"
 
 
+# Pasted links can have surrounding spaces or an upper-case scheme. (Spelled out rather than with
+# (?i), which isn't valid in the ECMAScript regexes that OpenAPI patterns use.)
+URL_PATTERN = r"^\s*[Hh][Tt][Tt][Pp][Ss]?://"
+
+
 @router.get("/proxy", response={400: ErrorSchema}, openapi_extra=ICAL_RESPONSE)
-def proxy_ical(request, url: str = Query(..., pattern=r"^https?://")):
+def proxy_ical(request, url: str = Query(..., pattern=URL_PATTERN)):
     # `url` is the user's, so it's only fetched from public hosts (see services/safe_fetch.py).
     try:
-        body = safe_fetch.fetch(url, max_bytes=MAX_CALENDAR_BYTES)
+        body = safe_fetch.fetch(url.strip(), max_bytes=MAX_CALENDAR_BYTES)
     except safe_fetch.FetchError as e:
         raise HttpError(400, f"Failed to fetch calendar: {e}") from e
     if not _is_icalendar(body):
