@@ -104,6 +104,53 @@ void main() {
       await bloc.close();
     });
 
+    test(
+      'a slow earlier response to the same text does not overwrite newer results',
+      () async {
+        // "pi", "piz", then back to "pi": the first "pi" answers last.
+        final slow = Completer<List<Place>>();
+        final piAnswers = [
+          slow.future,
+          Future.value([coffeePlace]),
+        ];
+        when(
+          () => api.searchPlaces('pi'),
+        ).thenAnswer((_) => piAnswers.removeAt(0));
+        when(() => api.searchPlaces('piz')).thenAnswer((_) async => [gymPlace]);
+        final bloc = build()
+          ..add(const SearchQueryChanged('pi'))
+          ..add(const SearchQueryChanged('piz'))
+          ..add(const SearchQueryChanged('pi'));
+        await pumpEventQueue();
+        expect(bloc.state.places, [coffeePlace]);
+
+        slow.complete([bistroPlace]);
+        await pumpEventQueue();
+        expect(bloc.state.places, [coffeePlace]);
+        await bloc.close();
+      },
+    );
+
+    test('a slow earlier failure for the same text is dropped', () async {
+      final slow = Completer<List<Place>>();
+      final piAnswers = [
+        slow.future,
+        Future.value([coffeePlace]),
+      ];
+      when(
+        () => api.searchPlaces('pi'),
+      ).thenAnswer((_) => piAnswers.removeAt(0));
+      final bloc = build()
+        ..add(const SearchQueryChanged('pi'))
+        ..add(const SearchQueryChanged('pi'));
+      await pumpEventQueue();
+      slow.completeError(ApiException('timeout'));
+      await pumpEventQueue();
+      expect(bloc.state.status, SearchStatus.success);
+      expect(bloc.state.places, [coffeePlace]);
+      await bloc.close();
+    });
+
     test('a response after the search is cleared is dropped', () async {
       final slow = Completer<List<Place>>();
       when(() => api.searchPlaces('coffee')).thenAnswer((_) => slow.future);
