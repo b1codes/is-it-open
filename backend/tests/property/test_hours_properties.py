@@ -54,8 +54,8 @@ messy_hours = st.fixed_dictionaries(
 def test_parsing_never_raises_and_output_is_well_formed(data):
     hours = parse_hours(data)
 
-    days = [h["day_of_week"] for h in hours]
-    assert len(days) == len(set(days))
+    blocks = [(h["day_of_week"], h["open_time"], h["close_time"]) for h in hours]
+    assert len(blocks) == len(set(blocks))
     for h in hours:
         assert set(h) == {"day_of_week", "open_time", "close_time"}
         assert 0 <= h["day_of_week"] <= 6
@@ -63,22 +63,24 @@ def test_parsing_never_raises_and_output_is_well_formed(data):
 
 
 @given(st.lists(st.fixed_dictionaries({"startTime": times(), "endTime": times()}), max_size=14))
-def test_well_formed_ranges_keep_the_first_range_per_weekday(ranges):
+def test_well_formed_ranges_keep_every_range_on_the_first_date_of_each_weekday(ranges):
     hours = parse_hours({"timeRanges": ranges})
 
-    expected = {}
+    first_date = {}
+    expected = []
     for r in ranges:
         start, end = r["startTime"], r["endTime"]
         day = datetime.date.fromisoformat(start["date"]).weekday()
-        expected.setdefault(
-            day,
-            {
-                "day_of_week": day,
-                "open_time": f"{start.get('hour', 0):02d}:{start.get('minute', 0):02d}",
-                "close_time": f"{end.get('hour', 0):02d}:{end.get('minute', 0):02d}",
-            },
-        )
-    assert hours == list(expected.values())
+        if first_date.setdefault(day, start["date"]) != start["date"]:
+            continue
+        block = {
+            "day_of_week": day,
+            "open_time": f"{start.get('hour', 0):02d}:{start.get('minute', 0):02d}",
+            "close_time": f"{end.get('hour', 0):02d}:{end.get('minute', 0):02d}",
+        }
+        if block not in expected:
+            expected.append(block)
+    assert hours == expected
     assert all(HH_MM.fullmatch(h["open_time"]) and HH_MM.fullmatch(h["close_time"]) for h in hours)
 
 

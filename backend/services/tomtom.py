@@ -148,28 +148,30 @@ class TomTomClient:
             return []
 
         parsed_hours = []
-        # We need to deduplicate by day of week because nextSevenDays might wrap around
-        # or we only want the first occurrence of each day.
-        seen_days = set()
+        # nextSevenDays can reach the same weekday twice (today and a week from today); the first
+        # date seen for a weekday is the closest, so only its ranges are kept. A split day (open
+        # 11:00-14:00 and 17:00-22:00) has several ranges on that one date, and all of them count.
+        first_date_of_day: dict[int, str] = {}
 
         # Malformed ranges (missing or null parts, bad dates or times) are skipped.
         for time_range in opening_hours_data.get("timeRanges") or []:
             try:
                 start = time_range["startTime"]
                 end = time_range["endTime"]
-                date_obj = datetime.strptime(start["date"], "%Y-%m-%d")
-                day_of_week = date_obj.weekday()  # 0=Monday, 6=Sunday
-
-                if day_of_week in seen_days:
-                    continue  # Already have hours for this day (from the 'next 7 days' window, first one is closest)
+                date = start["date"]
+                day_of_week = datetime.strptime(date, "%Y-%m-%d").weekday()  # 0=Monday, 6=Sunday
+                if first_date_of_day.get(day_of_week, date) != date:
+                    continue  # A later week's date for a weekday we already have
 
                 open_time = _format_time(start)
                 close_time = _format_time(end)
             except (AttributeError, KeyError, TypeError, ValueError):
                 continue
 
-            seen_days.add(day_of_week)
-            parsed_hours.append({"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time})
+            first_date_of_day[day_of_week] = date
+            block = {"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time}
+            if block not in parsed_hours:
+                parsed_hours.append(block)
 
         return parsed_hours
 

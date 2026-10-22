@@ -384,16 +384,37 @@ class TestParseOpeningHours:
             {"day_of_week": i, "open_time": f"{8 + i:02d}:00", "close_time": "17:15"} for i in range(7)
         ]
 
-    def test_first_range_for_a_weekday_wins(self):
-        # nextSevenDays can include the same weekday twice (today and a week from today), and
-        # split days (lunch break) have two ranges on one date.
+    def test_split_day_keeps_every_range(self):
+        # A restaurant open for lunch and dinner has two ranges on one date.
+        ranges = [
+            factories.tomtom_time_range("2026-10-22", (11, 0), (14, 0)),
+            factories.tomtom_time_range("2026-10-22", (17, 0), (22, 0)),
+        ]
+
+        assert self.parse({"timeRanges": ranges}) == [
+            {"day_of_week": 3, "open_time": "11:00", "close_time": "14:00"},
+            {"day_of_week": 3, "open_time": "17:00", "close_time": "22:00"},
+        ]
+
+    def test_only_the_first_date_of_a_weekday_counts(self):
+        # nextSevenDays can include the same weekday twice (today and a week from today).
         ranges = [
             factories.tomtom_time_range("2026-10-12", (9, 0), (12, 0)),
             factories.tomtom_time_range("2026-10-12", (13, 0), (17, 0)),
             factories.tomtom_time_range("2026-10-19", (10, 0), (11, 0)),
         ]
 
-        assert self.parse({"timeRanges": ranges}) == [{"day_of_week": 0, "open_time": "09:00", "close_time": "12:00"}]
+        assert self.parse({"timeRanges": ranges}) == [
+            {"day_of_week": 0, "open_time": "09:00", "close_time": "12:00"},
+            {"day_of_week": 0, "open_time": "13:00", "close_time": "17:00"},
+        ]
+
+    def test_repeated_range_is_kept_once(self):
+        ranges = [factories.tomtom_time_range("2026-10-12"), factories.tomtom_time_range("2026-10-12")]
+
+        assert self.parse({"timeRanges": ranges}) == [
+            {"day_of_week": 0, "open_time": "09:00", "close_time": "17:00"}
+        ]
 
     def test_missing_hour_or_minute_is_zero(self):
         ranges = [{"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"date": "2026-10-12"}}]
