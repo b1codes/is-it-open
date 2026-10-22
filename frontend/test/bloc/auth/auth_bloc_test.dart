@@ -186,7 +186,8 @@ void main() {
         return build();
       },
       act: (bloc) => bloc.add(AppStarted()),
-      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+      // Not plain AuthUnauthenticated: MyApp clears the calendar on this.
+      expect: () => [isA<AuthLoading>(), isA<AuthSessionExpired>()],
       verify: (_) async {
         verifyInOrder([
           () => api.setAuthToken('expired'),

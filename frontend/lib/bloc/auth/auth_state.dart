@@ -43,6 +43,11 @@ class ProfileUpdateFailure extends AuthAuthenticated {
 
 class AuthUnauthenticated extends AuthState {}
 
+/// The stored session's token was rejected at startup, so the user is
+/// signed out without having been [AuthAuthenticated] first. Listeners that
+/// clean up after a sign-out need this to tell it from a fresh launch.
+class AuthSessionExpired extends AuthUnauthenticated {}
+
 class AuthFailure extends AuthState {
   final String error;
 

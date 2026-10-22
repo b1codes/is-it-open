@@ -63,7 +63,8 @@ class MyApp extends StatelessWidget {
           BlocProvider<TodayRouteCubit>(create: (context) => TodayRouteCubit()),
         ],
         // Runs on sign-in (into an authenticated state from any other) and
-        // on sign-out (out of an authenticated state). A profile save goes
+        // on sign-out (out of an authenticated state, or a stored session
+        // that expired before it signed in). A profile save goes
         // ProfileUpdating -> ProfileUpdateSuccess/Failure, all authenticated,
         // so it triggers neither: pushed screens stay open and nothing is
         // reloaded.
@@ -72,8 +73,9 @@ class MyApp extends StatelessWidget {
             bool login =
                 current is AuthAuthenticated && previous is! AuthAuthenticated;
             bool logout =
+                current is AuthSessionExpired ||
                 (current is AuthUnauthenticated || current is AuthFailure) &&
-                (previous is AuthAuthenticated);
+                    (previous is AuthAuthenticated);
             return login || logout;
           },
           listener: (context, state) {

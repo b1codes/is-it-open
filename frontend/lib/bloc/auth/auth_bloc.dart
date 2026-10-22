@@ -45,7 +45,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             // would leave every request failing.
             apiClient.setAuthToken(null);
             await _clearSession(prefs);
-            emit(AuthUnauthenticated());
+            emit(AuthSessionExpired());
             return;
           }
           // Offline or server trouble: carry on with the cached profile.

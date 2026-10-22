@@ -20,12 +20,17 @@ import 'helpers/mocks.dart';
 import 'helpers/pump_app.dart';
 
 /// Counts the loads MyApp's auth listener dispatches, and can fail profile
-/// saves or sign in as someone other than [demoUser].
+/// saves, reject the stored token, or sign in as someone other than
+/// [demoUser].
 class _CountingApi extends FakeApiService {
-  _CountingApi({this.failProfileSaves = false, this.loginAs})
-    : super(latency: Duration.zero);
+  _CountingApi({
+    this.failProfileSaves = false,
+    this.rejectStoredToken = false,
+    this.loginAs,
+  }) : super(latency: Duration.zero);
 
   final bool failProfileSaves;
+  final bool rejectStoredToken;
   final User? loginAs;
   int bookmarkLoads = 0;
   int calendarLoads = 0;
@@ -46,6 +51,14 @@ class _CountingApi extends FakeApiService {
   Future<User> updateProfile(User user) async {
     if (failProfileSaves) throw ApiException('Failed to update profile: 500');
     return super.updateProfile(user);
+  }
+
+  @override
+  Future<User> getProfile() async {
+    if (rejectStoredToken) {
+      throw ApiException('Unauthorized', statusCode: 401);
+    }
+    return super.getProfile();
   }
 
   @override
@@ -238,4 +251,33 @@ void main() {
     expect(api.calendarLoads, 1, reason: 'B has no subscription to load');
     await tester.unmount();
   });
+
+  testWidgets(
+    "an expired session doesn't leave its imported calendar for the next user",
+    (tester) async {
+      // A imported an .ics file, then A's token was revoked.
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'revoked',
+        'auth_user_json': jsonEncode(demoUser.toJson()),
+        'persisted_imported_events': jsonEncode([
+          {
+            'title': "A's dentist",
+            'date': '2026-10-21T00:00:00.000',
+            'endDate': '2026-10-21T00:00:00.000',
+            'startTime': '2026-10-21T09:00:00.000',
+            'endTime': '2026-10-21T10:00:00.000',
+            'description': null,
+          },
+        ]),
+      });
+      await start(tester, api: _CountingApi(rejectStoredToken: true));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(read<CalendarDataBloc>(tester).state.importedEvents, isEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('persisted_imported_events'), '[]');
+      await tester.unmount();
+    },
+  );
 }
