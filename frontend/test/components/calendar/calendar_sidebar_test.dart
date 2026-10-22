@@ -22,6 +22,27 @@ import '../../helpers/pump_app.dart';
 
 Result<T> _ok<T>(T data) => Result<T>()..data = data;
 
+/// The server's profile is [user]; records the profile fields saved and the
+/// calendars fetched.
+class _RecordingApi extends FakeApiService {
+  _RecordingApi(User user) : super(user: user, latency: Duration.zero);
+
+  final sentFields = <Map<String, dynamic>>[];
+  final syncedUrls = <String>[];
+
+  @override
+  Future<User> updateProfileFields(Map<String, dynamic> fields) {
+    sentFields.add(fields);
+    return super.updateProfileFields(fields);
+  }
+
+  @override
+  Future<String> getCalendarFromUrl(String url) {
+    syncedUrls.add(url);
+    return super.getCalendarFromUrl(url);
+  }
+}
+
 Widget _sidebar({bool collapsed = false}) =>
     BlocBuilder<CalendarDataBloc, CalendarDataState>(
       builder: (_, state) => CalendarSidebarWidget(
@@ -170,17 +191,26 @@ void main() {
       );
     });
 
-    testWidgets('saving a URL updates only that field, then syncs', (
+    testWidgets('saving a URL sends only that field, then syncs', (
       tester,
     ) async {
-      final user = User.fromJson({
+      // The cached profile predates a home address edit on another device.
+      final cached = User.fromJson({
         ...demoUser.toJson(),
         'calendar_subscription_url': null,
         'use_current_location': true,
       });
+      final api = _RecordingApi(
+        User.fromJson({
+          ...cached.toJson(),
+          'home_city': 'Brooklyn',
+          'home_lat': 40.68,
+        }),
+      );
       await tester.pumpApp(
         Scaffold(body: _sidebar()),
-        authState: AuthAuthenticated(user: user),
+        authState: AuthAuthenticated(user: cached),
+        api: api,
         size: desktopSize,
       );
       await tester.tap(find.byIcon(Icons.settings));
@@ -188,18 +218,22 @@ void main() {
       expect(find.text('Calendar Subscription'), findsOneWidget);
       await tester.enterText(
         find.widgetWithText(TextField, 'iCal URL'),
-        'https://cal.example/me.ics',
+        '  https://cal.example/me.ics\n', // pasted
       );
       await tester.tap(find.text('Save & Sync'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 2)); // the delayed sync
       await tester.pumpAndSettle();
 
+      expect(api.sentFields, [
+        {'calendar_subscription_url': 'https://cal.example/me.ics'},
+      ]);
+      expect(api.syncedUrls, ['https://cal.example/me.ics']);
       final context = tester.element(find.byType(CalendarSidebarWidget));
       final saved = (context.read<AuthBloc>().state as AuthAuthenticated).user;
       expect(saved.calendarSubscriptionUrl, 'https://cal.example/me.ics');
       expect(saved.useCurrentLocation, isTrue);
-      expect(saved.homeCity, demoUser.homeCity);
+      expect((saved.homeCity, saved.homeLat), ('Brooklyn', 40.68));
       expect(find.text('Syncing with 1 events.'), findsOneWidget);
     });
 

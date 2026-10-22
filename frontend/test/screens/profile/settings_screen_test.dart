@@ -23,16 +23,20 @@ void main() {
     'Use Current Location',
   );
 
-  User? sentUser(MockApiService api) {
-    final calls = verify(() => api.updateProfile(captureAny())).captured;
-    return calls.isEmpty ? null : calls.last as User;
+  Map<String, dynamic>? sentFields(MockApiService api) {
+    final calls = verify(() => api.updateProfileFields(captureAny())).captured;
+    return calls.isEmpty ? null : calls.last as Map<String, dynamic>;
   }
+
+  User saved(Map<String, dynamic> fields) =>
+      User.fromJson({...demoUser.toJson(), ...fields});
 
   MockApiService echoingApi() {
     final api = MockApiService();
-    when(
-      () => api.updateProfile(any()),
-    ).thenAnswer((call) async => call.positionalArguments.single as User);
+    when(() => api.updateProfileFields(any())).thenAnswer(
+      (call) async =>
+          saved(call.positionalArguments.single as Map<String, dynamic>),
+    );
     return api;
   }
 
@@ -46,14 +50,16 @@ void main() {
     await tester.tap(locationSwitch);
     await tester.pumpAndSettle();
 
-    final sent = sentUser(api)!;
-    expect(sent.useCurrentLocation, isTrue);
-    expect((sent.homeLat, sent.homeLng), (51.5, -0.12));
-    expect(sent.homeCity, demoUser.homeCity);
+    // Only what changed: the rest of the cached profile may be stale.
+    expect(sentFields(api), {
+      'use_current_location': true,
+      'home_lat': 51.5,
+      'home_lng': -0.12,
+    });
     expect(find.text('Settings saved successfully!'), findsOneWidget);
   });
 
-  testWidgets('turning it off keeps the saved coordinates', (tester) async {
+  testWidgets('turning it off sends only the switch', (tester) async {
     FakeGeolocator.install(addTearDown);
     final api = echoingApi();
     await tester.pumpApp(
@@ -68,9 +74,7 @@ void main() {
     );
     await tester.tap(locationSwitch);
     await tester.pumpAndSettle();
-    final sent = sentUser(api)!;
-    expect(sent.useCurrentLocation, isFalse);
-    expect(sent.homeLat, demoUser.homeLat);
+    expect(sentFields(api), {'use_current_location': false});
   });
 
   final refusals = {
@@ -100,7 +104,7 @@ void main() {
       await tester.tap(locationSwitch);
       await tester.pumpAndSettle();
       expect(find.text(message), findsOneWidget);
-      verifyNever(() => api.updateProfile(any()));
+      verifyNever(() => api.updateProfileFields(any()));
       expect(
         tester.widget<SwitchListTile>(locationSwitch).onChanged,
         isNotNull,
@@ -124,7 +128,7 @@ void main() {
     await tester.tap(locationSwitch);
     await tester.pumpAndSettle();
     expect(geolocator.permissionRequests, 1);
-    expect(sentUser(api)!.useCurrentLocation, isTrue);
+    expect(sentFields(api)!['use_current_location'], isTrue);
   });
 
   testWidgets('shows a spinner and holds the switch while saving', (
@@ -133,7 +137,7 @@ void main() {
     FakeGeolocator.install(addTearDown);
     final reply = Completer<User>();
     final api = MockApiService();
-    when(() => api.updateProfile(any())).thenAnswer((_) => reply.future);
+    when(() => api.updateProfileFields(any())).thenAnswer((_) => reply.future);
     await tester.pumpApp(const SettingsScreen(), api: api);
     await tester.tap(locationSwitch);
     // Not pumpAndSettle: the spinner never settles.
@@ -145,7 +149,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(tester.widget<SwitchListTile>(locationSwitch).onChanged, isNull);
 
-    reply.complete(sentUser(api)!);
+    reply.complete(saved(sentFields(api)!));
     await tester.pumpAndSettle();
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(tester.widget<SwitchListTile>(locationSwitch).value, isTrue);
@@ -156,7 +160,7 @@ void main() {
     FakeGeolocator.install(addTearDown);
     final api = MockApiService();
     when(
-      () => api.updateProfile(any()),
+      () => api.updateProfileFields(any()),
     ).thenThrow(ApiException('Failed to update profile: 500'));
     await tester.pumpApp(const SettingsScreen(), api: api);
     await tester.tap(locationSwitch);

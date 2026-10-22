@@ -19,7 +19,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<RegisterRequested>(_onRegisterRequested);
     on<Auth0LoginRequested>(_onAuth0LoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
-    on<ProfileUpdateRequested>(_onProfileUpdateRequested);
+    on<ProfileUpdateRequested>(
+      (event, emit) =>
+          _saveProfile(emit, () => apiClient.updateProfile(event.updatedUser)),
+    );
+    on<ProfileFieldsUpdateRequested>(
+      (event, emit) =>
+          _saveProfile(emit, () => apiClient.updateProfileFields(event.fields)),
+    );
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -156,9 +163,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onProfileUpdateRequested(
-    ProfileUpdateRequested event,
+  Future<void> _saveProfile(
     Emitter<AuthState> emit,
+    Future<User> Function() save,
   ) async {
     // Only update if currently authenticated
     if (state is AuthAuthenticated) {
@@ -167,7 +174,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // that compare states see a fresh sign-in once the save finished.
       emit(ProfileUpdating(user: currentState.user));
       try {
-        final user = await apiClient.updateProfile(event.updatedUser);
+        final user = await save();
         // Keep the current token if the update didn't return one.
         final updatedUserWithToken = user.token != null
             ? user

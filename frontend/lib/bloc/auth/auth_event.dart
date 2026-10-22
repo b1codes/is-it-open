@@ -46,6 +46,16 @@ class ProfileUpdateRequested extends AuthEvent {
   List<Object?> get props => [updatedUser];
 }
 
+/// Changes only [fields] of the profile, keyed as `PUT /auth/me` takes them.
+class ProfileFieldsUpdateRequested extends AuthEvent {
+  final Map<String, dynamic> fields;
+
+  const ProfileFieldsUpdateRequested({required this.fields});
+
+  @override
+  List<Object?> get props => [fields];
+}
+
 class Auth0LoginRequested extends AuthEvent {
   final String token;
 

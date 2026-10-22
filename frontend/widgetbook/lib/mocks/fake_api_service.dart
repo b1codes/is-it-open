@@ -142,6 +142,10 @@ class FakeApiService extends ApiService {
   Future<User> updateProfile(User user) => _respond(() => _user = user);
 
   @override
+  Future<User> updateProfileFields(Map<String, dynamic> fields) =>
+      _respond(() => _user = User.fromJson({..._user.toJson(), ...fields}));
+
+  @override
   Future<void> togglePinPlace(String tomtomId, bool isPinned) =>
       _respond(() => _replace(tomtomId, (sp) => _copy(sp, isPinned: isPinned)));
 

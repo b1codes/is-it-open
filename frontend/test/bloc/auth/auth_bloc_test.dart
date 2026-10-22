@@ -340,6 +340,61 @@ void main() {
     );
   });
 
+  group('ProfileFieldsUpdateRequested', () {
+    const fields = {'calendar_subscription_url': 'https://cal.example/b.ics'};
+    final saved = User.fromJson({..._user.toJson(), ...fields});
+
+    blocTest<AuthBloc, AuthState>(
+      'is ignored when signed out',
+      build: build,
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => <AuthState>[],
+      verify: (_) => verifyNever(() => api.updateProfileFields(any())),
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'saves only those fields, and the profile the server returns',
+      build: () {
+        when(
+          () => api.updateProfileFields(fields),
+        ).thenAnswer((_) async => saved);
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateSuccess(user: saved),
+      ],
+      verify: (_) async {
+        verifyNever(() => api.updateProfile(any()));
+        expect((await _stored())['auth_calendar_url'], fields.values.single);
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'reports a failed save',
+      build: () {
+        when(
+          () => api.updateProfileFields(any()),
+        ).thenThrow(ApiException('Failed to update profile: 500'));
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateFailure(
+          user: _user,
+          error: 'Exception: Failed to update profile: 500',
+        ),
+      ],
+    );
+  });
+
   group('ProfileUpdateRequested', () {
     final edited = User.fromJson({..._user.toJson(), 'home_city': 'Brooklyn'});
 

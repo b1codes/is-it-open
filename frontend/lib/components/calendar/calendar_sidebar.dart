@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../models/saved_place.dart';
-import '../../models/user.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_event.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
@@ -62,19 +61,21 @@ void _showSubscriptionDialog(BuildContext context, String? currentUrl) {
         ),
         ElevatedButton(
           onPressed: () {
-            final authState = authBloc.state;
-            if (authState is AuthAuthenticated) {
-              // Change only the URL. A bare User would also send its
-              // defaults, e.g. turning off "use current location".
-              final updatedUser = User.fromJson({
-                ...authState.user.toJson(),
-                'calendar_subscription_url': controller.text,
-              });
-              authBloc.add(ProfileUpdateRequested(updatedUser: updatedUser));
+            // Pasted links often come with spaces around them.
+            final url = controller.text.trim();
+            if (authBloc.state is AuthAuthenticated) {
+              // Send only the URL: the cached profile may be older than the
+              // server's (edited on another device), and sending it all
+              // would undo those edits.
+              authBloc.add(
+                ProfileFieldsUpdateRequested(
+                  fields: {'calendar_subscription_url': url},
+                ),
+              );
             }
             Navigator.pop(context);
             Future.delayed(const Duration(seconds: 1), () {
-              dataBloc.add(LoadRemoteEvents(controller.text));
+              dataBloc.add(LoadRemoteEvents(url));
             });
           },
           style: ElevatedButton.styleFrom(

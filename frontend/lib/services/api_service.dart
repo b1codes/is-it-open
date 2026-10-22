@@ -211,9 +211,16 @@ class ApiService {
     }
   }
 
-  Future<User> updateProfile(User user) async {
+  /// Saves every field of [user]. For a screen that edits the whole profile;
+  /// to change a few fields, use [updateProfileFields].
+  Future<User> updateProfile(User user) => updateProfileFields(user.toJson());
+
+  /// Changes only [fields], keyed as `PUT /auth/me` takes them (e.g.
+  /// `{'calendar_subscription_url': url}`). The server keeps every field left
+  /// out, so a profile cached before another device's edit doesn't undo it.
+  Future<User> updateProfileFields(Map<String, dynamic> fields) async {
     try {
-      final response = await _dio.put('/auth/me', data: user.toJson());
+      final response = await _dio.put('/auth/me', data: fields);
       return User.fromJson(response.data);
     } on DioException catch (e) {
       throw ApiException.from('Failed to update profile', e);

@@ -168,6 +168,17 @@ void main() {
       expect(updated, isA<User>());
     });
 
+    test('updateProfileFields sends only the fields given', () async {
+      http.on('PUT', '/auth/me', FakeResponse(200, _userJson()));
+      final updated = await api.updateProfileFields({
+        'calendar_subscription_url': 'https://cal.example/a.ics',
+      });
+      expect(http.lastBody, {
+        'calendar_subscription_url': 'https://cal.example/a.ics',
+      });
+      expect(updated.username, 'avery');
+    });
+
     test('bookmark PATCH endpoints send their fields', () async {
       http.on('PATCH', '/places/bookmarks/tt_1/pin', const FakeResponse(200));
       http.on(

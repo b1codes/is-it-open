@@ -54,6 +54,12 @@ class _CountingApi extends FakeApiService {
   }
 
   @override
+  Future<User> updateProfileFields(Map<String, dynamic> fields) async {
+    if (failProfileSaves) throw ApiException('Failed to update profile: 500');
+    return super.updateProfileFields(fields);
+  }
+
+  @override
   Future<User> getProfile() async {
     if (rejectStoredToken) {
       throw ApiException('Unauthorized', statusCode: 401);

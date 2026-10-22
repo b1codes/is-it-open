@@ -75,6 +75,22 @@ final _calls = <(String, String, Future<Object?> Function(ApiService))>[
     (api) => api.updateProfile(User(id: 1, username: 'avery')),
   ),
   (
+    'PUT /api/auth/me',
+    'updateProfileFields with the calendar URL',
+    (api) => api.updateProfileFields({
+      'calendar_subscription_url': 'https://cal.example/a.ics',
+    }),
+  ),
+  (
+    'PUT /api/auth/me',
+    'updateProfileFields with the location switch',
+    (api) => api.updateProfileFields({
+      'use_current_location': true,
+      'home_lat': 51.5,
+      'home_lng': -0.12,
+    }),
+  ),
+  (
     'GET /api/places/search',
     'searchPlaces',
     (api) => api.searchPlaces('pizza'),
