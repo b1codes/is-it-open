@@ -58,8 +58,10 @@ def _isolate(settings):
     settings.SAFE_FETCH_PRIVATE_HOSTS = []
     cache.clear()
     auth_module._jwks_cache.clear()
+    auth_module._jwks_failed_at.clear()
     yield
     auth_module._jwks_cache.clear()
+    auth_module._jwks_failed_at.clear()
 
 
 @pytest.fixture

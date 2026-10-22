@@ -227,18 +227,13 @@ class TestJwksCache:
         ],
         ids=["500", "404", "timeout", "connection-error", "malformed", "not-an-object"],
     )
-    def test_failed_fetch_answers_503_and_is_retried_next_time(
-        self, authenticate, auth0_tenant, http_mock, rsa_private_key, failure
-    ):
+    def test_failed_fetch_answers_503(self, authenticate, auth0_tenant, http_mock, failure):
         # Not 401: the token may be fine, and a 401 makes the app sign the user out.
         http_mock.replace("GET", auth0_tenant.jwks_url, **failure)
         with pytest.raises(HttpError) as error:
             authenticate(auth0_tenant.token())
         assert error.value.status_code == 503
         assert auth0_tenant.domain not in auth_module._jwks_cache
-
-        http_mock.replace("GET", auth0_tenant.jwks_url, json={"keys": [public_jwk(rsa_private_key, auth0_tenant.kid)]})
-        assert authenticate(auth0_tenant.token())[0] is not None
 
     def test_failed_fetch_is_503_through_the_api(self, firestore_db, auth0_tenant, http_mock):
         http_mock.replace("GET", auth0_tenant.jwks_url, body=requests.Timeout("timed out"))
@@ -306,29 +301,43 @@ class TestJwksRefetch:
         self, clock, verify, auth0_tenant, http_mock, rsa_private_key, other_private_key
     ):
         assert verify(auth0_tenant.token()) is not None
-        for i in range(5):
-            assert verify(auth0_tenant.token(kid=f"made-up-{i}")) is None
+        assert verify(auth0_tenant.token(kid="made-up-0")) is None
+        # Within the interval an unknown kid can't be checked, so it's neither accepted nor rejected.
+        for i in range(1, 5):
+            with pytest.raises(auth_module.JwksUnavailable):
+                verify(auth0_tenant.token(kid=f"made-up-{i}"))
         assert len(http_mock.calls) == 2  # the first fetch, and one refetch
 
-        # A key rotated to within the interval is only picked up once it has passed.
+        # A key rotated to within the interval is picked up once it has passed. Until then its tokens
+        # are unavailable (503), not rejected (401), so the app keeps the user's session.
         self.rotate(auth0_tenant, http_mock, (other_private_key, "rotated-key"))
         clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL - 1)
-        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is None
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(key=other_private_key, kid="rotated-key"))
         assert verify(auth0_tenant.token()) is not None  # the cached keys still work meanwhile
         assert len(http_mock.calls) == 2
 
         clock.tick(1)
         assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is not None
-        assert verify(auth0_tenant.token(kid="made-up-again")) is None
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(kid="made-up-again"))
         assert len(http_mock.calls) == 3
 
     def test_concurrent_unknown_kids_refetch_once(self, verify, auth0_tenant, http_mock):
         assert verify(auth0_tenant.token()) is not None
         tokens = [auth0_tenant.token(kid=f"made-up-{i}") for i in range(8)]
 
-        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
-            assert list(pool.map(verify, tokens)) == [None] * len(tokens)
+        def outcome(token):
+            try:
+                return verify(token)
+            except auth_module.JwksUnavailable:
+                return "unavailable"
 
+        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
+            outcomes = list(pool.map(outcome, tokens))
+
+        # The request that refetched rejects its token; the rest can't be checked until the interval passes.
+        assert sorted(outcomes, key=str) == [None] + ["unavailable"] * (len(tokens) - 1)
         assert len(http_mock.calls) == 2
 
     def test_refetched_once_max_age_old_so_a_revoked_key_stops_working(
@@ -342,7 +351,7 @@ class TestJwksRefetch:
         assert len(http_mock.calls) == 1
 
         clock.tick(1)
-        assert verify(auth0_tenant.token()) is None
+        assert verify(auth0_tenant.token()) is None  # rejected outright: its JWKS was fetched for it
         assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is not None
         assert len(http_mock.calls) == 2
 
@@ -357,7 +366,8 @@ class TestJwksRefetch:
 
         clock.tick(auth_module.JWKS_MAX_AGE)
         assert verify(auth0_tenant.token()) is not None
-        assert verify(auth0_tenant.token(kid="made-up")) is None
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(kid="made-up"))
         assert len(http_mock.calls) == 2
 
         self.rotate(auth0_tenant, http_mock, (rsa_private_key, auth0_tenant.kid))
@@ -382,8 +392,56 @@ class TestJwksRefetch:
         assert verify(auth0_tenant.token()) is not None  # cached keys still work
         assert len(http_mock.calls) == 2
 
-        # Within the interval there's no refetch, so the unknown kid is rejected as before.
-        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is None
+        # Within the interval there's no refetch, and the unknown kid still can't be checked.
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(key=other_private_key, kid="rotated-key"))
+        assert len(http_mock.calls) == 2
+
+    @pytest.mark.parametrize(
+        "failure", [{"status": 503}, {"body": requests.ConnectionError("refused")}], ids=["503", "connection-error"]
+    )
+    def test_first_fetch_failing_is_retried_at_most_once_per_interval(
+        self, clock, verify, auth0_tenant, http_mock, rsa_private_key, failure
+    ):
+        # Auth0 is unreachable when the worker starts, so nothing is cached yet. Each token, forged
+        # kids included, must not wait on its own fetch.
+        http_mock.replace("GET", auth0_tenant.jwks_url, **failure)
+        for kid in ("default", "made-up-1", "made-up-2"):
+            with pytest.raises(auth_module.JwksUnavailable):
+                verify(auth0_tenant.token(kid=kid))
+        assert len(http_mock.calls) == 1
+
+        clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL - 1)
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token())
+        assert len(http_mock.calls) == 1
+
+        clock.tick(1)
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token())
+        assert len(http_mock.calls) == 2
+
+        self.rotate(auth0_tenant, http_mock, (rsa_private_key, auth0_tenant.kid))
+        clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL)
+        assert verify(auth0_tenant.token()) is not None
+        assert verify(auth0_tenant.token(kid="made-up-3")) is None  # a refetch, now that keys are cached
+        assert len(http_mock.calls) == 4
+        assert auth0_tenant.domain not in auth_module._jwks_failed_at
+
+    def test_concurrent_requests_retry_a_failed_first_fetch_once(self, clock, verify, auth0_tenant, http_mock):
+        http_mock.replace("GET", auth0_tenant.jwks_url, status=503)
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token())
+        clock.tick(auth_module.JWKS_MIN_REFETCH_INTERVAL)
+
+        def unavailable(token):
+            with pytest.raises(auth_module.JwksUnavailable):
+                verify(token)
+
+        tokens = [auth0_tenant.token(kid=f"made-up-{i}") for i in range(8)]
+        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
+            list(pool.map(unavailable, tokens))
+
         assert len(http_mock.calls) == 2
 
 

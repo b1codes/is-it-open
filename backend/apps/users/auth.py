@@ -16,9 +16,9 @@ from . import repository
 
 # Each Auth0 tenant's JWKS (its token signing keys), by domain, so it isn't fetched on every request.
 # It's refetched when a token's `kid` isn't in it, since that's how a key Auth0 has rotated to first
-# shows up, and once it's JWKS_MAX_AGE old, so a key Auth0 has revoked stops being trusted. Refetches
-# happen at most once per JWKS_MIN_REFETCH_INTERVAL, so tokens with made-up kids can't make the
-# server hammer Auth0.
+# shows up, and once it's JWKS_MAX_AGE old, so a key Auth0 has revoked stops being trusted. Fetches
+# happen at most once per JWKS_MIN_REFETCH_INTERVAL, also while the first one keeps failing, so tokens
+# with made-up kids can't make the server hammer Auth0 or tie up its workers waiting on it.
 JWKS_MAX_AGE = 60 * 60
 JWKS_MIN_REFETCH_INTERVAL = 60
 
@@ -35,6 +35,8 @@ class JwksUnavailable(Exception):
 
 
 _jwks_cache: dict[str, _CachedJwks] = {}
+# When a domain with no cached JWKS last failed to fetch it (or claimed the retry), by domain.
+_jwks_failed_at: dict[str, float] = {}
 _jwks_lock = threading.Lock()
 
 
@@ -115,12 +117,13 @@ class GlobalAuth(HttpBearer):
                 return None
 
             # 2. Get JWKS (from cache or API)
-            jwks = self.get_jwks(domain)
+            jwks, fetched = self.get_jwks(domain)
 
-            # 3. Find matching key. An unknown kid may be a key Auth0 rotated to since the JWKS was fetched.
+            # 3. Find matching key. An unknown kid may be a key Auth0 rotated to since the JWKS was
+            # fetched, unless it was fetched for this request.
             key = _find_key(jwks, kid)
-            if key is None:
-                key = _find_key(self.get_jwks(domain, refetch=True), kid)
+            if key is None and not fetched:
+                key = _find_key(self.get_jwks(domain, refetch=True)[0], kid)
             if key is None:
                 return None
             rsa_key = {name: key.get(name) for name in ("kty", "kid", "use", "n", "e")}
@@ -144,13 +147,15 @@ class GlobalAuth(HttpBearer):
         except Exception:
             return None
 
-    def get_jwks(self, domain, *, refetch=False) -> dict:
+    def get_jwks(self, domain, *, refetch=False) -> tuple[dict, bool]:
         """
-        The tenant's JWKS: the cached copy, unless `refetch` asks for a new one or it's JWKS_MAX_AGE
-        old, and the last refetch was at least JWKS_MIN_REFETCH_INTERVAL ago.
+        The tenant's JWKS, and whether this call fetched it: the cached copy, unless `refetch` asks
+        for a new one or it's JWKS_MAX_AGE old, and the last refetch was at least
+        JWKS_MIN_REFETCH_INTERVAL ago.
 
-        Raises JwksUnavailable if the fetch fails and there's no cached copy, or `refetch` asked for
-        one (the token's kid isn't cached, so whether it's Auth0's can't be known).
+        Raises JwksUnavailable if there's no cached copy and the fetch fails or failed within the
+        interval, or if `refetch` asked for one and it fails or is throttled: the token's kid isn't
+        cached, and it may be a key Auth0 rotated to after the last refetch, so it can't be rejected.
         """
         now = time.monotonic()
         with _jwks_lock:
@@ -158,21 +163,35 @@ class GlobalAuth(HttpBearer):
             if cached is not None:
                 wanted = refetch or now - cached.fetched_at >= JWKS_MAX_AGE
                 too_soon = cached.refetched_at is not None and now - cached.refetched_at < JWKS_MIN_REFETCH_INTERVAL
-                if not wanted or too_soon:
-                    return cached.jwks
+                if not wanted:
+                    return cached.jwks, False
+                if too_soon:
+                    if refetch:
+                        raise JwksUnavailable(domain)
+                    return cached.jwks, False
                 # Claim the refetch, so requests meanwhile use the cached copy rather than fetching too.
                 cached.refetched_at = now
+            elif domain in _jwks_failed_at:
+                if now - _jwks_failed_at[domain] < JWKS_MIN_REFETCH_INTERVAL:
+                    raise JwksUnavailable(domain)
+                # Claim the retry, so requests meanwhile answer 503 rather than waiting on Auth0 too.
+                _jwks_failed_at[domain] = now
 
         jwks = _fetch_jwks(domain)
         if jwks is None:
-            # Past JWKS_MAX_AGE, keep using the keys we have until the tenant can be reached.
-            if cached is None or refetch:
+            if cached is None:
+                with _jwks_lock:
+                    _jwks_failed_at[domain] = time.monotonic()
                 raise JwksUnavailable(domain)
-            return cached.jwks
+            # Past JWKS_MAX_AGE, keep using the keys we have until the tenant can be reached.
+            if refetch:
+                raise JwksUnavailable(domain)
+            return cached.jwks, False
         with _jwks_lock:
             refetched_at = cached.refetched_at if cached is not None else None
             _jwks_cache[domain] = _CachedJwks(jwks, fetched_at=now, refetched_at=refetched_at)
-        return jwks
+            _jwks_failed_at.pop(domain, None)
+        return jwks, True
 
 
 def _fetch_jwks(domain) -> dict | None:
