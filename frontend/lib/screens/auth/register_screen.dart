@@ -30,12 +30,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error),
-                backgroundColor: AppColors.thermalCore,
-              ),
-            );
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.error),
+                  backgroundColor: AppColors.thermalCore,
+                ),
+              );
           }
           // On success MyApp returns to its home route, which shows home.
         },

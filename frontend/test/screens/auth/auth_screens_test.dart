@@ -157,6 +157,30 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
     });
 
+    testWidgets('a failed registration over login is reported once', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        const LoginScreen(),
+        authState: AuthUnauthenticated(),
+        apiFails: true,
+      );
+      await tester.ensureVisible(find.text('Join the neighborhood'));
+      await tester.tap(find.text('Join the neighborhood'));
+      await tester.pumpAndSettle();
+      await tester.enterText(field('Full Name'), 'taken');
+      await tester.enterText(field('Email Address'), 't@example.com');
+      await tester.enterText(field('Password'), 'secret');
+      await tester.tap(find.text('JOIN'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+
+      // Login, still mounted underneath, used to queue a second copy.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
     testWidgets('"Sign in" replaces it with login when it is the root', (
       tester,
     ) async {

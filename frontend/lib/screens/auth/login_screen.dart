@@ -38,13 +38,18 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error),
-                backgroundColor: AppColors.thermalCore,
-              ),
-            );
+          // Only while it's the screen on top: Register, pushed over it,
+          // reports its own failures, and both reporting showed each twice.
+          final onTop = ModalRoute.of(context)?.isCurrent ?? true;
+          if (state is AuthFailure && onTop) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.error),
+                  backgroundColor: AppColors.thermalCore,
+                ),
+              );
           }
         },
         child: SafeArea(
