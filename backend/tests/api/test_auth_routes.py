@@ -4,6 +4,7 @@ import re
 from urllib.parse import unquote
 
 import pytest
+import requests
 from responses import matchers
 
 from apps.users import repository as users
@@ -320,10 +321,10 @@ class TestUpdateMe:
 
     @pytest.mark.parametrize(
         "geocode",
-        [{"json": {"results": []}}, {"status": 500}, {"body": "not json"}],
-        ids=["no-match", "server-error", "malformed"],
+        [{"json": {"results": []}}, {"json": {"results": [{"position": None}]}}],
+        ids=["no-results", "no-position"],
     )
-    def test_failed_geocode_keeps_the_address_and_clears_the_old_coordinates(self, make_user, tomtom, geocode):
+    def test_no_match_keeps_the_address_and_clears_the_old_coordinates(self, make_user, tomtom, geocode):
         # The old coordinates are the old address's: keeping them would leave Home there.
         user = make_user(home_city="Springfield", home_lat=1.0, home_lng=2.0, work_lat=3.0, work_lng=4.0)
         client = ApiClient(users.get_or_create_token(user))
@@ -354,14 +355,34 @@ class TestUpdateMe:
         assert (response.json()["home_lat"], response.json()["home_lng"]) == (None, None)
         assert len(tomtom.calls) == 0  # nothing to geocode
 
-    def test_geocoding_is_skipped_without_a_tomtom_key(self, make_user, http_mock):
+    @pytest.mark.parametrize(
+        "geocode",
+        [{"status": 500}, {"status": 429}, {"body": requests.Timeout("timed out")}, {"body": "not json"}],
+        ids=["server-error", "rate-limited", "timeout", "malformed"],
+    )
+    def test_geocoding_outage_keeps_the_address_and_the_old_coordinates(self, make_user, tomtom, geocode):
+        # Whether the new address has a match isn't known, and losing Home would be worse than a stale pin.
+        user = make_user(home_city="Springfield", home_lat=1.0, home_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+        tomtom.get(GEOCODE_URL, **geocode)
+
+        response = client.put("/auth/me", {"home_city": "Shelbyville"})
+
+        assert response.status_code == 200
+        assert response.json()["home_city"] == "Shelbyville"
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
+        stored = users.get_user(user.username)
+        assert (stored.home_city, stored.home_lat, stored.home_lng) == ("Shelbyville", 1.0, 2.0)
+
+    def test_geocoding_is_skipped_without_a_tomtom_key_and_keeps_the_coordinates(self, make_user, http_mock):
         user = make_user(home_lat=1.0, home_lng=2.0)
         client = ApiClient(users.get_or_create_token(user))
 
         response = client.put("/auth/me", {"home_city": "Springfield"})
 
         assert response.status_code == 200
-        assert response.json()["home_lat"] is None
+        assert response.json()["home_city"] == "Springfield"
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
         assert len(http_mock.calls) == 0
 
     @pytest.mark.parametrize(

@@ -5,7 +5,7 @@ from ninja.errors import HttpError
 
 from config.schemas import ErrorSchema, StrictSchema
 from services.firestore import InvalidDocumentKey
-from services.tomtom import TomTomClient
+from services.tomtom import GeocodeUnavailable, TomTomClient
 
 from . import repository
 from .auth import GlobalAuth
@@ -190,7 +190,8 @@ def update_me(request, data: ProfileUpdateInput):
         set_field("calendar_subscription_url", data.calendar_subscription_url)
 
     # Perform geocoding if needed. The old coordinates belong to the old address, so an address
-    # that's cleared or can't be geocoded (no match, a TomTom error, no API key) has none.
+    # that's cleared or that TomTom has no match for has none. If TomTom can't be asked (an outage,
+    # no API key), the old ones are kept, rather than lost, until the address is next edited.
     if home_address_changed or work_address_changed:
         client = TomTomClient()
 
@@ -201,7 +202,10 @@ def update_me(request, data: ProfileUpdateInput):
             if not changed_address:
                 continue
             full_address = ", ".join(p for p in (getattr(user, f) for f in geo_fields) if p)
-            coords = client.geocode_address(full_address) if full_address else None
+            try:
+                coords = client.geocode_address(full_address) if full_address else None
+            except GeocodeUnavailable:
+                continue
             set_field(f"{prefix}_lat", coords["lat"] if coords else None)
             set_field(f"{prefix}_lng", coords["lon"] if coords else None)
 

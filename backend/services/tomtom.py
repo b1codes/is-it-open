@@ -43,6 +43,10 @@ def _format_time(time: dict) -> str:
     return f"{hour:02d}:{minute:02d}"
 
 
+class GeocodeUnavailable(Exception):
+    """TomTom couldn't be asked (no API key) or didn't answer, so whether an address has a match isn't known."""
+
+
 class TomTomClient:
     def __init__(self):
         self.api_key = settings.TOMTOM_API_KEY
@@ -218,10 +222,13 @@ class TomTomClient:
     def geocode_address(self, address: str):
         """
         Geocode an address string using TomTom Search API.
-        Returns a dict with 'lat' and 'lon' keys, or None if not found or error.
+        Returns a dict with 'lat' and 'lon' keys, or None if TomTom has no match (or no address was given).
+        Raises GeocodeUnavailable without an API key or when the request fails.
         """
-        if not self.api_key or not address:
+        if not address:
             return None
+        if not self.api_key:
+            raise GeocodeUnavailable("no TomTom API key")
 
         # Create a stable cache key
         address_hash = hashlib.md5(address.strip().lower().encode("utf-8"), usedforsecurity=False).hexdigest()
@@ -236,16 +243,17 @@ class TomTomClient:
         try:
             response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
-            results = _array(_object(response.json()).get("results"))
-            if results:
-                position = _object(_object(results[0]).get("position"))
-                lat = position.get("lat")
-                lon = position.get("lon")
-                if _is_coordinate(lat) and _is_coordinate(lon):
-                    result = {"lat": lat, "lon": lon}
-                    # Cache for 1 day
-                    cache.set(cache_key, result, 86400)
-                    return result
-        except requests.RequestException:
-            pass
+            body = response.json()
+        except requests.RequestException as error:
+            raise GeocodeUnavailable(str(error)) from error
+        results = _array(_object(body).get("results"))
+        if results:
+            position = _object(_object(results[0]).get("position"))
+            lat = position.get("lat")
+            lon = position.get("lon")
+            if _is_coordinate(lat) and _is_coordinate(lon):
+                result = {"lat": lat, "lon": lon}
+                # Cache for 1 day
+                cache.set(cache_key, result, 86400)
+                return result
         return None

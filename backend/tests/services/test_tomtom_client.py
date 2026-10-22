@@ -9,7 +9,7 @@ import requests
 from freezegun import freeze_time
 from responses import matchers
 
-from services.tomtom import TomTomClient
+from services.tomtom import GeocodeUnavailable, TomTomClient
 from tests import factories
 from tests.conftest import TOMTOM_BASE, TOMTOM_KEY
 
@@ -331,7 +331,8 @@ class TestGeocodeAddress:
             {"results": [{"position": {"lat": 1.0}}]},
             {"results": [{"position": None}]},
             {"results": [{}]},
-            *WRONG_TYPE_BODIES,
+            # An empty body (None) isn't an answer: test_failure_is_unavailable_and_not_cached covers it.
+            *(body for body in WRONG_TYPE_BODIES if body is not None),
             {"results": ["junk"]},
             {"results": [{"position": "39.78,-89.65"}]},
             {"results": [{"position": {"lat": "39.78", "lon": "-89.65"}}]},
@@ -342,7 +343,7 @@ class TestGeocodeAddress:
             "no-lon",
             "null-position",
             "no-position",
-            *WRONG_TYPE_BODY_IDS,
+            *(body_id for body_id in WRONG_TYPE_BODY_IDS if body_id != "null"),
             "junk-result",
             "string-position",
             "string-coordinates",
@@ -353,10 +354,12 @@ class TestGeocodeAddress:
 
         assert client.geocode_address("Nowhere") is None
 
-    @pytest.mark.parametrize("failure", FAILURES, ids=FAILURE_IDS)
-    def test_failure_returns_none_and_is_not_cached(self, client, tomtom, failure):
+    @pytest.mark.parametrize("failure", [*FAILURES, {"body": ""}], ids=[*FAILURE_IDS, "empty-body"])
+    def test_failure_is_unavailable_and_not_cached(self, client, tomtom, failure):
+        # Not None: that means "no match", and the profile clears an address's coordinates on it.
         tomtom.get(GEOCODE_URL, **failure)
-        assert client.geocode_address("1 Main St") is None
+        with pytest.raises(GeocodeUnavailable):
+            client.geocode_address("1 Main St")
 
         tomtom.replace("GET", GEOCODE_URL, json=_geocode_reply())
         assert client.geocode_address("1 Main St") == {"lat": 39.78, "lon": -89.65}
@@ -372,10 +375,11 @@ class TestGeocodeAddress:
         assert client.geocode_address("") is None
         assert len(tomtom.calls) == 0
 
-    def test_without_a_key_makes_no_request(self, settings, http_mock):
+    def test_without_a_key_is_unavailable_and_makes_no_request(self, settings, http_mock):
         settings.TOMTOM_API_KEY = ""
 
-        assert TomTomClient().geocode_address("1 Main St") is None
+        with pytest.raises(GeocodeUnavailable):
+            TomTomClient().geocode_address("1 Main St")
         assert len(http_mock.calls) == 0
 
 
