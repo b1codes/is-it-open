@@ -17,6 +17,21 @@ def _is_coordinate(value) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _object(value) -> dict:
+    """`value` if it's a JSON object, else {}: TomTom fields of the wrong type are treated as missing."""
+    return value if isinstance(value, dict) else {}
+
+
+def _array(value) -> list:
+    """`value` if it's a JSON array, else []."""
+    return value if isinstance(value, list) else []
+
+
+def _text(value) -> str | None:
+    """`value` if it's a non-empty string, else None."""
+    return value if isinstance(value, str) and value else None
+
+
 def _format_time(time: dict) -> str:
     """HH:MM from a TomTom time ({"hour": 9, "minute": 0}). Missing parts are 0."""
     hour, minute = time.get("hour", 0), time.get("minute", 0)
@@ -50,8 +65,7 @@ class TomTomClient:
         try:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
-            data = response.json()
-            return self._parse_results(data.get("results") or [])
+            return self._parse_results(_array(_object(response.json()).get("results")))
         except requests.RequestException:
             return []
 
@@ -74,8 +88,7 @@ class TomTomClient:
         try:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
-            data = response.json()
-            return self._parse_results(data.get("results") or [])
+            return self._parse_results(_array(_object(response.json()).get("results")))
         except requests.RequestException:
             return []
 
@@ -94,25 +107,29 @@ class TomTomClient:
         """
         if not isinstance(result, dict):
             return None
-        poi = result.get("poi") or {}
-        address = result.get("address") or {}
-        position = result.get("position") or {}
+        poi = _object(result.get("poi"))
+        address = _object(result.get("address"))
+        position = _object(result.get("position"))
+        tomtom_id, name = _text(result.get("id")), _text(poi.get("name"))
         lat, lng = position.get("lat"), position.get("lon")
-        if not (result.get("id") and poi.get("name") and _is_coordinate(lat) and _is_coordinate(lng)):
+        if not (tomtom_id and name and _is_coordinate(lat) and _is_coordinate(lng)):
             return None
 
         hours = self._parse_opening_hours(poi.get("openingHours"))
         categories = self._parse_categories(poi)
 
+        def part(key):
+            return _text(address.get(key)) or ""
+
         return {
-            "tomtom_id": result["id"],
-            "name": poi["name"],
+            "tomtom_id": tomtom_id,
+            "name": name,
             # Construct a readable address
-            "address": address.get("freeformAddress")
-            or f"{address.get('streetNumber', '')} {address.get('streetName', '')}, {address.get('municipality', '')}",
+            "address": _text(address.get("freeformAddress"))
+            or f"{part('streetNumber')} {part('streetName')}, {part('municipality')}",
             "location": {"lat": lat, "lng": lng},
-            "phone": poi.get("phone"),
-            "website": poi.get("url"),
+            "phone": _text(poi.get("phone")),
+            "website": _text(poi.get("url")),
             "categories": categories,
             "hours": hours,
         }
@@ -129,12 +146,11 @@ class TomTomClient:
             if isinstance(name, str) and name and name not in names:
                 names.append(name)
 
-        for classification in poi.get("classifications") or []:
-            if isinstance(classification, dict):
-                for entry in classification.get("names") or []:
-                    add(entry.get("name") if isinstance(entry, dict) else None)
+        for classification in _array(poi.get("classifications")):
+            for entry in _array(_object(classification).get("names")):
+                add(_object(entry).get("name"))
         if not names:
-            for name in poi.get("categories") or []:
+            for name in _array(poi.get("categories")):
                 add(name)
         return names
 
@@ -154,7 +170,7 @@ class TomTomClient:
         first_date_of_day: dict[int, str] = {}
 
         # Malformed ranges (missing or null parts, bad dates or times) are skipped.
-        for time_range in opening_hours_data.get("timeRanges") or []:
+        for time_range in _array(opening_hours_data.get("timeRanges")):
             try:
                 start = time_range["startTime"]
                 end = time_range["endTime"]
@@ -192,8 +208,7 @@ class TomTomClient:
         try:
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
-            data = response.json()
-            results = data.get("results", [])
+            results = _array(_object(response.json()).get("results"))
             if results:
                 return self._parse_place(results[0])
         except requests.RequestException:
@@ -221,13 +236,12 @@ class TomTomClient:
         try:
             response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
-            data = response.json()
-            results = data.get("results", [])
+            results = _array(_object(response.json()).get("results"))
             if results:
-                position = results[0].get("position") or {}
+                position = _object(_object(results[0]).get("position"))
                 lat = position.get("lat")
                 lon = position.get("lon")
-                if lat is not None and lon is not None:
+                if _is_coordinate(lat) and _is_coordinate(lon):
                     result = {"lat": lat, "lon": lon}
                     # Cache for 1 day
                     cache.set(cache_key, result, 86400)

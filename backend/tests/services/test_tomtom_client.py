@@ -31,6 +31,10 @@ FAILURES = [
 ]
 FAILURE_IDS = ["400", "403-bad-key", "429-rate-limited", "500", "503", "timeout", "connection-error", "malformed-json"]
 
+# JSON bodies that aren't an object with a results list. The client treats them as no results.
+WRONG_TYPE_BODIES = [[], ["results"], "results", 7, None, {"results": {"id": "tt-1"}}, {"results": "tt-1"}]
+WRONG_TYPE_BODY_IDS = ["empty-list", "list", "string", "number", "null", "results-object", "results-string"]
+
 
 @pytest.fixture
 def client(tomtom):
@@ -123,6 +127,29 @@ class TestSearchPlace:
 
         assert [r["tomtom_id"] for r in client.search_place("x")] == ["good"]
 
+    def test_skips_results_whose_fields_are_the_wrong_type(self, client, tomtom):
+        good = factories.tomtom_result("good", "Good")
+        string_address = {**factories.tomtom_result("a", "A"), "address": "7 Carmine St"}
+        list_poi = {**factories.tomtom_result("p", "P"), "poi": ["Pizza"]}
+        string_position = {**factories.tomtom_result("pos", "Pos"), "position": "40.7,-74.0"}
+        numeric_id = factories.tomtom_result(7, "Seven")
+        list_name = factories.tomtom_result("n", ["Name"])
+        tomtom.get(
+            POI_SEARCH_URL,
+            json=factories.tomtom_response(string_address, list_poi, string_position, numeric_id, list_name, good),
+        )
+
+        results = client.search_place("x")
+
+        # A string address is no address: the place is kept with a blank one.
+        assert [(r["tomtom_id"], r["address"]) for r in results] == [("a", " , "), ("good", "123 Test St, Testville")]
+
+    @pytest.mark.parametrize("body", WRONG_TYPE_BODIES, ids=WRONG_TYPE_BODY_IDS)
+    def test_body_of_the_wrong_type_is_no_results(self, client, tomtom, body):
+        tomtom.get(POI_SEARCH_URL, json=body)
+
+        assert client.search_place("pizza") == []
+
 
 # --- nearby_search ---
 
@@ -154,6 +181,12 @@ class TestNearbySearch:
         tomtom.get(NEARBY_SEARCH_URL, json=factories.tomtom_response())
 
         assert client.nearby_search(0, 0) == []
+
+    @pytest.mark.parametrize("body", WRONG_TYPE_BODIES, ids=WRONG_TYPE_BODY_IDS)
+    def test_body_of_the_wrong_type_is_empty(self, client, tomtom, body):
+        tomtom.get(NEARBY_SEARCH_URL, json=body)
+
+        assert client.nearby_search(40.7, -74.0) == []
 
     @pytest.mark.parametrize("failure", FAILURES, ids=FAILURE_IDS)
     def test_failure_returns_empty(self, client, tomtom, failure):
@@ -190,6 +223,14 @@ class TestGetPlaceDetails:
 
     def test_unusable_result(self, client, tomtom):
         tomtom.get(PLACE_DETAILS_URL, json=factories.tomtom_response(factories.tomtom_result("tt-1", name=None)))
+
+        assert client.get_place_details("tt-1") is None
+
+    @pytest.mark.parametrize(
+        "body", [*WRONG_TYPE_BODIES, {"results": ["junk"]}], ids=[*WRONG_TYPE_BODY_IDS, "junk-result"]
+    )
+    def test_body_of_the_wrong_type_is_none(self, client, tomtom, body):
+        tomtom.get(PLACE_DETAILS_URL, json=body)
 
         assert client.get_place_details("tt-1") is None
 
@@ -290,8 +331,22 @@ class TestGeocodeAddress:
             {"results": [{"position": {"lat": 1.0}}]},
             {"results": [{"position": None}]},
             {"results": [{}]},
+            *WRONG_TYPE_BODIES,
+            {"results": ["junk"]},
+            {"results": [{"position": "39.78,-89.65"}]},
+            {"results": [{"position": {"lat": "39.78", "lon": "-89.65"}}]},
         ],
-        ids=["no-results", "no-results-key", "no-lon", "null-position", "no-position"],
+        ids=[
+            "no-results",
+            "no-results-key",
+            "no-lon",
+            "null-position",
+            "no-position",
+            *WRONG_TYPE_BODY_IDS,
+            "junk-result",
+            "string-position",
+            "string-coordinates",
+        ],
     )
     def test_no_usable_position_returns_none(self, client, tomtom, body):
         tomtom.get(GEOCODE_URL, json=body)
@@ -372,6 +427,27 @@ class TestParsePlace:
 
         assert TomTomClient()._parse_place(result)["categories"] == []
 
+    def test_optional_fields_of_the_wrong_type_are_missing(self):
+        result = factories.tomtom_result()
+        result["address"] = {"freeformAddress": ["7 Carmine St"], "streetNumber": 7, "streetName": "Carmine St"}
+        result["poi"].update(
+            phone=5550100,
+            url={"href": "https://example.com"},
+            classifications={"names": "pizza"},
+            categories="pizza",
+            openingHours=["09:00-17:00"],
+        )
+
+        place = TomTomClient()._parse_place(result)
+
+        assert (place["address"], place["phone"], place["website"], place["categories"], place["hours"]) == (
+            " Carmine St, ",
+            None,
+            None,
+            [],
+            [],
+        )
+
 
 class TestParseOpeningHours:
     parse = staticmethod(TomTomClient()._parse_opening_hours)
@@ -412,9 +488,7 @@ class TestParseOpeningHours:
     def test_repeated_range_is_kept_once(self):
         ranges = [factories.tomtom_time_range("2026-10-12"), factories.tomtom_time_range("2026-10-12")]
 
-        assert self.parse({"timeRanges": ranges}) == [
-            {"day_of_week": 0, "open_time": "09:00", "close_time": "17:00"}
-        ]
+        assert self.parse({"timeRanges": ranges}) == [{"day_of_week": 0, "open_time": "09:00", "close_time": "17:00"}]
 
     def test_missing_hour_or_minute_is_zero(self):
         ranges = [{"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"date": "2026-10-12"}}]

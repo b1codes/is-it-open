@@ -111,6 +111,27 @@ class TestSearch:
         assert response.status_code == 200
         assert [p["tomtom_id"] for p in response.json()] == ["local"]
 
+    def test_a_malformed_tomtom_result_is_skipped(self, auth_client, tomtom):
+        bad = {**factories.tomtom_result("bad", "Pizza Bad"), "address": "7 Carmine St", "poi": ["Pizza"]}
+        tomtom.get(POI_SEARCH_URL, json=factories.tomtom_response(bad, factories.tomtom_result("good", "Pizza Good")))
+
+        response = auth_client.get("/places/search", query="pizza")
+
+        assert response.status_code == 200
+        assert [p["tomtom_id"] for p in response.json()] == ["good"]
+
+    @pytest.mark.parametrize(
+        "body", [["results"], "results", {"results": "tt-1"}], ids=["list", "string", "results-string"]
+    )
+    def test_a_tomtom_body_of_the_wrong_type_still_returns_local_places(self, auth_client, make_place, tomtom, body):
+        tomtom.get(POI_SEARCH_URL, json=body)
+        make_place("local", name="Pizza Place")
+
+        response = auth_client.get("/places/search", query="pizza")
+
+        assert response.status_code == 200
+        assert [p["tomtom_id"] for p in response.json()] == ["local"]
+
     def test_without_a_tomtom_key_only_local_places_are_searched(self, auth_client, make_place, http_mock):
         make_place("local", name="Pizza Place")
 
