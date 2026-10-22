@@ -168,29 +168,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Future<User> Function() save,
   ) async {
     // Only update if currently authenticated
-    if (state is AuthAuthenticated) {
-      final currentState = state as AuthAuthenticated;
-      // Stays authenticated throughout. AuthLoading here made listeners
-      // that compare states see a fresh sign-in once the save finished.
-      emit(ProfileUpdating(user: currentState.user));
-      try {
-        final user = await save();
-        // Keep the current token if the update didn't return one.
-        final updatedUserWithToken = user.token != null
-            ? user
-            : User.fromJson({
-                ...user.toJson(),
-                'token': currentState.user.token,
-              });
+    final before = state;
+    if (before is! AuthAuthenticated) return;
+    // Stays authenticated throughout. AuthLoading here made listeners
+    // that compare states see a fresh sign-in once the save finished.
+    emit(ProfileUpdating(user: before.user));
+    try {
+      final user = await save();
+      // Read the state again: saves can overlap, and the user may have
+      // signed out meanwhile, which a late save mustn't undo.
+      final current = state;
+      if (current is! AuthAuthenticated) return;
+      // Keep the current token if the update didn't return one.
+      final updatedUserWithToken = user.token != null
+          ? user
+          : User.fromJson({...user.toJson(), 'token': current.user.token});
 
-        await _saveUser(updatedUserWithToken);
-        emit(ProfileUpdateSuccess(user: updatedUserWithToken));
-      } catch (e) {
-        // Emit ProfileUpdateFailure which extends AuthAuthenticated
-        emit(
-          ProfileUpdateFailure(user: currentState.user, error: e.toString()),
-        );
-      }
+      await _saveUser(updatedUserWithToken);
+      emit(ProfileUpdateSuccess(user: updatedUserWithToken));
+    } catch (e) {
+      // Back to the latest saved profile, not the one from before this save:
+      // an overlapping save may have succeeded meanwhile.
+      final current = state;
+      if (current is! AuthAuthenticated) return;
+      emit(ProfileUpdateFailure(user: current.user, error: e.toString()));
     }
   }
 

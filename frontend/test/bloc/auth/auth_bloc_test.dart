@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -493,6 +494,80 @@ void main() {
         ];
       },
     );
+  });
+
+  group('overlapping profile saves', () {
+    final afterA = User.fromJson({
+      ..._user.toJson(),
+      'use_current_location': true,
+    });
+    const fieldsA = {'use_current_location': true};
+    const fieldsB = {'calendar_subscription_url': 'https://cal.example/b.ics'};
+
+    test(
+      'a later save that fails keeps the earlier one that succeeded',
+      () async {
+        // A ("use current location") succeeds while B (a calendar URL) is
+        // still in flight; then B fails.
+        final saveA = Completer<User>();
+        final saveB = Completer<User>();
+        when(
+          () => api.updateProfileFields(fieldsA),
+        ).thenAnswer((_) => saveA.future);
+        when(
+          () => api.updateProfileFields(fieldsB),
+        ).thenAnswer((_) => saveB.future);
+        final bloc = build()..emit(AuthAuthenticated(user: _user));
+        final states = <AuthState>[];
+        final subscription = bloc.stream.listen(states.add);
+
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+        await pumpEventQueue();
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsB));
+        await pumpEventQueue();
+        saveA.complete(afterA);
+        await pumpEventQueue();
+        saveB.completeError(ApiException('Failed to update profile: timeout'));
+        await pumpEventQueue();
+
+        expect(states, [
+          ProfileUpdating(user: _user), // B's is the same state, so not emitted
+          ProfileUpdateSuccess(user: afterA),
+          ProfileUpdateFailure(
+            user: afterA,
+            error: 'Exception: Failed to update profile: timeout',
+          ),
+        ]);
+        await subscription.cancel();
+        await bloc.close();
+      },
+    );
+
+    test('a save that finishes after sign-out does not sign back in', () async {
+      for (final outcome in ['success', 'failure']) {
+        SharedPreferences.setMockInitialValues({});
+        final save = Completer<User>();
+        when(
+          () => api.updateProfileFields(fieldsA),
+        ).thenAnswer((_) => save.future);
+        final bloc = build()..emit(AuthAuthenticated(user: _user));
+
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+        await pumpEventQueue();
+        bloc.add(LogoutRequested());
+        await pumpEventQueue();
+        if (outcome == 'success') {
+          save.complete(afterA);
+        } else {
+          save.completeError(ApiException('Failed to update profile: 500'));
+        }
+        await pumpEventQueue();
+
+        expect(bloc.state, isA<AuthUnauthenticated>(), reason: outcome);
+        expect(await _stored(), isEmpty, reason: outcome);
+        await bloc.close();
+      }
+    });
   });
 
   test('states and events compare by value', () {
