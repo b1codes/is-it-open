@@ -3,7 +3,7 @@
 import threading
 
 import pytest
-from google.api_core.exceptions import Aborted
+from google.api_core.exceptions import Aborted, AlreadyExists
 from google.cloud.firestore_v1.document import DocumentReference
 
 from apps.users import repository as users
@@ -124,6 +124,43 @@ class TestCreateUser:
 
         assert user is not None
         assert users.get_user("bob") == user
+
+    @pytest.mark.parametrize("get_or_create", [users.create_user, users.get_or_create_user])
+    def test_create_retries_when_the_document_it_collided_with_is_deleted(
+        self, firestore_db, monkeypatch, get_or_create
+    ):
+        # Another caller creates the user between this one's read and create, and the document is
+        # deleted (an account deletion, an E2E reset) before the collision is read back. The
+        # username is free again, so the create is retried rather than reading back nothing (a 500).
+        real_create = DocumentReference.create
+
+        def collide_then_delete(ref, document):
+            monkeypatch.setattr(DocumentReference, "create", real_create)
+            real_create(ref, {**document, "id": -1})  # the other caller's write
+            with pytest.raises(AlreadyExists):
+                real_create(ref, document)
+            ref.delete()
+            raise AlreadyExists("Document already exists")
+
+        monkeypatch.setattr(DocumentReference, "create", collide_then_delete)
+
+        result = get_or_create("bob")
+
+        created = result if get_or_create is users.create_user else result[0]
+        assert created is not None and created.id != -1
+        assert users.get_user("bob") == created
+
+    def test_create_gives_up_if_every_collision_is_deleted(self, firestore_db, monkeypatch):
+        def collide_with_nothing(ref, document):
+            raise AlreadyExists("Document already exists")  # and there's no document to read back
+
+        monkeypatch.setattr(DocumentReference, "create", collide_with_nothing)
+        calls = []
+        monkeypatch.setattr(users, "retry_on_contention", lambda write: calls.append(1) or write())
+
+        with pytest.raises(AlreadyExists):
+            users.create_user("bob", "pw")
+        assert len(calls) == users._CREATE_ATTEMPTS
 
     @pytest.mark.parametrize("username", ["", "\ud800"])
     def test_unstorable_username_raises(self, firestore_db, username):

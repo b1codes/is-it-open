@@ -28,6 +28,9 @@ from services.firestore import (
 
 USERS = "users"
 
+# Creates tried when each one collides with a document that's deleted before it can be read back.
+_CREATE_ATTEMPTS = 3
+
 
 @dataclass
 class User:
@@ -128,13 +131,22 @@ def _get_or_create_user(username, password, extra):
         password=make_password(password),
         **extra,
     )
-    try:
-        retry_on_contention(lambda: ref.create(user_document(user)))
-    except AlreadyExists:
-        existing = User.from_dict(ref.get().to_dict())
-        # Our own write can land even when the response is lost and the retry finds it.
-        return existing, existing.id == user.id
-    return user, True
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            retry_on_contention(lambda: ref.create(user_document(user)))
+            return user, True
+        except AlreadyExists:
+            snapshot = ref.get()
+            if snapshot.exists:
+                existing = User.from_dict(snapshot.to_dict())
+                # Our own write can land even when the response is lost and the retry finds it.
+                return existing, existing.id == user.id
+            # Deleted since the create collided with it (an account deletion, an E2E reset), so
+            # the username is free again.
+            if attempts == _CREATE_ATTEMPTS:
+                raise
 
 
 # Firestore's limit on an indexed (and so queried) string value, in UTF-8 bytes. Tokens are 40 hex
