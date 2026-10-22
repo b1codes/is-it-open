@@ -59,6 +59,44 @@ void main() {
       expect(tzid.endTime.toUtc(), utc.endTime.toUtc());
     });
 
+    test('a DTEND in another zone gives the real length', () {
+      // A 7-hour flight: 18:00 in New York is 23:00Z, 06:00 in London 06:00Z.
+      final flight = parse(
+        _event('''
+          DTSTART;TZID=America/New_York:20260301T180000
+          DTEND;TZID=Europe/London:20260302T060000
+        '''),
+      ).single;
+      expect(flight.startTime.toUtc(), DateTime.utc(2026, 3, 1, 23));
+      expect(flight.endTime.toUtc(), DateTime.utc(2026, 3, 2, 6));
+    });
+
+    test('a UTC DTSTART with a zoned DTEND keeps its length', () {
+      // 11:00 in New York is 16:00Z: one hour, though its wall clock is
+      // earlier than the start's.
+      final event = parse(
+        _event('''
+          DTSTART:20260301T150000Z
+          DTEND;TZID=America/New_York:20260301T110000
+        '''),
+      ).single;
+      expect(event.endTime.toUtc(), DateTime.utc(2026, 3, 1, 16));
+    });
+
+    test('a recurring flight keeps its length on every instance', () {
+      final flights = parse(
+        _event('''
+          DTSTART;TZID=America/New_York:20261101T180000
+          DTEND;TZID=Europe/London:20261102T060000
+          RRULE:FREQ=WEEKLY;COUNT=2
+        '''),
+      );
+      expect(
+        flights.map((e) => e.endTime.difference(e.startTime)),
+        everyElement(const Duration(hours: 7)),
+      );
+    });
+
     test('maps Windows zone names and quoted TZIDs to IANA zones', () {
       final windows = parse(
         _event('DTSTART;TZID=Eastern Standard Time:20260115T090000'),

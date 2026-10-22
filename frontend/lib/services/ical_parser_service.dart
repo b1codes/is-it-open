@@ -134,10 +134,16 @@ class IcalParserService {
     final isAllDay = start.zone == _IcsZone.allDay;
 
     // The event's length on its own wall clock, so each recurrence keeps it.
+    // DTEND can be in another zone (a flight's arrival); it's read on the
+    // start's clock first, or the difference of the two wall clocks is off
+    // by the zones' offset.
     final end = _parseIcsDateTime(dtendIcs);
+    final endWall = end == null || end.sameClockAs(start)
+        ? end?.wall
+        : start.wallOf(end.toLocal());
     final Duration duration;
-    if (end != null && end.wall.isAfter(start.wall)) {
-      duration = end.wall.difference(start.wall);
+    if (endWall != null && endWall.isAfter(start.wall)) {
+      duration = endWall.difference(start.wall);
     } else {
       duration = isAllDay ? const Duration(days: 1) : const Duration(hours: 1);
     }
@@ -308,6 +314,14 @@ class _IcsTime {
   final tz.Location? location;
 
   _IcsTime withWall(DateTime wall) => _IcsTime(wall, zone, location);
+
+  /// Whether [other]'s wall-clock fields are on this time's clock. Dates
+  /// count as one clock, so an all-day DTEND on a timed DTSTART (which
+  /// RFC 5545 doesn't allow) still reads as before.
+  bool sameClockAs(_IcsTime other) =>
+      zone == other.zone && location?.name == other.location?.name ||
+      zone == _IcsZone.allDay ||
+      other.zone == _IcsZone.allDay;
 
   /// The moment on the device's clock.
   DateTime toLocal() {
