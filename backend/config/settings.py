@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
-from decouple import config
+from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -29,7 +29,7 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=lambda v: [s.strip() for s in v.split(",") if s.strip()])
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=Csv())
 
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)
 
@@ -80,9 +80,7 @@ TOMTOM_BASE_URL = config("TOMTOM_BASE_URL", default="https://api.tomtom.com/sear
 
 # Hosts services/safe_fetch.py may fetch from although they resolve to private addresses. Only the
 # E2E stack sets this, for its stub server; anywhere else, user-supplied URLs only reach public hosts.
-SAFE_FETCH_PRIVATE_HOSTS = config(
-    "SAFE_FETCH_PRIVATE_HOSTS", default="", cast=lambda v: [s.strip() for s in v.split(",") if s.strip()]
-)
+SAFE_FETCH_PRIVATE_HOSTS = config("SAFE_FETCH_PRIVATE_HOSTS", default="", cast=Csv())
 
 # Auth0 Configuration
 AUTH0_DOMAIN = config("AUTH0_DOMAIN", default="")
