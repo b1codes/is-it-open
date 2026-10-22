@@ -210,17 +210,29 @@ class StackEventArranger<T extends Object?> extends EventArranger<T> {
         return 0;
       });
 
+    final day = DateTime(
+      calendarViewDate.year,
+      calendarViewDate.month,
+      calendarViewDate.day,
+    );
+    final nextDay = DateTime(day.year, day.month, day.day + 1);
+
     for (final event in sortedEvents) {
       final startTime = event.startTime ?? event.date;
       final endTime = event.endTime ?? event.date;
 
+      // An event spanning midnight is drawn on each of its days: from the
+      // top of the days after its first, to the bottom of those before its
+      // last.
       final startOffset = (startTime.hour - startHour) * 60 + startTime.minute;
-      final top = math.max(0.0, startOffset * heightPerMinute);
+      final top = startTime.isBefore(day)
+          ? 0.0
+          : math.max(0.0, startOffset * heightPerMinute);
 
       var endOffset = (endTime.hour - startHour) * 60 + endTime.minute;
       var bottom = height - (endOffset * heightPerMinute);
 
-      if (endTime.day != startTime.day || bottom > (height - top)) {
+      if (!endTime.isBefore(nextDay) || bottom > (height - top)) {
         bottom = 0.0;
       }
 

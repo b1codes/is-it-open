@@ -84,9 +84,10 @@ void main() {
 
   group('StackEventArranger', () {
     List<OrganizedCalendarEventData<Object?>> arrange(
-      List<CalendarEventData<Object?>> events,
-    ) => const StackEventArranger<Object?>().arrange(
-      calendarViewDate: DateTime(2026, 10, 19),
+      List<CalendarEventData<Object?>> events, {
+      DateTime? on,
+    }) => const StackEventArranger<Object?>().arrange(
+      calendarViewDate: on ?? DateTime(2026, 10, 19),
       events: events,
       height: 1440,
       width: 100,
@@ -124,6 +125,32 @@ void main() {
       final [block] = arrange([late]);
       expect(block.top, 22 * 60);
       expect(block.bottom, 0);
+    });
+
+    group('an event from 22:00 to 02:00 the next day', () {
+      final overnight = CalendarEventData<Object?>(
+        title: 'Party',
+        date: DateTime(2026, 10, 19),
+        endDate: DateTime(2026, 10, 20),
+        startTime: DateTime(2026, 10, 19, 22),
+        endTime: DateTime(2026, 10, 20, 2),
+      );
+
+      test('is shown on both days', () {
+        final controller = EventController<Object?>()..add(overnight);
+        expect(controller.getEventsOnDay(DateTime(2026, 10, 19)), [overnight]);
+        expect(controller.getEventsOnDay(DateTime(2026, 10, 20)), [overnight]);
+      });
+
+      test('runs from its start to midnight on the first', () {
+        final [block] = arrange([overnight]);
+        expect((block.top, block.bottom), (22 * 60.0, 0.0));
+      });
+
+      test('runs from midnight to its end on the second', () {
+        final [block] = arrange([overnight], on: DateTime(2026, 10, 20));
+        expect((block.top, block.bottom), (0.0, 1440 - 2 * 60.0));
+      });
     });
 
     test('an untimed event sits at the top', () {

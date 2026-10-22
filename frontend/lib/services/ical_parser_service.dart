@@ -5,6 +5,8 @@ import 'package:calendar_view/calendar_view.dart';
 import 'package:rrule/rrule.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../utils/calendar_dates.dart';
+
 class IcalParserService {
   /// How far back and ahead of now a repeating event is expanded. Only the
   /// expanded instances are kept, so a week the calendar is moved to outside
@@ -295,13 +297,17 @@ class IcalParserService {
     );
 
     // DTEND is exclusive for all-day events: a one-day event ends the next
-    // day at midnight, so the last day it covers is the one before.
-    final lastDay = DateTime(end.year, end.month, end.day - 1);
+    // day at midnight, so the last day it covers is the one before. A timed
+    // event that runs past midnight covers each day up to its end, so the
+    // calendar draws the part after midnight on the next day.
+    final lastDay = isAllDay
+        ? DateTime(end.year, end.month, end.day - 1)
+        : lastDayOfTimedEvent(naiveStart, naiveEnd);
 
     return CalendarEventData(
       title: title,
       date: naiveStart,
-      endDate: !isAllDay || lastDay.isBefore(naiveStart) ? naiveStart : lastDay,
+      endDate: lastDay.isBefore(naiveStart) ? naiveStart : lastDay,
       startTime: isAllDay ? null : naiveStart,
       endTime: isAllDay ? null : naiveEnd,
       description: description,

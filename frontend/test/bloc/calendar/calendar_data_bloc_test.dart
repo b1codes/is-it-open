@@ -370,6 +370,11 @@ void main() {
                 tz.TZDateTime(ny, 2026, 10, 24),
                 allDay: true,
               ),
+              event(
+                'Late shift',
+                tz.TZDateTime(ny, 2026, 10, 20, 22),
+                tz.TZDateTime(ny, 2026, 10, 21, 2),
+              ),
               Event('work', title: 'No end', start: tz.TZDateTime(ny, 2026)),
             ]),
           ),
@@ -383,17 +388,20 @@ void main() {
         isA<CalendarDataState>().having(
           (s) => s.deviceEvents,
           'deviceEvents',
-          hasLength(2),
+          hasLength(3),
         ),
       ],
       verify: (bloc) {
         expect(bloc.state.checkedCalendarIds, {'work'});
-        final [standup, offsite] = bloc.state.deviceEvents;
+        final [standup, offsite, lateShift] = bloc.state.deviceEvents;
         expect(standup.title, 'Standup');
         expect(standup.startTime, isNotNull);
         expect(standup.color, const Color(0xFF2196F3).withValues(alpha: 0.7));
         expect(offsite.isFullDayEvent, isTrue);
         expect(offsite.endDate, DateTime(2026, 10, 23));
+        // Shown on both days it covers.
+        expect(lateShift.date, DateTime(2026, 10, 20));
+        expect(lateShift.endDate, DateTime(2026, 10, 21));
       },
     );
 

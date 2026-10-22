@@ -4,6 +4,7 @@ import 'calendar_data_event.dart';
 import 'calendar_data_state.dart';
 import '../../services/api_service.dart';
 import '../../services/ical_parser_service.dart';
+import '../../utils/calendar_dates.dart';
 import 'package:calendar_view/calendar_view.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'dart:convert' show jsonEncode, jsonDecode;
@@ -191,6 +192,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
                 CalendarEventData(
                   title: event.title ?? 'No Title',
                   date: event.start!,
+                  endDate: lastDayOfTimedEvent(event.start!, event.end!),
                   startTime: event.start!,
                   endTime: event.end!,
                   description: event.description,

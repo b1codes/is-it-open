@@ -179,6 +179,30 @@ void main() {
       expect(event.endTime, isNull);
     });
 
+    test('a timed event past midnight spans both days', () {
+      final event = parse(
+        _event('''
+          DTSTART:20261023T220000
+          DTEND:20261024T020000
+        '''),
+      ).single;
+      expect(event.isRangingEvent, isTrue);
+      expect(event.date, DateTime(2026, 10, 23));
+      expect(event.endDate, DateTime(2026, 10, 24));
+      expect(event.endTime, DateTime(2026, 10, 24, 2));
+    });
+
+    test('a timed event ending at midnight stays on its day', () {
+      final event = parse(
+        _event('''
+          DTSTART:20261023T220000
+          DTEND:20261024T000000
+        '''),
+      ).single;
+      expect(event.isRangingEvent, isFalse);
+      expect(event.endDate, DateTime(2026, 10, 23));
+    });
+
     test('a missing DTEND means one day', () {
       final event = parse(_event('DTSTART;VALUE=DATE:20261023')).single;
       expect(event.date, DateTime(2026, 10, 23));
