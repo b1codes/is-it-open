@@ -384,15 +384,50 @@ def test_real_redirect_from_an_allowed_host_to_another_is_refused(settings, auth
     assert server.requests == [f"/redirect?to={server.url()}"]
 
 
+def test_dns_rebinding_gets_no_second_answer(settings, auth_client, server, monkeypatch):
+    """
+    The host is resolved once per hop, and the connection goes to that answer: a rebinding name's
+    second answer, which would point somewhere else, is never asked for.
+    """
+    settings.SAFE_FETCH_PRIVATE_HOSTS = ["rebind.invalid"]
+    answers = iter(["127.0.0.1", "10.9.8.7"])
+    lookups = []
+
+    def resolve(host, port):
+        lookups.append(host)
+        return [ipaddress.ip_address(next(answers))]
+
+    monkeypatch.setattr(safe_fetch, "resolve", resolve)
+
+    response = _proxy(auth_client, server.url(host="rebind.invalid"))
+
+    assert response.status_code == 200
+    assert server.requests == ["/feed.ics"]
+    assert lookups == ["rebind.invalid"]
+
+
+def test_each_hop_is_resolved_once(settings, auth_client, server, monkeypatch):
+    settings.SAFE_FETCH_PRIVATE_HOSTS = ["one.invalid", "two.invalid"]
+    lookups = []
+
+    def resolve(host, port):
+        lookups.append(host)
+        return [ipaddress.ip_address("127.0.0.1")]
+
+    monkeypatch.setattr(safe_fetch, "resolve", resolve)
+
+    response = _proxy(auth_client, server.url(f"/redirect?to={server.url(host='two.invalid')}", host="one.invalid"))
+
+    assert response.status_code == 200
+    assert lookups == ["one.invalid", "two.invalid"]
+
+
 @pytest.mark.parametrize("scheme", ["http", "https"])
-def test_dns_rebinding_is_caught_when_connecting(auth_client, server, monkeypatch, scheme):
-    """The name passes the check as a public address, then resolves to loopback for the connection."""
-    answers = iter([PUBLIC_TEST_ADDRESS, "127.0.0.1"])
-    monkeypatch.setattr(safe_fetch, "resolve", lambda host, port: [ipaddress.ip_address(next(answers))])
+def test_a_connection_fetch_did_not_check_is_checked_when_connecting(server, scheme):
+    """The connection-time check is a backstop: a request sent without fetch() is checked too."""
+    with safe_fetch._session() as session, pytest.raises(safe_fetch.BlockedAddress):
+        session.get(server.url().replace("http:", f"{scheme}:"), timeout=5)
 
-    response = _proxy(auth_client, server.url(host="rebind.invalid").replace("http:", f"{scheme}:"))
-
-    assert response.json() == {"detail": BLOCKED}
     assert server.requests == []
 
 

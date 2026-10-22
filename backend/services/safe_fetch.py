@@ -4,9 +4,9 @@ Fetches URLs that users supply (the iCal proxy) without letting them reach the b
 A URL's host must resolve only to public addresses, so the cloud metadata service (169.254.169.254),
 localhost, the Firestore emulator and anything else on a private network are refused, however the
 address is spelled. The check runs for the URL and again for each redirect before it's followed. The
-connection then goes to the address that passed, so a DNS answer that changes between the check and
-the request (rebinding) doesn't get through either. Proxy settings from the environment are ignored,
-since a proxy would make the connection on our behalf.
+connection then goes to the addresses that passed, without resolving the host again, so a DNS answer
+that changes between the check and the request (rebinding) doesn't get through either. Proxy settings
+from the environment are ignored, since a proxy would make the connection on our behalf.
 
 Responses are read up to a size limit and within a total time limit.
 
@@ -18,6 +18,7 @@ import ipaddress
 import socket
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from urllib.parse import urljoin
 
 import requests
@@ -84,13 +85,27 @@ def check_host(host: str, port: int) -> list[IPAddress]:
 
 # --- Connections that go to the checked addresses ---
 
+# The addresses fetch() has checked, by (host, port), so connecting doesn't resolve the host again.
+_checked_addresses: ContextVar[dict[tuple[str, int], list[IPAddress]] | None] = ContextVar(
+    "_checked_addresses", default=None
+)
+
+
+def _host_key(host: str, port: int) -> tuple[str, int]:
+    """The same key for a host as the URL spells it ("[::1]", "Example.com.") and as urllib3 connects to it."""
+    return host.strip("[]").rstrip(".").lower(), port
+
 
 def _connect_to_checked_address(connection: HTTPConnection, connect: Callable[[], socket.socket]) -> socket.socket:
-    """Connects to the first of the host's checked addresses that answers, as urllib3 itself would."""
+    """
+    Connects to the first of the host's checked addresses that answers, as urllib3 itself would. A
+    host fetch() didn't check (which shouldn't happen) is checked now.
+    """
     host = connection._dns_host
+    addresses = (_checked_addresses.get() or {}).get(_host_key(host, connection.port))
     error: Exception | None = None
     try:
-        for address in check_host(host, connection.port):
+        for address in addresses if addresses is not None else check_host(host, connection.port):
             connection._dns_host = str(address)
             try:
                 return connect()  # TLS still checks the certificate against `connection.host`
@@ -165,6 +180,8 @@ def _read(response: requests.Response, max_bytes: int, deadline: float) -> bytes
 def fetch(url: str, *, max_bytes: int) -> bytes:
     """GET `url` and return its body. Raises FetchError, with a reason to show the user, if it can't."""
     deadline = time.monotonic() + DEADLINE
+    checked: dict[tuple[str, int], list[IPAddress]] = {}
+    context = _checked_addresses.set(checked)
     with _session() as session:
         try:
             for _ in range(MAX_REDIRECTS + 1):
@@ -172,7 +189,8 @@ def fetch(url: str, *, max_bytes: int) -> bytes:
                 parsed = parse_url(request.url or "")
                 if parsed.scheme not in ("http", "https") or not parsed.host:
                     raise FetchError("it isn't an http or https URL")
-                check_host(parsed.host, parsed.port or (443 if parsed.scheme == "https" else 80))
+                port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                checked[_host_key(parsed.host, port)] = check_host(parsed.host, port)
 
                 timeout = _remaining(deadline)
                 with session.send(request, allow_redirects=False, stream=True, timeout=timeout) as response:
@@ -192,3 +210,5 @@ def fetch(url: str, *, max_bytes: int) -> bytes:
             raise FetchError("the server took too long") from e
         except urllib3.exceptions.HTTPError as e:  # the body was cut off, or its Content-Encoding is wrong
             raise FetchError("the server's response couldn't be read") from e
+        finally:
+            _checked_addresses.reset(context)
