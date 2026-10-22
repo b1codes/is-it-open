@@ -94,6 +94,27 @@ void main() {
     );
 
     blocTest<AuthBloc, AuthState>(
+      "keeps the session when the server can't check the token (503)",
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_user_json': jsonEncode(_user.toJson()),
+      }),
+      build: () {
+        // The backend answers 503 when Auth0's signing keys can't be fetched.
+        when(
+          () => api.getProfile(),
+        ).thenThrow(ApiException('unavailable', statusCode: 503));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), isA<AuthAuthenticated>()],
+      verify: (_) async {
+        verifyNever(() => api.setAuthToken(null));
+        expect((await _stored())['auth_token'], 'tok');
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
       'falls back to the legacy cached fields without a JSON profile',
       setUp: () => SharedPreferences.setMockInitialValues({
         'auth_token': 'tok',

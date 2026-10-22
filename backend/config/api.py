@@ -33,7 +33,8 @@ class JsonObjectParser(Parser):
 class Api(NinjaAPI):
     """
     NinjaAPI whose OpenAPI schema also documents the errors the framework itself returns: 401 on
-    every operation that needs auth, 400 on every operation with a body (it isn't a JSON object),
+    every operation that needs auth (and 503 when Auth0's signing keys can't be fetched to check a
+    token), 400 on every operation with a body (it isn't a JSON object),
     and 422 on every operation that takes input. Routes declare the errors they raise themselves
     (400, 404) in their `response=`.
 
@@ -54,6 +55,7 @@ class Api(NinjaAPI):
                     responses.setdefault(400, _json_response("Bad Request", ErrorSchema))
                 if operation.get("security"):
                     responses.setdefault(401, _json_response("Unauthorized", ErrorSchema))
+                    responses.setdefault(503, _json_response("Service Unavailable", ErrorSchema))
                 if operation.get("parameters") or operation.get("requestBody"):
                     responses.setdefault(422, _json_response("Validation Error", ValidationErrorSchema))
         return schema

@@ -7,6 +7,7 @@ import requests
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from django.conf import settings
 from jwt.algorithms import RSAAlgorithm
+from ninja.errors import HttpError
 from ninja.security import HttpBearer
 
 from services.firestore import InvalidDocumentKey
@@ -29,6 +30,10 @@ class _CachedJwks:
     refetched_at: float | None = None  # of the last refetch, whether or not it succeeded
 
 
+class JwksUnavailable(Exception):
+    """The tenant's JWKS can't be fetched, so a token can be neither accepted nor rejected."""
+
+
 _jwks_cache: dict[str, _CachedJwks] = {}
 _jwks_lock = threading.Lock()
 
@@ -43,8 +48,12 @@ def _find_key(jwks: dict, kid: str) -> dict | None:
 class GlobalAuth(HttpBearer):
     def authenticate(self, request, token):
         if token.startswith("eyJ") and len(token.split(".")) == 3:
-            # Validate via Auth0
-            user_data = self.verify_auth0_token(token)
+            # Validate via Auth0. If Auth0 can't be reached, the token may well be valid: a 401 would
+            # tell the app to sign the user out, so this answers 503 and the app keeps its session.
+            try:
+                user_data = self.verify_auth0_token(token)
+            except JwksUnavailable:
+                raise HttpError(503, "Sign-in can't be checked right now. Try again shortly.") from None
             if not user_data:
                 return None
 
@@ -107,13 +116,11 @@ class GlobalAuth(HttpBearer):
 
             # 2. Get JWKS (from cache or API)
             jwks = self.get_jwks(domain)
-            if not jwks:
-                return None
 
             # 3. Find matching key. An unknown kid may be a key Auth0 rotated to since the JWKS was fetched.
             key = _find_key(jwks, kid)
             if key is None:
-                key = _find_key(self.get_jwks(domain, refetch=True) or {}, kid)
+                key = _find_key(self.get_jwks(domain, refetch=True), kid)
             if key is None:
                 return None
             rsa_key = {name: key.get(name) for name in ("kty", "kid", "use", "n", "e")}
@@ -132,14 +139,18 @@ class GlobalAuth(HttpBearer):
                 options={"require": ["exp", "iss", "aud", "sub"]},
             )
             return payload
+        except JwksUnavailable:
+            raise
         except Exception:
             return None
 
-    def get_jwks(self, domain, *, refetch=False):
+    def get_jwks(self, domain, *, refetch=False) -> dict:
         """
         The tenant's JWKS: the cached copy, unless `refetch` asks for a new one or it's JWKS_MAX_AGE
-        old, and the last refetch was at least JWKS_MIN_REFETCH_INTERVAL ago. None if it has never
-        been fetched and can't be.
+        old, and the last refetch was at least JWKS_MIN_REFETCH_INTERVAL ago.
+
+        Raises JwksUnavailable if the fetch fails and there's no cached copy, or `refetch` asked for
+        one (the token's kid isn't cached, so whether it's Auth0's can't be known).
         """
         now = time.monotonic()
         with _jwks_lock:
@@ -154,8 +165,10 @@ class GlobalAuth(HttpBearer):
 
         jwks = _fetch_jwks(domain)
         if jwks is None:
-            # Keep using the keys we have until the tenant can be reached; with none, the token is rejected.
-            return cached.jwks if cached is not None else None
+            # Past JWKS_MAX_AGE, keep using the keys we have until the tenant can be reached.
+            if cached is None or refetch:
+                raise JwksUnavailable(domain)
+            return cached.jwks
         with _jwks_lock:
             refetched_at = cached.refetched_at if cached is not None else None
             _jwks_cache[domain] = _CachedJwks(jwks, fetched_at=now, refetched_at=refetched_at)
@@ -169,7 +182,7 @@ def _fetch_jwks(domain) -> dict | None:
             jwks = response.json()
             if isinstance(jwks, dict):
                 return jwks
-    # An unreachable tenant rejects the token; the next request tries again.
+    # An unreachable tenant is retried by the next request.
     except Exception:  # nosec B110
         pass
     return None

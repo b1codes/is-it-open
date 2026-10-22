@@ -14,6 +14,7 @@ import pytest
 import requests
 from cryptography.hazmat.primitives.asymmetric import rsa
 from freezegun import freeze_time
+from ninja.errors import HttpError
 
 from apps.users import auth as auth_module
 from apps.users import repository as users
@@ -226,15 +227,26 @@ class TestJwksCache:
         ],
         ids=["500", "404", "timeout", "connection-error", "malformed", "not-an-object"],
     )
-    def test_failed_fetch_rejects_the_token_and_is_retried_next_time(
+    def test_failed_fetch_answers_503_and_is_retried_next_time(
         self, authenticate, auth0_tenant, http_mock, rsa_private_key, failure
     ):
+        # Not 401: the token may be fine, and a 401 makes the app sign the user out.
         http_mock.replace("GET", auth0_tenant.jwks_url, **failure)
-        assert authenticate(auth0_tenant.token())[0] is None
+        with pytest.raises(HttpError) as error:
+            authenticate(auth0_tenant.token())
+        assert error.value.status_code == 503
         assert auth0_tenant.domain not in auth_module._jwks_cache
 
         http_mock.replace("GET", auth0_tenant.jwks_url, json={"keys": [public_jwk(rsa_private_key, auth0_tenant.kid)]})
         assert authenticate(auth0_tenant.token())[0] is not None
+
+    def test_failed_fetch_is_503_through_the_api(self, firestore_db, auth0_tenant, http_mock):
+        http_mock.replace("GET", auth0_tenant.jwks_url, body=requests.Timeout("timed out"))
+
+        response = ApiClient(auth0_tenant.token()).get("/auth/me")
+
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Sign-in can't be checked right now. Try again shortly."}
 
     def test_cached_per_domain(self, settings, authenticate, auth0_tenant, http_mock, rsa_private_key):
         authenticate(auth0_tenant.token())
@@ -354,6 +366,25 @@ class TestJwksRefetch:
         assert len(http_mock.calls) == 3
         assert verify(auth0_tenant.token()) is not None  # fresh again: no more fetches
         assert len(http_mock.calls) == 3
+
+    @pytest.mark.parametrize(
+        "failure", [{"status": 503}, {"body": requests.ConnectionError("refused")}], ids=["503", "connection-error"]
+    )
+    def test_unknown_kid_is_unavailable_when_the_refetch_fails(
+        self, clock, verify, auth0_tenant, http_mock, other_private_key, failure
+    ):
+        # The kid may be a key Auth0 has just rotated to, so the token can't be rejected.
+        assert verify(auth0_tenant.token()) is not None
+        http_mock.replace("GET", auth0_tenant.jwks_url, **failure)
+
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(key=other_private_key, kid="rotated-key"))
+        assert verify(auth0_tenant.token()) is not None  # cached keys still work
+        assert len(http_mock.calls) == 2
+
+        # Within the interval there's no refetch, so the unknown kid is rejected as before.
+        assert verify(auth0_tenant.token(key=other_private_key, kid="rotated-key")) is None
+        assert len(http_mock.calls) == 2
 
 
 # --- Mock mode (local development) ---
