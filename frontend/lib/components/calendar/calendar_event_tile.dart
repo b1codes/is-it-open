@@ -3,6 +3,14 @@ import 'package:calendar_view/calendar_view.dart';
 import 'dart:math' as math;
 import '../../utils/places_theme.dart';
 
+/// What a block in the week view is, carried in [CalendarEventData.event],
+/// so tiles style it by what it is rather than by its color.
+enum CalendarBlockKind { personal, openWindow }
+
+extension on CalendarEventData<dynamic> {
+  bool get isPersonal => event == CalendarBlockKind.personal;
+}
+
 class CalendarEventTileWidget extends StatelessWidget {
   final DateTime date;
   final List<CalendarEventData<dynamic>> events;
@@ -24,11 +32,7 @@ class CalendarEventTileWidget extends StatelessWidget {
     if (events.isEmpty) return const SizedBox.shrink();
     final event = events[0];
 
-    // Heuristic: Business blocks are distinct from personal events based on the color assignment in the controller.
-    // Personal events are assigned theme.inkMuted (set in CalendarScreen).
-    final theme = context.places;
-    final isPersonalEvent = event.color == theme.inkMuted;
-    final isBusinessBlock = !isPersonalEvent;
+    final isBusinessBlock = !event.isPersonal;
 
     return AnimatedContainer(
       duration: PlacesMotion.of(context, const Duration(milliseconds: 300)),
@@ -109,8 +113,7 @@ class FullDayEventWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: events.map((event) {
-          final isPersonalEvent = event.color == theme.inkMuted;
-          final isBusinessBlock = !isPersonalEvent;
+          final isBusinessBlock = !event.isPersonal;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),

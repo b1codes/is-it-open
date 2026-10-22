@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
 
+import '../../components/calendar/calendar_event_tile.dart';
 import '../../components/calendar/calendar_view_stack.dart';
 import '../../components/calendar/calendar_sidebar.dart';
 import '../../components/calendar/planner_view.dart';
@@ -188,6 +189,7 @@ class _CalendarScreenContent extends StatelessWidget {
             startTime: window.startTime,
             endTime: window.endTime,
             color: PlacesTheme.light.anchor.withValues(alpha: 0.15),
+            event: CalendarBlockKind.openWindow,
           ),
         );
       }
@@ -210,7 +212,7 @@ class _CalendarScreenContent extends StatelessWidget {
             startTime: event.startTime,
             endTime: event.endTime,
             color: personalEventColor,
-            event: event.event,
+            event: CalendarBlockKind.personal,
           ),
         );
       }
@@ -330,8 +332,6 @@ class _CalendarScreenContent extends StatelessWidget {
                   dataState,
                   uiState,
                   windows,
-                  // Exactly inkMuted: CalendarEventTileWidget styles an
-                  // event as personal by matching this color.
                   theme.inkMuted,
                 ),
                 checkedPlacesCount: dataState.checkedPlaceIds.length,

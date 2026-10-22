@@ -7,6 +7,7 @@ import 'package:frontend/utils/places_theme.dart';
 CalendarEventData<Object?> _event(
   String title, {
   Color color = Colors.teal,
+  CalendarBlockKind? kind,
   int? start,
   int? end,
 }) => CalendarEventData(
@@ -15,6 +16,7 @@ CalendarEventData<Object?> _event(
   startTime: start == null ? null : DateTime(2026, 10, 19, start),
   endTime: end == null ? null : DateTime(2026, 10, 19, end),
   color: color,
+  event: kind,
 );
 
 BoxDecoration _decoration(WidgetTester tester) =>
@@ -46,10 +48,28 @@ void main() {
 
     testWidgets('a personal event is solid', (tester) async {
       final muted = PlacesTheme.light.inkMuted;
-      await pumpTile(tester, [_event('Dentist', color: muted, start: 9)]);
+      await pumpTile(tester, [
+        _event(
+          'Dentist',
+          color: muted,
+          kind: CalendarBlockKind.personal,
+          start: 9,
+        ),
+      ]);
       expect(_decoration(tester).color, muted.withValues(alpha: 0.9));
       final text = tester.widget<Text>(find.text('Dentist'));
       expect(text.style?.color, Colors.white);
+    });
+
+    testWidgets('the style follows the tag, not the color', (tester) async {
+      final muted = PlacesTheme.light.inkMuted;
+      await pumpTile(tester, [_event('Open', color: muted, start: 9)]);
+      expect(_decoration(tester).color, muted.withValues(alpha: 0.15));
+
+      await pumpTile(tester, [
+        _event('Dentist', kind: CalendarBlockKind.personal, start: 9),
+      ]);
+      expect(_decoration(tester).color, Colors.teal.withValues(alpha: 0.9));
     });
 
     testWidgets('no events renders nothing', (tester) async {
@@ -66,7 +86,11 @@ void main() {
             date: DateTime(2026, 10, 19),
             events: [
               _event('Holiday'),
-              _event('Trip', color: PlacesTheme.light.inkMuted),
+              _event(
+                'Trip',
+                color: PlacesTheme.light.inkMuted,
+                kind: CalendarBlockKind.personal,
+              ),
             ],
           ),
         ),

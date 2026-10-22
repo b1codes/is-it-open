@@ -115,6 +115,7 @@ void main() {
         ),
       );
       final [tile] = _tiles(tester, 'Dentist').toList();
+      expect(tile.events.first.event, CalendarBlockKind.personal);
       expect(tile.events.first.color, PlacesTheme.light.inkMuted);
       expect(
         tester.widget<Text>(find.text('Dentist')).style?.color,

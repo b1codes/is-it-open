@@ -72,9 +72,13 @@ void main() {
       testWidgets('calendar event blocks', (tester) async {
         // As the calendar screen colors them: opening-hours blocks in a
         // translucent anchor, personal events in inkMuted.
-        for (final (kind, color) in [
-          ('opening hours', PlacesTheme.light.anchor.withValues(alpha: 0.15)),
-          ('personal event', theme.inkMuted),
+        for (final (kind, color, tag) in [
+          (
+            'opening hours',
+            PlacesTheme.light.anchor.withValues(alpha: 0.15),
+            CalendarBlockKind.openWindow,
+          ),
+          ('personal event', theme.inkMuted, CalendarBlockKind.personal),
         ]) {
           await tester.pumpWidget(
             MaterialApp(
@@ -86,6 +90,7 @@ void main() {
                     title: 'Event',
                     date: DateTime(2026, 6, 10),
                     color: color,
+                    event: tag,
                   ),
                 ],
                 boundary: Rect.zero,

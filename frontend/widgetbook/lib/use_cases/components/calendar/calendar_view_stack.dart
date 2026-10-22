@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_ui_cubit.dart';
 import 'package:frontend/bloc/calendar/calendar_ui_state.dart';
+import 'package:frontend/components/calendar/calendar_event_tile.dart';
 import 'package:frontend/components/calendar/calendar_view_stack.dart';
 import 'package:frontend/utils/places_theme.dart';
 import 'package:widgetbook/widgetbook.dart';
@@ -46,7 +47,8 @@ Widget buildCalendarViewStackUseCase(BuildContext context) {
 }
 
 // Owns the EventController and fills it the way CalendarScreen does: open
-// windows tinted with the anchor color, personal events in inkMuted.
+// windows tinted with the anchor color, personal events in inkMuted, each
+// tagged with its CalendarBlockKind.
 class _ControllerHost extends StatefulWidget {
   const _ControllerHost({
     required this.uiState,
@@ -97,6 +99,7 @@ class _ControllerHostState extends State<_ControllerHost> {
             startTime: window.startTime,
             endTime: window.endTime,
             color: PlacesTheme.light.anchor.withValues(alpha: 0.15),
+            event: CalendarBlockKind.openWindow,
           ),
       ]);
     }
@@ -111,6 +114,7 @@ class _ControllerHostState extends State<_ControllerHost> {
             startTime: event.startTime,
             endTime: event.endTime,
             color: theme.inkMuted,
+            event: CalendarBlockKind.personal,
           ),
       ]);
     }
