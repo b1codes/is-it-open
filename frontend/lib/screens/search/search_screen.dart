@@ -7,6 +7,7 @@ import '../../../bloc/search/search_event.dart';
 import '../../../bloc/search/search_state.dart';
 
 import 'package:frontend/screens/places/create_place_screen.dart';
+import '../../components/core/sheet_scrollable.dart';
 import '../../components/search/search_result_list_card.dart';
 import '../../components/search/search_result_grid_card.dart';
 
@@ -224,10 +225,19 @@ class _SearchScreenState extends State<SearchScreen> {
               Expanded(
                 child: BlocBuilder<SearchBloc, SearchState>(
                   builder: (context, state) {
+                    // In the home sheet every state scrolls with the sheet's
+                    // controller, so the sheet stays draggable while a
+                    // search loads, fails or finds nothing.
                     if (state.status == SearchStatus.loading) {
-                      return const Center(child: CircularProgressIndicator());
+                      return SheetScrollable(
+                        controller: widget.scrollController,
+                        child: const Center(child: CircularProgressIndicator()),
+                      );
                     } else if (state.status == SearchStatus.failure) {
-                      return Center(child: Text('Error: ${state.error}'));
+                      return SheetScrollable(
+                        controller: widget.scrollController,
+                        child: Center(child: Text('Error: ${state.error}')),
+                      );
                     } else if (state.status == SearchStatus.initial) {
                       return _buildSuggestionsSection(
                         state,
@@ -235,25 +245,28 @@ class _SearchScreenState extends State<SearchScreen> {
                       );
                     } else if (state.status == SearchStatus.success) {
                       if (state.places.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('No results found'),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const CreatePlaceScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Create a New Place'),
-                              ),
-                            ],
+                        return SheetScrollable(
+                          controller: widget.scrollController,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('No results found'),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const CreatePlaceScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Create a New Place'),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }

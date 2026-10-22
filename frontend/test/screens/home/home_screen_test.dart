@@ -105,6 +105,81 @@ void main() {
     });
   });
 
+  group('phone sheet with a search that has no list', () {
+    Future<void> searchFor(WidgetTester tester, String query) async {
+      await tester.tap(find.text('Search').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(SearchScreen),
+          matching: find.byType(TextField),
+        ),
+        query,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+    }
+
+    // Each keeps the sheet attached: a tab change still moves it, and it can
+    // still be dragged.
+    Future<void> expectSheetStillMoves(WidgetTester tester) async {
+      await tester.tap(find.text('Map'));
+      await tester.pumpAndSettle();
+      expect(_sheetSize(tester), closeTo(0.08, 0.01));
+      await tester.drag(
+        find.text('Search or plan route...'),
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+      expect(_sheetSize(tester), greaterThan(0.3));
+    }
+
+    testWidgets('nothing found', (tester) async {
+      FakeGeolocator.install(addTearDown);
+      await tester.pumpApp(const HomeScreen());
+      await tester.pumpAndSettle();
+      await searchFor(tester, 'zzzz');
+      await tester.pumpAndSettle();
+      expect(find.text('No results found'), findsOneWidget);
+      await tester.drag(find.text('No results found'), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(_sheetSize(tester), greaterThan(0.5));
+      await expectSheetStillMoves(tester);
+      await tester.unmount();
+    });
+
+    testWidgets('a failed search', (tester) async {
+      FakeGeolocator.install(addTearDown);
+      await tester.pumpApp(const HomeScreen(), apiFails: true);
+      await tester.pumpAndSettle();
+      await searchFor(tester, 'pizza');
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Error:'), findsOneWidget);
+      await expectSheetStillMoves(tester);
+      await tester.unmount();
+    });
+
+    testWidgets('a search still loading', (tester) async {
+      FakeGeolocator.install(addTearDown);
+      // Requests never resolve, so the spinner stays (and never settles).
+      await tester.pumpApp(const HomeScreen(), apiLatency: null);
+      await tester.pump();
+      await searchFor(tester, 'pizza');
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(SearchScreen),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Map'));
+      await tester.pump(); // the sheet animation's first frame
+      await tester.pump(const Duration(seconds: 1));
+      expect(_sheetSize(tester), closeTo(0.08, 0.01));
+      await tester.unmount();
+    });
+  });
+
   group('desktop', () {
     testWidgets('uses the side menu and a side panel', (tester) async {
       FakeGeolocator.install(addTearDown);

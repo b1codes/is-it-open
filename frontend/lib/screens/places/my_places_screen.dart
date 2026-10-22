@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/today/today_cubit.dart';
+import '../../components/core/sheet_scrollable.dart';
 import '../../components/places/quick_add_place_sheet.dart';
 import '../../components/places/saved_place_row.dart';
 import '../../components/places/saved_place_tile.dart';
@@ -86,20 +87,6 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     await next;
   }
 
-  Widget _sheetScrollable(Widget child) {
-    final controller = widget.scrollController;
-    if (controller == null) return child;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        controller: controller,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: child,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
@@ -113,11 +100,17 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
           return _SkeletonList(controller: widget.scrollController);
         }
         if (snapshot.hasError) {
-          return _sheetScrollable(_ErrorState(onRetry: _refresh));
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _ErrorState(onRetry: _refresh),
+          );
         }
         final allPlaces = snapshot.data ?? const <SavedPlace>[];
         if (allPlaces.isEmpty) {
-          return _sheetScrollable(_EmptyState(onPlaceAdded: _refresh));
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _EmptyState(onPlaceAdded: _refresh),
+          );
         }
         return _PlacesBody(
           allPlaces: allPlaces,
