@@ -568,6 +568,47 @@ void main() {
         await bloc.close();
       }
     });
+
+    test(
+      'a save that finishes after another account signs in is dropped',
+      () async {
+        final other = User(id: 2, username: 'blake', token: 'tok-b');
+        for (final outcome in ['success', 'failure']) {
+          SharedPreferences.setMockInitialValues({});
+          final save = Completer<User>();
+          when(
+            () => api.updateProfileFields(fieldsA),
+          ).thenAnswer((_) => save.future);
+          when(() => api.login('blake', 'pw')).thenAnswer((_) async => other);
+          final bloc = build()..emit(AuthAuthenticated(user: _user));
+
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+          await pumpEventQueue();
+          bloc.add(LogoutRequested());
+          await pumpEventQueue();
+          bloc.add(const LoginRequested(username: 'blake', password: 'pw'));
+          await pumpEventQueue();
+          final states = <AuthState>[];
+          final subscription = bloc.stream.listen(states.add);
+          if (outcome == 'success') {
+            save.complete(afterA);
+          } else {
+            save.completeError(ApiException('Failed to update profile: 500'));
+          }
+          await pumpEventQueue();
+
+          // Neither the first account's profile nor its error reaches the
+          // second account's session.
+          expect(states, isEmpty, reason: outcome);
+          expect(bloc.state, AuthAuthenticated(user: other), reason: outcome);
+          final stored = await _stored();
+          expect(stored['auth_token'], 'tok-b', reason: outcome);
+          expect(stored['auth_user_id'], 2, reason: outcome);
+          await subscription.cancel();
+          await bloc.close();
+        }
+      },
+    );
   });
 
   test('states and events compare by value', () {

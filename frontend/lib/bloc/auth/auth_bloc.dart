@@ -176,9 +176,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final user = await save();
       // Read the state again: saves can overlap, and the user may have
-      // signed out meanwhile, which a late save mustn't undo.
+      // signed out, or into another account, meanwhile, which a late save
+      // mustn't undo.
       final current = state;
-      if (current is! AuthAuthenticated) return;
+      if (current is! AuthAuthenticated || current.user.id != before.user.id) {
+        return;
+      }
       // Keep the current token if the update didn't return one.
       final updatedUserWithToken = user.token != null
           ? user
@@ -188,9 +191,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(ProfileUpdateSuccess(user: updatedUserWithToken));
     } catch (e) {
       // Back to the latest saved profile, not the one from before this save:
-      // an overlapping save may have succeeded meanwhile.
+      // an overlapping save may have succeeded meanwhile. Not if another
+      // account signed in meanwhile, though: its profile isn't this save's.
       final current = state;
-      if (current is! AuthAuthenticated) return;
+      if (current is! AuthAuthenticated || current.user.id != before.user.id) {
+        return;
+      }
       emit(ProfileUpdateFailure(user: current.user, error: e.toString()));
     }
   }
