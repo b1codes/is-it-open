@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../components/calendar/calendar_sidebar.dart';
 import '../../core/env_config.dart';
 import '../../bloc/map/map_ui_cubit.dart';
 import '../../bloc/map/map_ui_state.dart';
@@ -584,7 +585,9 @@ class _MapScreenState extends State<MapScreen> {
           Widget sidebarContent = SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) =>
-                  uiState.isSidebarCollapsed || constraints.maxWidth < 240
+                  uiState.isSidebarCollapsed ||
+                      constraints.maxWidth <
+                          CalendarSidebarWidget.minExpandedWidth
                   ? _buildCollapsedSidebar()
                   : CustomScrollView(
                       slivers: [

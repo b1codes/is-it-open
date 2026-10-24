@@ -588,7 +588,8 @@ class CalendarSidebarWidget extends StatelessWidget {
   }
 
   /// Narrower than this, the full sidebar can't lay out, e.g. while the
-  /// calendar animates the sidebar open, so the compact one is shown.
+  /// calendar animates the sidebar open, so the compact one is shown. The
+  /// map's sidebar switches at the same width.
   static const double minExpandedWidth = 240;
 
   @override
