@@ -152,6 +152,10 @@ class CalendarSidebarWidget extends StatelessWidget {
               sp.place.tomtomId,
             );
             final color = colorForPlace(sp, index);
+            // The icon on the selected fill.
+            final onFill = PlacesTheme.onColor(
+              Color.alphaBlend(color, theme.paperRaised),
+            );
             final iconName = sp.icon ?? 'star';
             final iconData = availableIcons[iconName] ?? Icons.star;
 
@@ -188,11 +192,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                           ),
                           child: Icon(
                             iconData,
-                            color: isChecked
-                                ? PlacesTheme.onColor(
-                                    Color.alphaBlend(color, theme.paperRaised),
-                                  )
-                                : color,
+                            color: isChecked ? onFill : color,
                             size: 18,
                           ),
                         ),
@@ -212,6 +212,10 @@ class CalendarSidebarWidget extends StatelessWidget {
             final cal = dataState.deviceCalendars[index];
             final isChecked = dataState.checkedCalendarIds.contains(cal.id);
             final color = cal.color != null ? Color(cal.color!) : Colors.blue;
+            // The dot on the selected fill.
+            final onFill = PlacesTheme.onColor(
+              Color.alphaBlend(color, theme.paperRaised),
+            );
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -251,14 +255,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                               width: 10,
                               height: 10,
                               decoration: BoxDecoration(
-                                color: isChecked
-                                    ? PlacesTheme.onColor(
-                                        Color.alphaBlend(
-                                          color,
-                                          theme.paperRaised,
-                                        ),
-                                      )
-                                    : color,
+                                color: isChecked ? onFill : color,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -339,6 +336,10 @@ class CalendarSidebarWidget extends StatelessWidget {
             sp.place.tomtomId,
           );
           final color = colorForPlace(sp, index);
+          // The icon and name on the selected fill.
+          final onFill = PlacesTheme.onColor(
+            Color.alphaBlend(color, theme.paperRaised),
+          );
           final iconName = sp.icon ?? 'star';
           final iconData = availableIcons[iconName] ?? Icons.star;
 
@@ -373,32 +374,15 @@ class CalendarSidebarWidget extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      iconData,
-                      color: isChecked
-                          ? PlacesTheme.onColor(
-                              Color.alphaBlend(color, theme.paperRaised),
-                            )
-                          : color,
-                      size: 16,
-                    ),
+                    Icon(iconData, color: isChecked ? onFill : color, size: 16),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         displayName(sp),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            PlacesType.label(
-                              isChecked
-                                  ? PlacesTheme.onColor(
-                                      Color.alphaBlend(
-                                        color,
-                                        theme.paperRaised,
-                                      ),
-                                    )
-                                  : theme.ink,
-                            ).copyWith(
+                        style: PlacesType.label(isChecked ? onFill : theme.ink)
+                            .copyWith(
                               fontWeight: isChecked
                                   ? FontWeight.w600
                                   : FontWeight.w500,
