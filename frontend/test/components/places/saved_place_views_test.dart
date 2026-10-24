@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/components/places/saved_place_row.dart';
 import 'package:frontend/components/places/saved_place_tile.dart';
 import 'package:frontend/models/saved_place.dart';
+import 'package:frontend/utils/graphics_helper.dart';
 import 'package:frontend/utils/place_status.dart';
 
 import '../../helpers/fixtures.dart';
@@ -12,6 +13,7 @@ import '../../helpers/fixtures.dart';
 typedef _Builder =
     Widget Function({
       required SavedPlace savedPlace,
+      required int colorIndex,
       required PlaceStatus status,
       required bool isOnToday,
       required VoidCallback onTap,
@@ -25,6 +27,7 @@ void main() {
     'tile':
         ({
           required savedPlace,
+          required colorIndex,
           required status,
           required isOnToday,
           required onTap,
@@ -35,6 +38,7 @@ void main() {
           height: 190,
           child: SavedPlaceTile(
             savedPlace: savedPlace,
+            colorIndex: colorIndex,
             status: status,
             isOnToday: isOnToday,
             onTap: onTap,
@@ -51,6 +55,7 @@ void main() {
       Future<void> pump(
         WidgetTester tester,
         SavedPlace place, {
+        int colorIndex = 0,
         bool isOnToday = false,
       }) async {
         calls = [];
@@ -60,6 +65,7 @@ void main() {
               body: Center(
                 child: build(
                   savedPlace: place,
+                  colorIndex: colorIndex,
                   status: openStatus,
                   isOnToday: isOnToday,
                   onTap: () => calls.add('tap'),
@@ -108,6 +114,31 @@ void main() {
         expect(find.byIcon(Icons.add_rounded), findsOneWidget);
       });
 
+      testWidgets('a place without a color takes its palette color', (
+        tester,
+      ) async {
+        // The same color as its pin on the map and its calendar blocks.
+        final uncolored = SavedPlace(
+          id: 9,
+          place: coffeePlace,
+          icon: 'local_cafe',
+        );
+        await pump(tester, uncolored, colorIndex: 2);
+        final circle =
+            tester
+                    .widget<Container>(
+                      find
+                          .ancestor(
+                            of: find.byIcon(Icons.local_cafe),
+                            matching: find.byType(Container),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        expect(circle.color, GraphicsHelper.colorForSavedPlace(uncolored, 2));
+      });
+
       testWidgets('a very long name does not overflow', (tester) async {
         await pump(tester, sampleSavedPlaces[4]); // long hardware store name
         expect(tester.takeException(), isNull);
@@ -126,6 +157,7 @@ void main() {
                 children: [
                   SavedPlaceRow(
                     savedPlace: sampleSavedPlaces[0],
+                    colorIndex: 0,
                     status: openStatus,
                     isOnToday: onToday,
                     onTap: () {},

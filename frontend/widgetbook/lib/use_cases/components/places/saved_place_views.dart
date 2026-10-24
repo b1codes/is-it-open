@@ -39,6 +39,7 @@ Widget buildSavedPlaceRowUseCase(BuildContext context) {
     child: Builder(
       builder: (context) => SavedPlaceRow(
         savedPlace: savedPlace,
+        colorIndex: sampleSavedPlaces.indexOf(savedPlace),
         status: status,
         isOnToday: isOnToday,
         showDivider: showDivider,
@@ -60,6 +61,7 @@ Widget buildSavedPlaceRowListUseCase(BuildContext context) {
         for (var i = 0; i < sampleSavedPlaces.length; i++)
           SavedPlaceRow(
             savedPlace: sampleSavedPlaces[i],
+            colorIndex: i,
             status: statuses[i % statuses.length],
             isOnToday: i.isEven,
             showDivider: i < sampleSavedPlaces.length - 1,
@@ -98,6 +100,7 @@ Widget buildSavedPlaceTileUseCase(BuildContext context) {
         child: Builder(
           builder: (context) => SavedPlaceTile(
             savedPlace: savedPlace,
+            colorIndex: sampleSavedPlaces.indexOf(savedPlace),
             status: status,
             isOnToday: isOnToday,
             onTap: () => logAction(context, 'onTap'),
@@ -125,6 +128,7 @@ Widget buildSavedPlaceTileGridUseCase(BuildContext context) {
       itemCount: sampleSavedPlaces.length,
       itemBuilder: (context, i) => SavedPlaceTile(
         savedPlace: sampleSavedPlaces[i],
+        colorIndex: i,
         status: statuses[i % statuses.length],
         isOnToday: i.isEven,
         onTap: () {},

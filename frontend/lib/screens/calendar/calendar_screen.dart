@@ -291,6 +291,7 @@ class _CalendarScreenContent extends StatelessWidget {
                           final sp = availablePlaces[index];
                           return _PlaceSelectionTile(
                             sp: sp,
+                            colorIndex: dataState.savedPlaces.indexOf(sp),
                             theme: theme,
                             onTap: () {
                               Navigator.pop(context);
@@ -546,11 +547,13 @@ class _CalendarScreenContent extends StatelessWidget {
 
 class _PlaceSelectionTile extends StatelessWidget {
   final SavedPlace sp;
+  final int colorIndex;
   final PlacesTheme theme;
   final VoidCallback onTap;
 
   const _PlaceSelectionTile({
     required this.sp,
+    required this.colorIndex,
     required this.theme,
     required this.onTap,
   });
@@ -571,7 +574,7 @@ class _PlaceSelectionTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              GraphicsHelper.buildProfileGraphic(sp, size: 40),
+              GraphicsHelper.buildProfileGraphic(sp, colorIndex, size: 40),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

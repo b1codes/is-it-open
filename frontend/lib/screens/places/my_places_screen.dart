@@ -189,25 +189,25 @@ class _PlacesBody extends StatelessWidget {
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
     final now = clock.now();
 
-    final filtered = allPlaces.where(
-      (p) => switch (filter) {
-        _VisitFilter.all => true,
-        _VisitFilter.wantToVisit => p.isCheckItOut,
-        _VisitFilter.visited => !p.isCheckItOut,
-      },
-    );
+    bool shown(SavedPlace p) => switch (filter) {
+      _VisitFilter.all => true,
+      _VisitFilter.wantToVisit => p.isCheckItOut,
+      _VisitFilter.visited => !p.isCheckItOut,
+    };
 
     // Compute status for each place once (avoids per-row recomputation in lists).
     final enriched = [
-      for (final p in filtered)
-        _EnrichedPlace(
-          savedPlace: p,
-          status: PlaceStatusCalculator.compute(
-            p.place,
-            now: now,
-            use24HourFormat: use24h,
+      for (final (i, p) in allPlaces.indexed)
+        if (shown(p))
+          _EnrichedPlace(
+            savedPlace: p,
+            colorIndex: i,
+            status: PlaceStatusCalculator.compute(
+              p.place,
+              now: now,
+              use24HourFormat: use24h,
+            ),
           ),
-        ),
     ];
 
     final groups = _groupByStatus(enriched);
@@ -324,8 +324,15 @@ class _PlacesBody extends StatelessWidget {
 }
 
 class _EnrichedPlace {
-  const _EnrichedPlace({required this.savedPlace, required this.status});
+  const _EnrichedPlace({
+    required this.savedPlace,
+    required this.colorIndex,
+    required this.status,
+  });
   final SavedPlace savedPlace;
+  // Its position in all saved places, as on the map and calendar, whatever
+  // the filter and grouping.
+  final int colorIndex;
   final PlaceStatus status;
 }
 
@@ -774,6 +781,7 @@ class _RowRouter extends StatelessWidget {
         final onToday = route.contains(enriched.savedPlace.place.tomtomId);
         return SavedPlaceRow(
           savedPlace: enriched.savedPlace,
+          colorIndex: enriched.colorIndex,
           status: enriched.status,
           isOnToday: onToday,
           onTap: () => _openDetail(context, enriched, onRefresh),
@@ -802,6 +810,7 @@ class _TileRouter extends StatelessWidget {
         final onToday = route.contains(enriched.savedPlace.place.tomtomId);
         return SavedPlaceTile(
           savedPlace: enriched.savedPlace,
+          colorIndex: enriched.colorIndex,
           status: enriched.status,
           isOnToday: onToday,
           onTap: () => _openDetail(context, enriched, onRefresh),

@@ -40,12 +40,16 @@ class GraphicsHelper {
     'work': Icons.work,
   };
 
-  static Widget buildProfileGraphic(SavedPlace savedPlace, {double size = 40}) {
-    // A missing or malformed stored color falls back to blue rather than
-    // throwing mid-build.
-    final storedColor = int.tryParse(savedPlace.color ?? '', radix: 16);
-    final currentColor = Color(
-      storedColor ?? Colors.blue.toARGB32(),
+  /// [savedPlace]'s icon on an opaque circle of its display color, the one
+  /// [colorForSavedPlace] gives it for [index] on the map and calendar.
+  static Widget buildProfileGraphic(
+    SavedPlace savedPlace,
+    int index, {
+    double size = 40,
+  }) {
+    final currentColor = colorForSavedPlace(
+      savedPlace,
+      index,
     ).withValues(alpha: 1.0);
     final currentIconName = savedPlace.icon ?? 'star';
 

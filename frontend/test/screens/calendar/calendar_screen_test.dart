@@ -15,6 +15,7 @@ import 'package:frontend/models/hours.dart';
 import 'package:frontend/models/place.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/screens/calendar/calendar_screen.dart';
+import 'package:frontend/utils/graphics_helper.dart';
 import 'package:frontend/utils/places_theme.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -289,6 +290,41 @@ void main() {
       await tester.tap(find.byIcon(Icons.chevron_left));
       await tester.pumpAndSettle();
       expect(find.text('Sunday, Nov 1'), findsOneWidget);
+    });
+  });
+
+  testWidgets('the errand sheet shows each place in its calendar color', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_now), () async {
+      // None has a stored color, so each takes the palette slot for its
+      // position among all saved places, as on the map and in the sidebar.
+      await pump(
+        tester,
+        _data([_openOn(0, 'monday'), _openOn(2, 'a'), _openOn(2, 'b')]),
+      );
+      tester
+          .element(find.byType(CalendarViewStackWidget))
+          .read<CalendarUiCubit>()
+          .changeViewType(CalendarViewType.singleDay);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 places open').first);
+      await tester.pumpAndSettle();
+      final circles = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(BottomSheet),
+              matching: find.byType(Container),
+            ),
+          )
+          .map((c) => c.decoration)
+          .whereType<BoxDecoration>()
+          .where((d) => d.shape == BoxShape.circle)
+          .map((d) => d.color);
+      expect(circles, [
+        GraphicsHelper.defaultPalette[1],
+        GraphicsHelper.defaultPalette[2],
+      ]);
     });
   });
 

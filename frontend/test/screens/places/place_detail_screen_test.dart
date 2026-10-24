@@ -9,6 +9,7 @@ import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/screens/places/place_detail_screen.dart';
 import 'package:frontend/screens/places/plan_visit_screen.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/utils/graphics_helper.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -85,6 +86,37 @@ void main() {
           findsOneWidget,
         );
         expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
+      });
+    });
+
+    testWidgets('a saved place without a color shows its map color', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        // The palette slot for its position among the saved places, as on
+        // the map and calendar.
+        final library = sampleSavedPlaces[3];
+        await open(
+          tester,
+          libraryPlace,
+          bookmarks: [
+            ...sampleSavedPlaces.take(3),
+            SavedPlace(id: library.id, place: library.place, icon: 'park'),
+          ],
+        );
+        final circle =
+            tester
+                    .widget<Container>(
+                      find
+                          .ancestor(
+                            of: find.byIcon(Icons.park),
+                            matching: find.byType(Container),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        expect(circle.color, GraphicsHelper.defaultPalette[3]);
       });
     });
 

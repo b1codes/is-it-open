@@ -14,6 +14,7 @@ class SavedPlaceRow extends StatelessWidget {
   const SavedPlaceRow({
     super.key,
     required this.savedPlace,
+    required this.colorIndex,
     required this.status,
     required this.isOnToday,
     required this.onTap,
@@ -23,6 +24,10 @@ class SavedPlaceRow extends StatelessWidget {
   });
 
   final SavedPlace savedPlace;
+
+  /// [savedPlace]'s position in the saved places list, which picks its
+  /// fallback color (see [GraphicsHelper.colorForSavedPlace]).
+  final int colorIndex;
   final PlaceStatus status;
   final bool isOnToday;
   final VoidCallback onTap;
@@ -60,6 +65,7 @@ class SavedPlaceRow extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: GraphicsHelper.buildProfileGraphic(
                       savedPlace,
+                      colorIndex,
                       size: 28,
                     ),
                   ),

@@ -59,13 +59,14 @@ void main() {
     Future<(BoxDecoration, Icon)> render(
       WidgetTester tester,
       SavedPlace place, {
+      int index = 0,
       double size = 40,
     }) async {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
           child: Center(
-            child: GraphicsHelper.buildProfileGraphic(place, size: size),
+            child: GraphicsHelper.buildProfileGraphic(place, index, size: size),
           ),
         ),
       );
@@ -93,9 +94,12 @@ void main() {
       expect(tester.getSize(find.byType(Container)), const Size(50, 50));
     });
 
-    testWidgets('defaults to a blue star', (tester) async {
-      final (decoration, icon) = await render(tester, _savedPlace());
-      expect(decoration.color, Color(Colors.blue.toARGB32()));
+    // As on the map and calendar, which use colorForSavedPlace.
+    testWidgets('defaults to a star in the palette color for its index', (
+      tester,
+    ) async {
+      final (decoration, icon) = await render(tester, _savedPlace(), index: 3);
+      expect(decoration.color, GraphicsHelper.defaultPalette[3]);
       expect(icon.icon, Icons.star);
     });
 
@@ -109,12 +113,20 @@ void main() {
       expect(icon.icon, Icons.star);
     });
 
-    testWidgets('falls back to blue for a malformed stored color', (
+    testWidgets('falls back to the palette for a malformed stored color', (
       tester,
     ) async {
       for (final color in ['', 'not-hex']) {
-        final (decoration, _) = await render(tester, _savedPlace(color: color));
-        expect(decoration.color, Color(Colors.blue.toARGB32()), reason: color);
+        final (decoration, _) = await render(
+          tester,
+          _savedPlace(color: color),
+          index: 1,
+        );
+        expect(
+          decoration.color,
+          GraphicsHelper.defaultPalette[1],
+          reason: color,
+        );
       }
     });
 

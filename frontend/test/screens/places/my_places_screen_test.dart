@@ -10,6 +10,7 @@ import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/screens/places/my_places_screen.dart';
 import 'package:frontend/screens/places/place_detail_screen.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/utils/graphics_helper.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/fixtures.dart';
@@ -84,6 +85,46 @@ void main() {
       await tester.tap(find.text('All'));
       await tester.pumpAndSettle();
       expect(_rowNames(tester), hasLength(5));
+      await tester.unmount();
+    });
+  });
+
+  testWidgets('a place keeps its map color whatever the filter and grouping', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_noon), () async {
+      // Without stored colors, each place takes the palette slot for its
+      // position among all saved places, as on the map and calendar.
+      final uncolored = [
+        for (final sp in sampleSavedPlaces)
+          SavedPlace(
+            id: sp.id,
+            place: sp.place,
+            customName: sp.customName,
+            icon: sp.icon,
+            isPinned: sp.isPinned,
+            isCheckItOut: sp.isCheckItOut,
+          ),
+      ];
+      await pump(tester, bookmarks: uncolored);
+      await tester.tap(find.text('Want to visit'));
+      await tester.pumpAndSettle();
+      Color? graphicColor(IconData icon) =>
+          (tester
+                      .widget<Container>(
+                        find
+                            .ancestor(
+                              of: find.byIcon(icon),
+                              matching: find.byType(Container),
+                            )
+                            .first,
+                      )
+                      .decoration
+                  as BoxDecoration)
+              .color;
+      // The library (a star) and the hardware store, fourth and fifth.
+      expect(graphicColor(Icons.star), GraphicsHelper.defaultPalette[3]);
+      expect(graphicColor(Icons.store), GraphicsHelper.defaultPalette[4]);
       await tester.unmount();
     });
   });

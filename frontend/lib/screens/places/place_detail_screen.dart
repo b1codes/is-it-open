@@ -26,6 +26,8 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   SavedPlace? _saved;
+  // _saved's position in the saved places, which picks its fallback color.
+  int _savedIndex = 0;
   bool _loadingSaved = true;
 
   bool get _isCustomPlace => widget.place.tomtomId.startsWith('custom_');
@@ -39,13 +41,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _hydrateSaved() async {
     try {
       final bookmarks = await context.read<ApiService>().getBookmarks();
-      final match = bookmarks.cast<SavedPlace?>().firstWhere(
-        (b) => b?.place.tomtomId == widget.place.tomtomId,
-        orElse: () => null,
+      final index = bookmarks.indexWhere(
+        (b) => b.place.tomtomId == widget.place.tomtomId,
       );
       if (mounted) {
         setState(() {
-          _saved = match;
+          _saved = index < 0 ? null : bookmarks[index];
+          _savedIndex = index < 0 ? 0 : index;
           _loadingSaved = false;
         });
       }
@@ -140,7 +142,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
           children: [
             const SizedBox(height: PlacesSpacing.sm),
-            _Hero(place: widget.place, savedPlace: _saved, status: status),
+            _Hero(
+              place: widget.place,
+              savedPlace: _saved,
+              savedIndex: _savedIndex,
+              status: status,
+            ),
             const SizedBox(height: PlacesSpacing.lg),
             _AddressBlock(place: widget.place),
             if (widget.place.hours.isNotEmpty) ...[
@@ -222,11 +229,13 @@ class _Hero extends StatelessWidget {
   const _Hero({
     required this.place,
     required this.savedPlace,
+    required this.savedIndex,
     required this.status,
   });
 
   final Place place;
   final SavedPlace? savedPlace;
+  final int savedIndex;
   final PlaceStatus status;
 
   @override
@@ -239,7 +248,11 @@ class _Hero extends StatelessWidget {
         if (savedPlace != null)
           Padding(
             padding: const EdgeInsets.only(bottom: PlacesSpacing.md),
-            child: GraphicsHelper.buildProfileGraphic(savedPlace!, size: 40),
+            child: GraphicsHelper.buildProfileGraphic(
+              savedPlace!,
+              savedIndex,
+              size: 40,
+            ),
           ),
         Text(name, style: PlacesType.display(theme.ink)),
         if (place.categories.isNotEmpty) ...[

@@ -13,6 +13,7 @@ class SavedPlaceTile extends StatelessWidget {
   const SavedPlaceTile({
     super.key,
     required this.savedPlace,
+    required this.colorIndex,
     required this.status,
     required this.isOnToday,
     required this.onTap,
@@ -21,6 +22,10 @@ class SavedPlaceTile extends StatelessWidget {
   });
 
   final SavedPlace savedPlace;
+
+  /// [savedPlace]'s position in the saved places list, which picks its
+  /// fallback color (see [GraphicsHelper.colorForSavedPlace]).
+  final int colorIndex;
   final PlaceStatus status;
   final bool isOnToday;
   final VoidCallback onTap;
@@ -67,7 +72,11 @@ class SavedPlaceTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  GraphicsHelper.buildProfileGraphic(savedPlace, size: 24),
+                  GraphicsHelper.buildProfileGraphic(
+                    savedPlace,
+                    colorIndex,
+                    size: 24,
+                  ),
                   const SizedBox(width: PlacesSpacing.sm),
                   Expanded(
                     child: Text(
