@@ -23,8 +23,15 @@ class ThemeCubit extends Cubit<ThemeMode> {
   Future<SharedPreferences> _prefs() async =>
       _injectedPrefs ?? await SharedPreferences.getInstance();
 
+  // Started from the constructor and never awaited, so it mustn't throw.
   Future<void> _loadTheme() async {
-    final saved = (await _prefs()).getString(themeModeKey);
+    final String? saved;
+    try {
+      saved = (await _prefs()).getString(themeModeKey);
+    } catch (_) {
+      // The store can't be read (e.g. the plugin failed): keep the default.
+      return;
+    }
     final mode = ThemeMode.values.where((m) => m.name == saved).firstOrNull;
     if (mode != null && mode != state && !_chosen && !isClosed) emit(mode);
   }
@@ -35,6 +42,11 @@ class ThemeCubit extends Cubit<ThemeMode> {
   Future<void> setTheme(ThemeMode mode) async {
     _chosen = true;
     emit(mode);
-    await (await _prefs()).setString(themeModeKey, mode.name);
+    // The menu doesn't await this either.
+    try {
+      await (await _prefs()).setString(themeModeKey, mode.name);
+    } catch (_) {
+      // Not remembered for the next start, but applied for this one.
+    }
   }
 }
