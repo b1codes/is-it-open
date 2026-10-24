@@ -261,6 +261,17 @@ def test_the_real_limit_is_10_mb():
     assert calendar_api.MAX_CALENDAR_BYTES == 10 * 2**20
 
 
+def test_a_calendar_over_the_real_limit_is_refused_in_megabytes(auth_client, http_mock):
+    # It said "larger than 10,485,760 bytes", which the app shows the user as it is.
+    too_large = str(10 * 2**20 + 1)
+    http_mock.get(FEED_URL, body=ICS, headers={"Content-Length": too_large}, auto_calculate_content_length=False)
+
+    response = _proxy(auth_client, FEED_URL)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Failed to fetch calendar: it's larger than 10 MB"}
+
+
 @pytest.mark.parametrize(
     "failure, reason",
     [

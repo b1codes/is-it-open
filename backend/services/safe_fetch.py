@@ -161,8 +161,13 @@ def _remaining(deadline: float) -> float:
     return min(TIMEOUT, remaining)
 
 
+def _size(n: int) -> str:
+    """`n` bytes as the user reads it: whole megabytes as "10 MB", otherwise "1,024 bytes"."""
+    return f"{n // 2**20} MB" if n and n % 2**20 == 0 else f"{n:,} bytes"
+
+
 def _read(response: requests.Response, max_bytes: int, deadline: float) -> bytes:
-    too_large = FetchError(f"it's larger than {max_bytes:,} bytes")
+    too_large = FetchError(f"it's larger than {_size(max_bytes)}")
     length = response.headers.get("Content-Length", "")
     if length.isdigit() and int(length) > max_bytes:
         raise too_large

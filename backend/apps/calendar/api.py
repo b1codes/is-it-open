@@ -17,6 +17,9 @@ ICAL_RESPONSE = {
     }
 }
 
+# The proxy holds a calendar in memory, and the app downloads and parses all of it on the device, so
+# there's a limit; without one, a URL could make the backend read without end. Subscription feeds
+# are usually far smaller. One over it is refused with a 400 that names the limit.
 MAX_CALENDAR_BYTES = 10 * 2**20
 
 
