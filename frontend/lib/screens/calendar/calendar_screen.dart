@@ -1,21 +1,93 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
-import 'package:timezone/timezone.dart' as tz;
 
+import '../../components/calendar/calendar_event_tile.dart';
 import '../../components/calendar/calendar_view_stack.dart';
 import '../../components/calendar/calendar_sidebar.dart';
 import '../../components/calendar/planner_view.dart';
 import '../../models/saved_place.dart';
 
 import '../../bloc/calendar/calendar_ui_cubit.dart';
+import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
 import '../../utils/availability_calculator.dart';
+import '../../utils/calendar_dates.dart';
 import '../../utils/graphics_helper.dart';
 import '../../utils/places_theme.dart';
 import '../../components/core/refractive_glass.dart';
+
+/// The opening hours of each checked place as {id, startTime, endTime}
+/// blocks, for the six weeks around [baseDate], on the device's wall clock.
+@visibleForTesting
+List<Map<String, dynamic>> businessBlocks(
+  CalendarDataState dataState,
+  DateTime baseDate,
+) {
+  final List<Map<String, dynamic>> blocks = [];
+  final startOfRange = DateTime(
+    baseDate.year,
+    baseDate.month,
+    baseDate.day - 14,
+  );
+
+  for (final sp in dataState.savedPlaces) {
+    if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
+
+    for (int dayOffset = 0; dayOffset <= 42; dayOffset++) {
+      // Calendar arithmetic, so a DST change can't repeat or skip a day.
+      final date = DateTime(
+        startOfRange.year,
+        startOfRange.month,
+        startOfRange.day + dayOffset,
+      );
+      // BusinessHours days are Mon=0..Sun=6; DateTime.weekday is Mon=1..Sun=7.
+      final dayOfWeek = date.weekday - 1;
+
+      for (final hours in sp.place.hours) {
+        if (hours.dayOfWeek == dayOfWeek) {
+          // Strip timezone and use naive DateTime for business hours
+          final startTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            hours.openTime.hour,
+            hours.openTime.minute,
+          );
+          var endTime = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            hours.closeTime.hour,
+            hours.closeTime.minute,
+          );
+          // Closing at or before opening runs into the next day; 00:00 to
+          // 00:00 is open all day. Calendar arithmetic again, so a DST night
+          // still ends at the closing wall-clock time.
+          if (!endTime.isAfter(startTime)) {
+            endTime = DateTime(
+              date.year,
+              date.month,
+              date.day + 1,
+              hours.closeTime.hour,
+              hours.closeTime.minute,
+            );
+          }
+
+          blocks.add({
+            'id': sp.place.tomtomId,
+            'startTime': startTime,
+            'endTime': endTime,
+          });
+        }
+      }
+    }
+  }
+  return blocks;
+}
 
 class CalendarScreen extends StatelessWidget {
   final bool embedded;
@@ -100,58 +172,6 @@ class _CalendarScreenContent extends StatelessWidget {
         .toList();
   }
 
-  List<Map<String, dynamic>> _prepareBusinessBlocks(
-    CalendarDataState dataState,
-    DateTime baseDate,
-  ) {
-    final List<Map<String, dynamic>> blocks = [];
-    final startOfRange = tz.TZDateTime(
-      tz.local,
-      baseDate.year,
-      baseDate.month,
-      baseDate.day,
-    ).subtract(const Duration(days: 14));
-
-    for (final sp in dataState.savedPlaces) {
-      if (!dataState.checkedPlaceIds.contains(sp.place.tomtomId)) continue;
-
-      for (int dayOffset = 0; dayOffset <= 42; dayOffset++) {
-        final date = startOfRange.add(Duration(days: dayOffset));
-        final weekday = date.weekday;
-
-        for (final hours in sp.place.hours) {
-          if (hours.dayOfWeek == weekday) {
-            // Strip timezone and use naive DateTime for business hours
-            final startTime = DateTime(
-              date.year,
-              date.month,
-              date.day,
-              hours.openTime.hour,
-              hours.openTime.minute,
-            );
-            var endTime = DateTime(
-              date.year,
-              date.month,
-              date.day,
-              hours.closeTime.hour,
-              hours.closeTime.minute,
-            );
-            if (endTime.isBefore(startTime)) {
-              endTime = endTime.add(const Duration(days: 1));
-            }
-
-            blocks.add({
-              'id': sp.place.tomtomId,
-              'startTime': startTime,
-              'endTime': endTime,
-            });
-          }
-        }
-      }
-    }
-    return blocks;
-  }
-
   EventController<Object?> _buildLegacyController(
     CalendarDataState dataState,
     CalendarUiState uiState,
@@ -165,11 +185,12 @@ class _CalendarScreenContent extends StatelessWidget {
       for (final window in windows) {
         controller.add(
           CalendarEventData(
-            title: '${window.placeCount} places open',
+            title: window.label,
             date: window.date,
             startTime: window.startTime,
             endTime: window.endTime,
             color: PlacesTheme.light.anchor.withValues(alpha: 0.15),
+            event: CalendarBlockKind.openWindow,
           ),
         );
       }
@@ -188,10 +209,11 @@ class _CalendarScreenContent extends StatelessWidget {
             title: event.title,
             description: event.description,
             date: event.date,
+            endDate: event.endDate,
             startTime: event.startTime,
             endTime: event.endTime,
             color: personalEventColor,
-            event: event.event,
+            event: CalendarBlockKind.personal,
           ),
         );
       }
@@ -269,6 +291,7 @@ class _CalendarScreenContent extends StatelessWidget {
                           final sp = availablePlaces[index];
                           return _PlaceSelectionTile(
                             sp: sp,
+                            colorIndex: dataState.savedPlaces.indexOf(sp),
                             theme: theme,
                             onTap: () {
                               Navigator.pop(context);
@@ -297,14 +320,9 @@ class _CalendarScreenContent extends StatelessWidget {
         return BlocBuilder<CalendarDataBloc, CalendarDataState>(
           builder: (context, dataState) {
             final personalEvents = _preparePersonalEvents(dataState);
-            final businessBlocks = _prepareBusinessBlocks(
-              dataState,
-              uiState.baseDate,
-            );
-
             // Calculate windows using toggled state
             final windows = AvailabilityCalculator.calculateAvailableWindows(
-              businessBlocks: businessBlocks,
+              businessBlocks: businessBlocks(dataState, uiState.baseDate),
               personalEvents: uiState.showPersonalEvents ? personalEvents : [],
             );
 
@@ -316,12 +334,15 @@ class _CalendarScreenContent extends StatelessWidget {
                   dataState,
                   uiState,
                   windows,
-                  theme.inkMuted.withValues(alpha: 0.5),
+                  theme.inkMuted,
                 ),
                 checkedPlacesCount: dataState.checkedPlaceIds.length,
                 textColor: theme.ink,
                 textSmallColor: theme.inkMuted,
-                use24HourFormat: false,
+                use24HourFormat: context
+                    .watch<PreferencesCubit>()
+                    .state
+                    .use24HourFormat,
               );
             } else {
               mainContent = PlannerView(
@@ -338,7 +359,7 @@ class _CalendarScreenContent extends StatelessWidget {
                       ? 3
                       : 1;
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.subtract(Duration(days: days)),
+                    addCalendarDays(uiState.baseDate, -days),
                   );
                 },
                 onNavigateRight: () {
@@ -346,13 +367,11 @@ class _CalendarScreenContent extends StatelessWidget {
                       ? 3
                       : 1;
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.add(Duration(days: days)),
+                    addCalendarDays(uiState.baseDate, days),
                   );
                 },
                 onNavigateToday: () {
-                  context.read<CalendarUiCubit>().navigateDate(
-                    tz.TZDateTime.now(tz.local),
-                  );
+                  context.read<CalendarUiCubit>().navigateDate(clock.now());
                 },
                 onWindowTap: (window) =>
                     _showSchedulingSheet(context, window, dataState, theme),
@@ -396,6 +415,7 @@ class _CalendarScreenContent extends StatelessWidget {
                     Builder(
                       builder: (ctx) => IconButton(
                         icon: Icon(Icons.filter_list, color: theme.ink),
+                        tooltip: 'Calendar options',
                         onPressed: () => Scaffold.of(ctx).openEndDrawer(),
                       ),
                     ),
@@ -436,7 +456,10 @@ class _CalendarScreenContent extends StatelessWidget {
                   if (!isMobile) ...[
                     VerticalDivider(width: 1, color: theme.ashSoft),
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
+                      duration: PlacesMotion.of(
+                        context,
+                        const Duration(milliseconds: 300),
+                      ),
                       curve: Curves.easeInOut,
                       width: uiState.isSidebarCollapsed ? 64 : 320,
                       color: theme.paperRaised,
@@ -477,7 +500,10 @@ class _CalendarScreenContent extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 44),
           alignment: Alignment.center,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: PlacesMotion.of(
+              context,
+              const Duration(milliseconds: 200),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isActive
@@ -521,11 +547,13 @@ class _CalendarScreenContent extends StatelessWidget {
 
 class _PlaceSelectionTile extends StatelessWidget {
   final SavedPlace sp;
+  final int colorIndex;
   final PlacesTheme theme;
   final VoidCallback onTap;
 
   const _PlaceSelectionTile({
     required this.sp,
+    required this.colorIndex,
     required this.theme,
     required this.onTap,
   });
@@ -546,7 +574,7 @@ class _PlaceSelectionTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              GraphicsHelper.buildProfileGraphic(sp, size: 40),
+              GraphicsHelper.buildProfileGraphic(sp, colorIndex, size: 40),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

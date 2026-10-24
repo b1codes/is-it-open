@@ -1,0 +1,343 @@
+{
+  "summary": {
+    "queryType": "NEARBY",
+    "queryTime": 17,
+    "numResults": 2,
+    "offset": 0,
+    "totalResults": 2,
+    "fuzzyLevel": 1,
+    "geoBias": {
+      "lat": 40.7306,
+      "lon": -74.0021
+    }
+  },
+  "results": [
+    {
+      "type": "POI",
+      "id": "Tu4lEjRtadpLbiAPajPyOQ",
+      "score": 4.985622406005859,
+      "info": "search:ta:840369002106390-US",
+      "poi": {
+        "name": "Joe's Pizza",
+        "phone": "+1 212-366-1182",
+        "url": "www.joespizzanyc.com",
+        "brands": [],
+        "categorySet": [
+          {
+            "id": 7315036
+          }
+        ],
+        "categories": [
+          "pizza",
+          "restaurant"
+        ],
+        "classifications": [
+          {
+            "code": "RESTAURANT",
+            "names": [
+              {
+                "nameLocale": "en-US",
+                "name": "pizza"
+              },
+              {
+                "nameLocale": "en-US",
+                "name": "restaurant"
+              }
+            ]
+          }
+        ],
+        "openingHours": {
+          "mode": "nextSevenDays",
+          "timeRanges": [
+            {
+              "startTime": {
+                "date": "2026-10-19",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-19",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-20",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-20",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-21",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-21",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-22",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-22",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-23",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-24",
+                "hour": 2,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-24",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-25",
+                "hour": 2,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-25",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-25",
+                "hour": 23,
+                "minute": 0
+              }
+            }
+          ]
+        },
+        "timeZone": {
+          "ianaId": "America/New_York"
+        }
+      },
+      "address": {
+        "streetNumber": "7",
+        "streetName": "Carmine Street",
+        "municipalitySubdivision": "Greenwich Village",
+        "municipality": "New York",
+        "countrySecondarySubdivision": "New York",
+        "countrySubdivision": "NY",
+        "countrySubdivisionName": "New York",
+        "countrySubdivisionCode": "NY",
+        "postalCode": "10014",
+        "countryCode": "US",
+        "country": "United States",
+        "countryCodeISO3": "USA",
+        "freeformAddress": "7 Carmine Street, New York, NY 10014",
+        "localName": "New York"
+      },
+      "position": {
+        "lat": 40.730599,
+        "lon": -74.002139
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 40.7315,
+          "lon": -74.00332
+        },
+        "btmRightPoint": {
+          "lat": 40.7297,
+          "lon": -74.00096
+        }
+      },
+      "entryPoints": [
+        {
+          "type": "main",
+          "position": {
+            "lat": 40.73049,
+            "lon": -74.00228
+          }
+        }
+      ],
+      "dist": 12.75
+    },
+    {
+      "type": "POI",
+      "id": "7rPxXRuwPZlsmJeLHYMZ6w",
+      "score": 0.997,
+      "dist": 118.42,
+      "info": "search:ta:840369001997422-US",
+      "poi": {
+        "name": "Caffe Reggio",
+        "phone": "+1 212-475-9557",
+        "url": "caffereggio.com",
+        "categorySet": [
+          {
+            "id": 9376002
+          }
+        ],
+        "categories": [
+          "café",
+          "café/pub"
+        ],
+        "classifications": [
+          {
+            "code": "CAFE_PUB",
+            "names": [
+              {
+                "nameLocale": "en-US",
+                "name": "café/pub"
+              },
+              {
+                "nameLocale": "en-US",
+                "name": "café"
+              }
+            ]
+          }
+        ],
+        "openingHours": {
+          "mode": "nextSevenDays",
+          "timeRanges": [
+            {
+              "startTime": {
+                "date": "2026-10-19",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-19",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-20",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-20",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-21",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-21",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-22",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-22",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-23",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-23",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-24",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-24",
+                "hour": 23,
+                "minute": 30
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-25",
+                "hour": 8,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-25",
+                "hour": 23,
+                "minute": 30
+              }
+            }
+          ]
+        }
+      },
+      "address": {
+        "streetNumber": "119",
+        "streetName": "Macdougal Street",
+        "municipality": "New York",
+        "countrySubdivision": "NY",
+        "postalCode": "10012",
+        "countryCode": "US",
+        "country": "United States",
+        "countryCodeISO3": "USA",
+        "freeformAddress": "119 Macdougal Street, New York, NY 10012"
+      },
+      "position": {
+        "lat": 40.730174,
+        "lon": -74.000352
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 40.73107,
+          "lon": -74.00153
+        },
+        "btmRightPoint": {
+          "lat": 40.72928,
+          "lon": -73.99917
+        }
+      },
+      "entryPoints": [
+        {
+          "type": "main",
+          "position": {
+            "lat": 40.73013,
+            "lon": -74.00043
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# OWASP ZAP rules for the nightly API scan (.github/workflows/nightly.yml, "DAST"). Tab-separated:
+# rule ID, then IGNORE, WARN or FAIL, then a note. Rules not listed are WARN, and the job fails on any
+# WARN or FAIL alert, so a new finding fails the run. Only IGNORE what was reviewed, and say why.
+#
+# Unknown paths get Django's HTML 404 page rather than JSON. The API's own routes return JSON.
+100001	IGNORE	(Unexpected Content-Type was returned)
+# Cross-Origin-Resource-Policy only restricts no-cors loads (<img>, <script>) of these responses. Those
+# can't add the Authorization header every data route needs, so they only ever get a 401.
+90004	IGNORE	(Insufficient Site Isolation Against Spectre Vulnerability)
+# DOM XSS drives a browser over HTML pages; the API serves none, and the browser can crash ZAP.
+40026	IGNORE	(Cross Site Scripting (DOM Based))
+# The scanned stack serves plain HTTP. In production, HTTPS is the reverse proxy's (Nginx or an ALB, see
+# backend/README_DEPLOY.md).
+10106	IGNORE	(HTTP Only Site)

@@ -75,8 +75,10 @@ when you use a key file, or drop both flags once `COMPOSE_FILE` is set.
    - `CORS_ALLOW_ALL_ORIGINS`: `settings.py` doesn't read `CORS_ALLOWED_ORIGINS` yet, so with `0` every
      cross-origin browser request is refused. Set `1` if a web build of the app calls the API from
      another origin. The mobile apps aren't affected.
-   - `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` and `AUTH0_MOCK=0`: Without a domain, or with mock mode on, the
-     backend accepts **unsigned** Auth0 tokens, so anyone could sign in as any Auth0 user.
+   - `AUTH0_DOMAIN` and `AUTH0_AUDIENCE`: Auth0 tokens are verified against this tenant. Without a
+     domain, every Auth0 token is rejected (username and password sign-in still works). Leave
+     `AUTH0_MOCK` out or `0`: mock mode accepts **unsigned** tokens, so anyone could sign in as any
+     Auth0 user, and the backend refuses to start with it on and `DEBUG` off.
    - Leave `FIRESTORE_EMULATOR_HOST` out. Compose forces it empty, and `DEBUG` to `0`, in production.
 
 The container refuses to start, and logs `backend/.env: ...`, if `SECRET_KEY` or
@@ -93,6 +95,23 @@ docker compose -f docker-compose.prod.yml -f docker-compose.prod.keyfile.yml up 
 ```
 
 Firestore is schemaless, so there are no migrations to run.
+
+Add `--wait` to `up` to block until the backend's healthcheck (`GET /health`) passes. `docker compose
+-f docker-compose.prod.yml ps` shows the backend as `healthy` once it does. The check answers on
+`localhost` whatever `ALLOWED_HOSTS` says, and it doesn't touch Firestore. Point a load balancer's
+health check at `/health` too.
+
+**After every deploy, run the smoke test.** It signs in with a test account, searches, and saves and
+removes a bookmark, which shows the credentials, Firestore and the TomTom key all work:
+```bash
+gh workflow run smoke.yml                     # from your machine, once it's set up for production
+# or, from anywhere with Python 3.11+:
+SMOKE_USERNAME=... SMOKE_PASSWORD=... make smoke URL=https://yourdomain.com
+```
+Setting it up (the test account, the secrets and `SMOKE_BASE_URL`) is in
+[smoke/README.md](../smoke/README.md). Once it is, `smoke.yml` also runs every hour and opens a
+`smoke-failure` issue when it fails. If it fails right after a deploy, roll back (see the end of
+section 7).
 
 ## 6. (Optional) Reverse Proxy
 It is highly recommended to place an Nginx reverse proxy or an AWS ALB in front of port 8000.

@@ -1,0 +1,141 @@
+name: Performance
+
+# Catches slowdowns before users do: an API load test with p95 latency and error-rate budgets, and
+# a check that the release builds haven't grown more than 5%. Called by nightly.yml (or run by
+# hand); not per PR, since timings need a quiet, full-length run. The per-request Firestore cost is
+# checked per PR instead, in the Backend job. See "Performance" in TESTING.md.
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: Concurrent users for the load test
+        default: '20'
+      duration:
+        description: How long the load test holds them (k6 duration, e.g. 2m)
+        default: 2m
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: API load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The production image, with TomTom stubbed (there's no staging backend yet).
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - name: Load test
+        env:
+          VUS: ${{ inputs.vus || '20' }}
+          DURATION: ${{ inputs.duration || '2m' }}
+        run: make test-load
+
+      - name: Summary
+        if: always()
+        run: cat perf/results/load-summary.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > perf/results/stack-logs.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test
+          path: perf/results/
+          if-no-files-found: ignore
+
+  # Release build sizes against the baseline in frontend/app_size.json (tool/app_size.dart).
+  app-size:
+    name: App size
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'  # for the Android Gradle build
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          channel: 'stable'
+          # Sizes change with Flutter, so the baseline was measured with this version. After a
+          # bump, accept the new sizes with `make app-size-pull` (see "Performance" in TESTING.md).
+          flutter-version: '3.47.7'
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          flutter build apk --release --analyze-size --target-platform android-arm64
+          flutter build web --release
+
+      - name: Check
+        run: dart run tool/app_size.dart check --analysis="$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
+
+      # The measurements, for `make app-size-pull` to accept as the new baseline.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-size
+          path: frontend/build/app-size/measured.json
+          if-no-files-found: ignore
+
+  # Frame timing of map pan/zoom, calendar scrolling and search typing (integration_test/perf_test.dart),
+  # as a Linux desktop app in profile mode (traceAction needs the VM timeline: not on the web, and
+  # emulators don't run profile builds), against the E2E stack.
+  frame-timing:
+    name: Frame timing
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Linux desktop toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xvfb
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          channel: 'stable'
+          # Frame times change with the engine; the budgets in test_driver/perf_driver.dart were
+          # set with this version.
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Frame timing
+        run: xvfb-run -a -s '-screen 0 1280x800x24' make perf-frames
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > frontend/build/stack-logs.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frame-timing
+          path: |
+            frontend/build/*.timeline.json
+            frontend/build/*.timeline_summary.json
+            frontend/build/stack-logs.txt
+          if-no-files-found: ignore

@@ -8,17 +8,28 @@ Layout:
 Lookups by username or token return None for keys that can't be stored (see
 services.firestore.doc_id); create_user() raises InvalidDocumentKey for them.
 """
+
 import secrets
 from dataclasses import asdict, dataclass, fields
-from typing import Optional
 
 from django.contrib.auth.hashers import check_password, is_password_usable, make_password
+from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
+from services.firestore import (
+    InvalidDocumentKey,
+    allocate_id,
+    doc_id,
+    get_client,
+    retry_on_contention,
+    run_transaction,
+)
 
 USERS = "users"
+
+# Creates tried when each one collides with a document that's deleted before it can be read back.
+_CREATE_ATTEMPTS = 3
 
 
 @dataclass
@@ -29,26 +40,31 @@ class User:
     first_name: str = ""
     last_name: str = ""
     password: str = ""
-    token: Optional[str] = None
+    token: str | None = None
 
     home_address: str = ""
     home_street: str = ""
     home_city: str = ""
     home_state: str = ""
     home_zip: str = ""
-    home_lat: Optional[float] = None
-    home_lng: Optional[float] = None
+    home_lat: float | None = None
+    home_lng: float | None = None
 
     work_address: str = ""
     work_street: str = ""
     work_city: str = ""
     work_state: str = ""
     work_zip: str = ""
-    work_lat: Optional[float] = None
-    work_lng: Optional[float] = None
+    work_lat: float | None = None
+    work_lng: float | None = None
 
     use_current_location: bool = False
     calendar_subscription_url: str = ""
+
+    # Set while an address's coordinates are still the old address's: it changed while TomTom
+    # couldn't geocode it, so a later profile update tries again. Not part of the API.
+    home_geocode_pending: bool = False
+    work_geocode_pending: bool = False
 
     @property
     def doc_id(self) -> str:
@@ -76,7 +92,7 @@ def user_document(user: User, created_at=firestore.SERVER_TIMESTAMP) -> dict:
     return {**asdict(user), "created_at": created_at}
 
 
-def get_user(username: str) -> Optional[User]:
+def get_user(username: str) -> User | None:
     try:
         ref = _users().document(doc_id(username))
     except InvalidDocumentKey:
@@ -85,7 +101,7 @@ def get_user(username: str) -> Optional[User]:
     return User.from_dict(snapshot.to_dict()) if snapshot.exists else None
 
 
-def create_user(username: str, password: Optional[str] = None, **extra) -> Optional[User]:
+def create_user(username: str, password: str | None = None, **extra) -> User | None:
     """
     Create a user. Returns None if the username is already taken.
     Raises InvalidDocumentKey if the username can't be stored.
@@ -103,31 +119,39 @@ def get_or_create_user(username: str, **defaults):
 
 
 def _get_or_create_user(username, password, extra):
-    client = get_client()
     ref = _users().document(doc_id(username))
 
     # Almost every call (e.g. each Auth0-authenticated request) is for an existing user, so try a
-    # plain read first and only pay for a transaction when the user may need creating.
+    # plain read first and only hash a password and write when the user may need creating.
     snapshot = ref.get()
     if snapshot.exists:
         return User.from_dict(snapshot.to_dict()), False
 
-    @firestore.transactional
-    def get_or_create(transaction):
-        snapshot = ref.get(transaction=transaction)
-        if snapshot.exists:
-            return User.from_dict(snapshot.to_dict()), False
-
-        user = User(
-            id=allocate_id(USERS),
-            username=username,
-            password=make_password(password),
-            **extra,
-        )
-        transaction.set(ref, user_document(user))
-        return user, True
-
-    return get_or_create(client.transaction())
+    # create() writes only if the document doesn't exist yet, so concurrent sign-ups for one
+    # username need no transaction: one write lands and the rest read it back. The ID a losing
+    # caller allocated is skipped, as allocate_id allows.
+    user = User(
+        id=allocate_id(USERS),
+        username=username,
+        password=make_password(password),
+        **extra,
+    )
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            retry_on_contention(lambda: ref.create(user_document(user)))
+            return user, True
+        except AlreadyExists:
+            snapshot = ref.get()
+            if snapshot.exists:
+                existing = User.from_dict(snapshot.to_dict())
+                # Our own write can land even when the response is lost and the retry finds it.
+                return existing, existing.id == user.id
+            # Deleted since the create collided with it (an account deletion, an E2E reset), so
+            # the username is free again.
+            if attempts == _CREATE_ATTEMPTS:
+                raise
 
 
 # Firestore's limit on an indexed (and so queried) string value, in UTF-8 bytes. Tokens are 40 hex
@@ -154,7 +178,7 @@ def save_user(user: User, field_names=None):
         _users().document(user.doc_id).update(data)
 
 
-def authenticate(username: str, password: str) -> Optional[User]:
+def authenticate(username: str, password: str) -> User | None:
     user = get_user(username)
     if user and user.check_password(password):
         return user
@@ -166,10 +190,8 @@ def get_or_create_token(user: User) -> str:
     if user.token:
         return user.token
 
-    client = get_client()
     user_ref = _users().document(user.doc_id)
 
-    @firestore.transactional
     def get_or_create(transaction):
         existing = user_ref.get(transaction=transaction).get("token")
         if existing:
@@ -178,11 +200,11 @@ def get_or_create_token(user: User) -> str:
         transaction.update(user_ref, {"token": key})
         return key
 
-    user.token = get_or_create(client.transaction())
+    user.token = run_transaction(get_or_create)
     return user.token
 
 
-def get_user_by_token(key: str) -> Optional[User]:
+def get_user_by_token(key: str) -> User | None:
     """
     One equality query on `token` (served by the automatic single-field index), so a
     token-authenticated request costs a single round trip.

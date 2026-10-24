@@ -1,117 +1,642 @@
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/models/user.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class MockApiService extends Mock implements ApiService {}
+import '../../helpers/fixtures.dart';
+import '../../helpers/mocks.dart';
+
+final _user = User(
+  id: 1,
+  username: 'avery',
+  email: 'avery@example.com',
+  homeStreet: '120 W 11th St',
+  homeCity: 'New York',
+  homeLat: 40.7,
+  calendarSubscriptionUrl: 'https://cal.example/a.ics',
+  token: 'tok',
+);
+
+Future<Map<String, Object?>> _stored() async {
+  final prefs = await SharedPreferences.getInstance();
+  return {for (final key in prefs.getKeys()) key: prefs.get(key)};
+}
 
 void main() {
-  group('AuthBloc', () {
-    late AuthBloc authBloc;
-    late MockApiService mockApiService;
+  late MockApiService api;
 
-    setUp(() {
-      mockApiService = MockApiService();
-      authBloc = AuthBloc(apiClient: mockApiService);
-    });
+  setUpAll(registerFallbacks);
 
-    tearDown(() {
-      authBloc.close();
-    });
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    api = MockApiService();
+  });
 
-    test('loads full user from JSON on AppStarted when offline', () async {
-      SharedPreferences.setMockInitialValues({
-        'auth_token': 'dummy_token',
-        'auth_user_json': jsonEncode({
-          'id': 1,
-          'username': 'testuser',
-          'email': 'test@example.com',
-          'home_lat': 12.34,
-          'home_lng': 56.78,
-          'token': 'dummy_token',
-        }),
-      });
+  AuthBloc build() => AuthBloc(apiClient: api);
 
-      when(() => mockApiService.setAuthToken(any())).thenReturn(null);
-      when(() => mockApiService.getProfile()).thenThrow(Exception('Offline'));
+  test('starts in AuthInitial', () {
+    expect(build().state, isA<AuthInitial>());
+  });
 
-      authBloc.add(AppStarted());
+  group('AppStarted', () {
+    blocTest<AuthBloc, AuthState>(
+      'is unauthenticated without a stored token',
+      build: build,
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+      verify: (_) => verifyNever(() => api.getProfile()),
+    );
 
-      await expectLater(
-        authBloc.stream,
-        emitsInOrder([
-          isA<AuthLoading>(),
-          isA<AuthAuthenticated>().having(
-            (state) => state.user.homeLat,
-            'homeLat',
-            12.34,
-          ),
-        ]),
-      );
-    });
+    blocTest<AuthBloc, AuthState>(
+      'refreshes the profile with the stored token and saves it',
+      setUp: () =>
+          SharedPreferences.setMockInitialValues({'auth_token': 'tok'}),
+      build: () {
+        when(() => api.getProfile()).thenAnswer((_) async => _user);
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), AuthAuthenticated(user: _user)],
+      verify: (_) async {
+        verify(() => api.setAuthToken('tok')).called(1);
+        final stored = await _stored();
+        expect(stored['auth_username'], 'avery');
+        expect(stored['auth_calendar_url'], 'https://cal.example/a.ics');
+        expect(
+          jsonDecode(stored['auth_user_json'] as String)['home_city'],
+          'New York',
+        );
+      },
+    );
 
-    test('saves full user to JSON on _saveUser', () async {
-      SharedPreferences.setMockInitialValues({});
-      when(() => mockApiService.login(any(), any())).thenAnswer(
-        (_) async => User(
-          id: 1,
-          username: 'testuser',
-          homeLat: 45.67,
-          token: 'token123',
+    blocTest<AuthBloc, AuthState>(
+      'falls back to the cached profile when offline',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_user_json': jsonEncode(_user.toJson()),
+      }),
+      build: () {
+        when(() => api.getProfile()).thenThrow(ApiException('offline'));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [
+        isA<AuthLoading>(),
+        isA<AuthAuthenticated>()
+            .having((s) => s.user.homeLat, 'homeLat', 40.7)
+            .having((s) => s.user.homeStreet, 'homeStreet', '120 W 11th St'),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      "keeps the session when the server can't check the token (503)",
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_user_json': jsonEncode(_user.toJson()),
+      }),
+      build: () {
+        // The backend answers 503 when Auth0's signing keys can't be fetched.
+        when(
+          () => api.getProfile(),
+        ).thenThrow(ApiException('unavailable', statusCode: 503));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), isA<AuthAuthenticated>()],
+      verify: (_) async {
+        verifyNever(() => api.setAuthToken(null));
+        expect((await _stored())['auth_token'], 'tok');
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'falls back to the legacy cached fields without a JSON profile',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_username': 'legacy',
+        'auth_user_id': 9,
+        'auth_user_email': 'l@example.com',
+        'auth_calendar_url': 'https://cal.example/l.ics',
+      }),
+      build: () {
+        when(() => api.getProfile()).thenThrow(ApiException('offline'));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [
+        isA<AuthLoading>(),
+        isA<AuthAuthenticated>()
+            .having((s) => s.user.id, 'id', 9)
+            .having((s) => s.user.username, 'username', 'legacy')
+            .having((s) => s.user.email, 'email', 'l@example.com')
+            .having((s) => s.user.token, 'token', 'tok')
+            .having(
+              (s) => s.user.calendarSubscriptionUrl,
+              'calendarSubscriptionUrl',
+              'https://cal.example/l.ics',
+            ),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'is unauthenticated when offline with nothing cached',
+      setUp: () =>
+          SharedPreferences.setMockInitialValues({'auth_token': 'tok'}),
+      build: () {
+        when(() => api.getProfile()).thenThrow(ApiException('offline'));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'is unauthenticated when the cached JSON is corrupt',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_user_json': '{not json',
+      }),
+      build: () {
+        when(() => api.getProfile()).thenThrow(ApiException('offline'));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      expect: () => [isA<AuthLoading>(), isA<AuthUnauthenticated>()],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'signs out and forgets the session when the token has expired',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'expired',
+        'auth_user_json': jsonEncode(_user.toJson()),
+        'auth_username': 'avery',
+        'auth_user_id': 1,
+        'auth_calendar_url': 'https://cal.example/a.ics',
+        'unrelated': 'kept',
+      }),
+      build: () {
+        when(
+          () => api.getProfile(),
+        ).thenThrow(ApiException('Unauthorized', statusCode: 401));
+        return build();
+      },
+      act: (bloc) => bloc.add(AppStarted()),
+      // Not plain AuthUnauthenticated: MyApp clears the calendar on this.
+      expect: () => [isA<AuthLoading>(), isA<AuthSessionExpired>()],
+      verify: (_) async {
+        verifyInOrder([
+          () => api.setAuthToken('expired'),
+          () => api.setAuthToken(null),
+        ]);
+        expect(await _stored(), {'unrelated': 'kept'});
+      },
+    );
+  });
+
+  group('LoginRequested', () {
+    blocTest<AuthBloc, AuthState>(
+      'authenticates, sets the token and persists the user',
+      build: () {
+        when(() => api.login('avery', 'pw')).thenAnswer((_) async => _user);
+        return build();
+      },
+      act: (bloc) =>
+          bloc.add(const LoginRequested(username: 'avery', password: 'pw')),
+      expect: () => [isA<AuthLoading>(), AuthAuthenticated(user: _user)],
+      verify: (_) async {
+        verify(() => api.setAuthToken('tok')).called(1);
+        final stored = await _stored();
+        expect(stored['auth_token'], 'tok');
+        expect(stored['auth_user_id'], 1);
+        expect(stored['auth_user_email'], 'avery@example.com');
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'reports the API error',
+      build: () {
+        when(
+          () => api.login(any(), any()),
+        ).thenThrow(ApiException('Failed to login: bad', statusCode: 401));
+        return build();
+      },
+      act: (bloc) =>
+          bloc.add(const LoginRequested(username: 'avery', password: 'x')),
+      expect: () => [
+        isA<AuthLoading>(),
+        const AuthFailure(error: 'Exception: Failed to login: bad'),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'clears a stale calendar URL for a user without one',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_calendar_url': 'https://old.example/x.ics',
+      }),
+      build: () {
+        when(
+          () => api.login(any(), any()),
+        ).thenAnswer((_) async => User(id: 2, username: 'b', token: 't'));
+        return build();
+      },
+      act: (bloc) =>
+          bloc.add(const LoginRequested(username: 'b', password: 'p')),
+      verify: (_) async {
+        expect(await _stored(), isNot(contains('auth_calendar_url')));
+      },
+    );
+  });
+
+  group('RegisterRequested', () {
+    blocTest<AuthBloc, AuthState>(
+      'registers and authenticates',
+      build: () {
+        when(
+          () => api.register('avery', 'pw', email: 'a@b.c'),
+        ).thenAnswer((_) async => _user);
+        return build();
+      },
+      act: (bloc) => bloc.add(
+        const RegisterRequested(
+          username: 'avery',
+          password: 'pw',
+          email: 'a@b.c',
         ),
-      );
-      when(() => mockApiService.setAuthToken(any())).thenReturn(null);
+      ),
+      expect: () => [isA<AuthLoading>(), AuthAuthenticated(user: _user)],
+      verify: (_) => verify(() => api.setAuthToken('tok')).called(1),
+    );
 
-      authBloc.add(LoginRequested(username: 'test', password: 'password'));
+    blocTest<AuthBloc, AuthState>(
+      'reports a taken username',
+      build: () {
+        when(
+          () => api.register(any(), any(), email: any(named: 'email')),
+        ).thenThrow(ApiException('Failed to register: taken'));
+        return build();
+      },
+      act: (bloc) =>
+          bloc.add(const RegisterRequested(username: 'a', password: 'b')),
+      expect: () => [
+        isA<AuthLoading>(),
+        const AuthFailure(error: 'Exception: Failed to register: taken'),
+      ],
+    );
+  });
 
-      await expectLater(
-        authBloc.stream,
-        emitsInOrder([isA<AuthLoading>(), isA<AuthAuthenticated>()]),
-      );
+  group('Auth0LoginRequested', () {
+    blocTest<AuthBloc, AuthState>(
+      'uses the Auth0 token to load the profile',
+      build: () {
+        when(() => api.getProfile()).thenAnswer((_) async => _user);
+        return build();
+      },
+      act: (bloc) => bloc.add(const Auth0LoginRequested(token: 'jwt')),
+      expect: () => [isA<AuthLoading>(), AuthAuthenticated(user: _user)],
+      verify: (_) => verify(() => api.setAuthToken('jwt')).called(1),
+    );
 
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('auth_user_json');
-      expect(userJson, isNotNull);
-      final decoded = jsonDecode(userJson!);
-      expect(decoded['home_lat'], 45.67);
+    blocTest<AuthBloc, AuthState>(
+      'fails when the profile cannot be loaded',
+      build: () {
+        when(() => api.getProfile()).thenThrow(ApiException('nope'));
+        return build();
+      },
+      act: (bloc) => bloc.add(const Auth0LoginRequested(token: 'jwt')),
+      expect: () => [
+        isA<AuthLoading>(),
+        const AuthFailure(error: 'Exception: nope'),
+      ],
+    );
+  });
+
+  group('LogoutRequested', () {
+    blocTest<AuthBloc, AuthState>(
+      'clears the token and every stored session key',
+      setUp: () => SharedPreferences.setMockInitialValues({
+        'auth_token': 'tok',
+        'auth_user_json': jsonEncode(_user.toJson()),
+        'auth_username': 'avery',
+        'auth_user_id': 1,
+        'auth_user_email': 'avery@example.com',
+        'auth_calendar_url': 'https://cal.example/a.ics',
+        'use_24_hour_format': true,
+      }),
+      build: build,
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) => bloc.add(LogoutRequested()),
+      // Straight from authenticated to unauthenticated: an AuthLoading in
+      // between hid the sign-out from listeners comparing the two states.
+      expect: () => [isA<AuthUnauthenticated>()],
+      verify: (_) async {
+        verify(() => api.setAuthToken(null)).called(1);
+        expect(await _stored(), {'use_24_hour_format': true});
+      },
+    );
+  });
+
+  group('ProfileFieldsUpdateRequested', () {
+    const fields = {'calendar_subscription_url': 'https://cal.example/b.ics'};
+    final saved = User.fromJson({..._user.toJson(), ...fields});
+
+    blocTest<AuthBloc, AuthState>(
+      'is ignored when signed out',
+      build: build,
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => <AuthState>[],
+      verify: (_) => verifyNever(() => api.updateProfileFields(any())),
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'saves only those fields, and the profile the server returns',
+      build: () {
+        when(
+          () => api.updateProfileFields(fields),
+        ).thenAnswer((_) async => saved);
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateSuccess(user: saved),
+      ],
+      verify: (_) async {
+        verifyNever(() => api.updateProfile(any()));
+        expect((await _stored())['auth_calendar_url'], fields.values.single);
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'reports a failed save',
+      build: () {
+        when(
+          () => api.updateProfileFields(any()),
+        ).thenThrow(ApiException('Failed to update profile: 500'));
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateFailure(
+          user: _user,
+          error: 'Exception: Failed to update profile: 500',
+        ),
+      ],
+    );
+  });
+
+  group('ProfileUpdateRequested', () {
+    final edited = User.fromJson({..._user.toJson(), 'home_city': 'Brooklyn'});
+
+    blocTest<AuthBloc, AuthState>(
+      'is ignored when signed out',
+      build: build,
+      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
+      expect: () => <AuthState>[],
+      verify: (_) => verifyNever(() => api.updateProfile(any())),
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'saves the updated profile',
+      build: () {
+        when(() => api.updateProfile(edited)).thenAnswer((_) async => edited);
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
+      // Signed in throughout, so a save never looks like a fresh sign-in.
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateSuccess(user: edited),
+      ],
+      verify: (_) async {
+        final stored = await _stored();
+        expect(
+          jsonDecode(stored['auth_user_json'] as String)['home_city'],
+          'Brooklyn',
+        );
+      },
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'keeps the token and every field when the response has no token',
+      build: () {
+        when(() => api.updateProfile(any())).thenAnswer(
+          (_) async => User.fromJson({...demoUser.toJson(), 'token': null}),
+        );
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: demoUser)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        isA<ProfileUpdateSuccess>().having((s) => s.user.toJson(), 'user', {
+          ...demoUser.toJson(),
+          'token': 'tok',
+        }),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'keeps the current user and reports the error on failure',
+      build: () {
+        when(
+          () => api.updateProfile(any()),
+        ).thenThrow(ApiException('Failed to update profile: 422'));
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
+      expect: () => [
+        ProfileUpdating(user: _user),
+        ProfileUpdateFailure(
+          user: _user,
+          error: 'Exception: Failed to update profile: 422',
+        ),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'reports a repeated failure again',
+      build: () {
+        when(
+          () => api.updateProfile(any()),
+        ).thenThrow(ApiException('Failed to update profile: 422'));
+        return build();
+      },
+      seed: () => AuthAuthenticated(user: _user),
+      act: (bloc) async {
+        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+      },
+      expect: () {
+        final failed = ProfileUpdateFailure(
+          user: _user,
+          error: 'Exception: Failed to update profile: 422',
+        );
+        return [
+          ProfileUpdating(user: _user),
+          failed,
+          ProfileUpdating(user: _user),
+          failed,
+        ];
+      },
+    );
+  });
+
+  group('overlapping profile saves', () {
+    final afterA = User.fromJson({
+      ..._user.toJson(),
+      'use_current_location': true,
+    });
+    const fieldsA = {'use_current_location': true};
+    const fieldsB = {'calendar_subscription_url': 'https://cal.example/b.ics'};
+
+    test(
+      'a later save that fails keeps the earlier one that succeeded',
+      () async {
+        // A ("use current location") succeeds while B (a calendar URL) is
+        // still in flight; then B fails.
+        final saveA = Completer<User>();
+        final saveB = Completer<User>();
+        when(
+          () => api.updateProfileFields(fieldsA),
+        ).thenAnswer((_) => saveA.future);
+        when(
+          () => api.updateProfileFields(fieldsB),
+        ).thenAnswer((_) => saveB.future);
+        final bloc = build()..emit(AuthAuthenticated(user: _user));
+        final states = <AuthState>[];
+        final subscription = bloc.stream.listen(states.add);
+
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+        await pumpEventQueue();
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsB));
+        await pumpEventQueue();
+        saveA.complete(afterA);
+        await pumpEventQueue();
+        saveB.completeError(ApiException('Failed to update profile: timeout'));
+        await pumpEventQueue();
+
+        expect(states, [
+          ProfileUpdating(user: _user), // B's is the same state, so not emitted
+          ProfileUpdateSuccess(user: afterA),
+          ProfileUpdateFailure(
+            user: afterA,
+            error: 'Exception: Failed to update profile: timeout',
+          ),
+        ]);
+        await subscription.cancel();
+        await bloc.close();
+      },
+    );
+
+    test('a save that finishes after sign-out does not sign back in', () async {
+      for (final outcome in ['success', 'failure']) {
+        SharedPreferences.setMockInitialValues({});
+        final save = Completer<User>();
+        when(
+          () => api.updateProfileFields(fieldsA),
+        ).thenAnswer((_) => save.future);
+        final bloc = build()..emit(AuthAuthenticated(user: _user));
+
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+        await pumpEventQueue();
+        bloc.add(LogoutRequested());
+        await pumpEventQueue();
+        if (outcome == 'success') {
+          save.complete(afterA);
+        } else {
+          save.completeError(ApiException('Failed to update profile: 500'));
+        }
+        await pumpEventQueue();
+
+        expect(bloc.state, isA<AuthUnauthenticated>(), reason: outcome);
+        expect(await _stored(), isEmpty, reason: outcome);
+        await bloc.close();
+      }
     });
 
     test(
-      'emits Authenticated when Auth0LoginRequested is successful',
+      'a save that finishes after another account signs in is dropped',
       () async {
-        SharedPreferences.setMockInitialValues({});
-        final mockUser = User(
-          id: 2,
-          username: 'auth0|mock_123',
-          email: 'auth0@example.com',
-          token: 'mock_jwt_token',
-        );
+        final other = User(id: 2, username: 'blake', token: 'tok-b');
+        for (final outcome in ['success', 'failure']) {
+          SharedPreferences.setMockInitialValues({});
+          final save = Completer<User>();
+          when(
+            () => api.updateProfileFields(fieldsA),
+          ).thenAnswer((_) => save.future);
+          when(() => api.login('blake', 'pw')).thenAnswer((_) async => other);
+          final bloc = build()..emit(AuthAuthenticated(user: _user));
 
-        when(() => mockApiService.setAuthToken(any())).thenReturn(null);
-        when(
-          () => mockApiService.getProfile(),
-        ).thenAnswer((_) async => mockUser);
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fieldsA));
+          await pumpEventQueue();
+          bloc.add(LogoutRequested());
+          await pumpEventQueue();
+          bloc.add(const LoginRequested(username: 'blake', password: 'pw'));
+          await pumpEventQueue();
+          final states = <AuthState>[];
+          final subscription = bloc.stream.listen(states.add);
+          if (outcome == 'success') {
+            save.complete(afterA);
+          } else {
+            save.completeError(ApiException('Failed to update profile: 500'));
+          }
+          await pumpEventQueue();
 
-        authBloc.add(const Auth0LoginRequested(token: 'mock_jwt_token'));
-
-        await expectLater(
-          authBloc.stream,
-          emitsInOrder([
-            isA<AuthLoading>(),
-            isA<AuthAuthenticated>().having(
-              (state) => state.user.username,
-              'username',
-              'auth0|mock_123',
-            ),
-          ]),
-        );
-
-        verify(() => mockApiService.setAuthToken('mock_jwt_token')).called(1);
-        verify(() => mockApiService.getProfile()).called(1);
+          // Neither the first account's profile nor its error reaches the
+          // second account's session.
+          expect(states, isEmpty, reason: outcome);
+          expect(bloc.state, AuthAuthenticated(user: other), reason: outcome);
+          final stored = await _stored();
+          expect(stored['auth_token'], 'tok-b', reason: outcome);
+          expect(stored['auth_user_id'], 2, reason: outcome);
+          await subscription.cancel();
+          await bloc.close();
+        }
       },
+    );
+  });
+
+  test('states and events compare by value', () {
+    expect(AuthAuthenticated(user: _user), AuthAuthenticated(user: _user));
+    expect(const AuthFailure(error: 'a'), isNot(const AuthFailure(error: 'b')));
+    expect(const LoginRequested(username: 'a', password: 'b').props, [
+      'a',
+      'b',
+    ]);
+    expect(
+      const RegisterRequested(username: 'a', password: 'b', email: 'c').props,
+      ['a', 'b', 'c'],
+    );
+    expect(const Auth0LoginRequested(token: 't').props, ['t']);
+    expect(ProfileUpdateRequested(updatedUser: _user).props, [_user]);
+    expect(AppStarted().props, isEmpty);
+    expect(ProfileUpdateFailure(user: _user, error: 'e').props, [_user, 'e']);
+    expect(ProfileUpdating(user: _user), isNot(AuthAuthenticated(user: _user)));
+  });
+
+  test('every profile-save state is still signed in', () {
+    // main.dart and MapScreen tell a sign-in or sign-out from a save by
+    // whether both states are AuthAuthenticated.
+    expect(ProfileUpdating(user: _user), isA<AuthAuthenticated>());
+    expect(ProfileUpdateSuccess(user: _user), isA<AuthAuthenticated>());
+    expect(
+      ProfileUpdateFailure(user: _user, error: 'e'),
+      isA<AuthAuthenticated>(),
     );
   });
 }

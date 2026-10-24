@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -25,6 +26,8 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   SavedPlace? _saved;
+  // _saved's position in the saved places, which picks its fallback color.
+  int _savedIndex = 0;
   bool _loadingSaved = true;
 
   bool get _isCustomPlace => widget.place.tomtomId.startsWith('custom_');
@@ -38,13 +41,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _hydrateSaved() async {
     try {
       final bookmarks = await context.read<ApiService>().getBookmarks();
-      final match = bookmarks.cast<SavedPlace?>().firstWhere(
-        (b) => b?.place.tomtomId == widget.place.tomtomId,
-        orElse: () => null,
+      final index = bookmarks.indexWhere(
+        (b) => b.place.tomtomId == widget.place.tomtomId,
       );
       if (mounted) {
         setState(() {
-          _saved = match;
+          _saved = index < 0 ? null : bookmarks[index];
+          _savedIndex = index < 0 ? 0 : index;
           _loadingSaved = false;
         });
       }
@@ -90,7 +93,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget build(BuildContext context) {
     final theme = context.places;
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
-    final now = DateTime.now();
+    final now = clock.now();
     final status = PlaceStatusCalculator.compute(
       widget.place,
       now: now,
@@ -107,12 +110,14 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         foregroundColor: theme.ink,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (_saved != null)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_horiz_rounded, color: theme.inkMuted),
+              tooltip: 'More options',
               color: theme.paperRaised,
               onSelected: (v) {
                 if (v == 'remove') _removeFromSaved();
@@ -137,7 +142,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
           children: [
             const SizedBox(height: PlacesSpacing.sm),
-            _Hero(place: widget.place, savedPlace: _saved, status: status),
+            _Hero(
+              place: widget.place,
+              savedPlace: _saved,
+              savedIndex: _savedIndex,
+              status: status,
+            ),
             const SizedBox(height: PlacesSpacing.lg),
             _AddressBlock(place: widget.place),
             if (widget.place.hours.isNotEmpty) ...[
@@ -219,11 +229,13 @@ class _Hero extends StatelessWidget {
   const _Hero({
     required this.place,
     required this.savedPlace,
+    required this.savedIndex,
     required this.status,
   });
 
   final Place place;
   final SavedPlace? savedPlace;
+  final int savedIndex;
   final PlaceStatus status;
 
   @override
@@ -236,7 +248,11 @@ class _Hero extends StatelessWidget {
         if (savedPlace != null)
           Padding(
             padding: const EdgeInsets.only(bottom: PlacesSpacing.md),
-            child: GraphicsHelper.buildProfileGraphic(savedPlace!, size: 40),
+            child: GraphicsHelper.buildProfileGraphic(
+              savedPlace!,
+              savedIndex,
+              size: 40,
+            ),
           ),
         Text(name, style: PlacesType.display(theme.ink)),
         if (place.categories.isNotEmpty) ...[
@@ -357,8 +373,9 @@ class _HoursRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Wide enough for the dot plus the widest bold label ("Wed").
           SizedBox(
-            width: 44,
+            width: 52,
             child: Row(
               children: [
                 if (isToday)
@@ -373,12 +390,19 @@ class _HoursRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                Text(
-                  label,
-                  style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
-                      .copyWith(
-                        fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                // Clips rather than overflowing at large text scales.
+                Flexible(
+                  child: Text(
+                    label,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
+                        .copyWith(
+                          fontWeight: isToday
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                  ),
                 ),
               ],
             ),
@@ -630,9 +654,16 @@ class _CustomPlaceAffordancesState extends State<_CustomPlaceAffordances> {
         widget.saved.place.tomtomId,
         widget.saved.icon,
         widget.saved.color,
-        customName: _label.text.trim().isEmpty ? null : _label.text.trim(),
+        // An empty name clears the label; null would leave it unchanged.
+        customName: _label.text.trim(),
       );
       widget.onChanged();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save the label.")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

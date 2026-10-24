@@ -1,11 +1,12 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:calendar_view/calendar_view.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_ui_cubit.dart';
+import '../../utils/calendar_dates.dart';
 import '../../utils/places_theme.dart';
 import 'calendar_event_tile.dart';
 import 'calendar_header.dart';
@@ -15,6 +16,18 @@ String _weekDayShortName(int weekday) {
   const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return names[weekday - 1];
 }
+
+/// The empty background of a day column. calendar_view's default puts a tap
+/// detector on every 15-minute slot for creating events, which this app
+/// doesn't do, so screen readers would announce a column of unlabeled
+/// buttons that do nothing.
+Widget _emptySlots({
+  required DateTime date,
+  required double height,
+  required double width,
+  required double heightPerMinute,
+  required MinuteSlotSize minuteSlotSize,
+}) => SizedBox(width: width, height: height);
 
 Widget _buildTimeLineLabel(
   DateTime date,
@@ -81,10 +94,8 @@ class CalendarViewStackWidget extends StatelessWidget {
       daysToAdvance = 3;
       weekDays = [
         WeekDays.values[uiState.baseDate.weekday - 1],
-        WeekDays.values[uiState.baseDate.add(const Duration(days: 1)).weekday -
-            1],
-        WeekDays.values[uiState.baseDate.add(const Duration(days: 2)).weekday -
-            1],
+        WeekDays.values[addCalendarDays(uiState.baseDate, 1).weekday - 1],
+        WeekDays.values[addCalendarDays(uiState.baseDate, 2).weekday - 1],
       ];
     } else if (uiState.currentView == CalendarViewType.singleDay) {
       daysToAdvance = 1;
@@ -92,18 +103,21 @@ class CalendarViewStackWidget extends StatelessWidget {
       daysToAdvance = 7;
     }
 
-    final now = tz.TZDateTime.now(tz.local);
+    final now = clock.now();
     final initialScrollOffset = (now.hour * 60.0 + now.minute) * 1.0;
+    // The days on screen, by calendar date: the week view runs Monday to
+    // Sunday around baseDate, the others start at baseDate.
+    final base = DateUtils.dateOnly(uiState.baseDate);
+    final firstVisible = uiState.currentView == CalendarViewType.week
+        ? DateTime(base.year, base.month, base.day - (base.weekday - 1))
+        : base;
+    final afterLastVisible = DateTime(
+      firstVisible.year,
+      firstVisible.month,
+      firstVisible.day + daysToAdvance,
+    );
     final isShowingToday =
-        DateUtils.isSameDay(uiState.baseDate, now) ||
-        (uiState.currentView == CalendarViewType.week &&
-            uiState.baseDate
-                .subtract(Duration(days: uiState.baseDate.weekday - 1))
-                .isBefore(now) &&
-            uiState.baseDate
-                .subtract(Duration(days: uiState.baseDate.weekday - 1))
-                .add(const Duration(days: 7))
-                .isAfter(now));
+        !now.isBefore(firstVisible) && now.isBefore(afterLastVisible);
 
     Widget calendarWidget;
     if (uiState.currentView == CalendarViewType.singleDay) {
@@ -120,6 +134,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         backgroundColor: theme.paper,
         headerStyle: HeaderStyle(decoration: BoxDecoration(color: theme.paper)),
         eventArranger: const StackEventArranger(),
+        dayDetectorBuilder: _emptySlots,
         eventTileBuilder:
             (date, events, boundary, startDuration, endDuration) =>
                 CalendarEventTileWidget(
@@ -183,6 +198,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         hourIndicatorSettings: HourIndicatorSettings(color: theme.ashSoft),
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: theme.anchor,
+          currentTimeProvider: clock.now,
         ),
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
@@ -208,6 +224,7 @@ class CalendarViewStackWidget extends StatelessWidget {
         headerStyle: HeaderStyle(decoration: BoxDecoration(color: theme.paper)),
         weekTitleBackgroundColor: theme.paper,
         eventArranger: const StackEventArranger(),
+        weekDetectorBuilder: _emptySlots,
         eventTileBuilder:
             (date, events, boundary, startDuration, endDuration) =>
                 CalendarEventTileWidget(
@@ -233,14 +250,12 @@ class CalendarViewStackWidget extends StatelessWidget {
         liveTimeIndicatorSettings: LiveTimeIndicatorSettings(
           color: theme.anchor,
           showBullet: false,
+          currentTimeProvider: clock.now,
         ),
         timeLineBuilder: (date) =>
             _buildTimeLineLabel(date, use24HourFormat, textSmallColor),
         weekDayBuilder: (date) {
-          final isToday = DateUtils.isSameDay(
-            date,
-            tz.TZDateTime.now(tz.local),
-          );
+          final isToday = DateUtils.isSameDay(date, clock.now());
           final dayEvents = controller.getEventsOnDay(date);
           final allDayEvents = dayEvents
               .where((e) => e.startTime == null || e.endTime == null)
@@ -261,12 +276,15 @@ class CalendarViewStackWidget extends StatelessWidget {
                   );
                 }
               },
-              child: Center(
+              // On a narrow phone, or with a large text setting, the header
+              // is shrunk to fit its cell instead of overflowing it.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     vertical: 4,
                     horizontal: 8,
-                  ), // Reduced from 6 to 4 to fix overflow
+                  ),
                   decoration: isToday
                       ? BoxDecoration(
                           color: theme.anchor,
@@ -280,7 +298,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                         _weekDayShortName(date.weekday).toUpperCase(),
                         style:
                             PlacesType.label(
-                              isToday ? Colors.white : textColor,
+                              isToday ? theme.anchorOnContrast : textColor,
                             ).copyWith(
                               fontSize: 10,
                               fontWeight: isToday
@@ -297,7 +315,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                             '${date.day}',
                             style:
                                 PlacesType.title(
-                                  isToday ? Colors.white : textColor,
+                                  isToday ? theme.anchorOnContrast : textColor,
                                 ).copyWith(
                                   fontSize: 15,
                                   fontWeight: isToday
@@ -311,7 +329,9 @@ class CalendarViewStackWidget extends StatelessWidget {
                               width: 6,
                               height: 6,
                               decoration: BoxDecoration(
-                                color: isToday ? Colors.white : theme.anchor,
+                                color: isToday
+                                    ? theme.anchorOnContrast
+                                    : theme.anchor,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -337,9 +357,10 @@ class CalendarViewStackWidget extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 color: textColor,
+                tooltip: 'Previous',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.subtract(Duration(days: daysToAdvance)),
+                    addCalendarDays(uiState.baseDate, -daysToAdvance),
                   );
                 },
               ),
@@ -356,17 +377,17 @@ class CalendarViewStackWidget extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 color: textColor,
+                tooltip: 'Next',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.add(Duration(days: daysToAdvance)),
+                    addCalendarDays(uiState.baseDate, daysToAdvance),
                   );
                 },
               ),
               if (!isShowingToday)
                 TextButton(
-                  onPressed: () => context.read<CalendarUiCubit>().navigateDate(
-                    tz.TZDateTime.now(tz.local),
-                  ),
+                  onPressed: () =>
+                      context.read<CalendarUiCubit>().navigateDate(clock.now()),
                   style: TextButton.styleFrom(
                     foregroundColor: theme.anchor,
                     textStyle: PlacesType.label(

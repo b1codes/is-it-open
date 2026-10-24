@@ -87,9 +87,10 @@ Emulator UI at <http://localhost:4000/firestore>. See [`docker/firestore-emulato
 
 **Run Tests:**
 ```bash
-make test
+make test-backend   # backend only
+make check          # every lint and test suite, as CI runs them
 ```
-Tests use a separate emulator project, so they never touch your local data.
+Tests use a separate emulator project, so they never touch your local data. See [`TESTING.md`](TESTING.md) for every suite, coverage minimums, and the CI setup.
 
 ### 4. Run the Frontend (Flutter)
 Open a new terminal tab and navigate to the frontend directory:
@@ -152,7 +153,8 @@ Use these commands from the root directory to manage the project:
 | `make build` | Rebuild the containers (run after adding new uv packages) |
 | `make logs` | View backend logs in follow mode |
 | `make shell` | Access the backend container's shell (`bash`) |
-| `make test` | Run the backend tests against the Firestore emulator |
+| `make test` | Run the backend, frontend, and Widgetbook test suites (see [`TESTING.md`](TESTING.md)) |
+| `make check` | Run every lint and test suite, as CI does |
 | `make firestore-reset` | Stop everything and wipe local Firestore emulator data |
 
 ---

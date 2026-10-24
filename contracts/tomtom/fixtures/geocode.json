@@ -1,0 +1,44 @@
+{
+  "summary": {
+    "query": "1 main st springfield il",
+    "queryType": "NON_NEAR",
+    "queryTime": 42,
+    "numResults": 1,
+    "offset": 0,
+    "totalResults": 1,
+    "fuzzyLevel": 1
+  },
+  "results": [
+    {
+      "type": "Point Address",
+      "id": "US/PAD/p0/1234567",
+      "score": 13.12,
+      "matchConfidence": {
+        "score": 1
+      },
+      "address": {
+        "streetNumber": "1",
+        "streetName": "Main Street",
+        "municipality": "Springfield",
+        "countrySubdivision": "IL",
+        "postalCode": "62701",
+        "countryCode": "US",
+        "freeformAddress": "1 Main Street, Springfield, IL 62701"
+      },
+      "position": {
+        "lat": 39.80178,
+        "lon": -89.64352
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 39.80268,
+          "lon": -89.64469
+        },
+        "btmRightPoint": {
+          "lat": 39.80088,
+          "lon": -89.64235
+        }
+      }
+    }
+  ]
+}

@@ -9,8 +9,10 @@ Functions return plain dicts shaped like the API schemas. Lookups by TomTom ID r
 False) for keys that can't be document IDs (see services.firestore.doc_id); writes raise
 InvalidDocumentKey for them.
 """
+
 import datetime
 import math
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from google.api_core.exceptions import NotFound
@@ -18,7 +20,7 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud.firestore_v1.field_path import FieldPath
 
-from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client
+from services.firestore import InvalidDocumentKey, allocate_id, doc_id, get_client, run_transaction
 from services.geo import MAX_RADIUS_KM, distance_km, encode_geohash, geohash_query_prefixes
 
 PLACES = "places"
@@ -48,17 +50,17 @@ def _saved_places(user):
     return get_client().collection("users").document(user.doc_id).collection(SAVED_PLACES)
 
 
-def _normalize_text(text: str) -> str:
+def _normalize_text(text: str | None) -> str:
     """Case-fold and collapse whitespace. Shared by the index and the query so they agree."""
     return " ".join((text or "").casefold().split())
 
 
-def _words(text: str):
+def _words(text: str | None):
     """Whitespace-separated words, punctuation included ("A&W" is one word)."""
     return _normalize_text(text).split()
 
 
-def _search_terms(name: str):
+def _search_terms(name: str | None):
     """
     Every substring (up to _MAX_SEARCH_TERM_LENGTH characters) of every word in the name, so a
     query word can be found with array_contains wherever it falls inside a word. Words keep
@@ -84,6 +86,45 @@ def _normalize_hours(hours):
     return sorted(normalized, key=lambda h: (h["day_of_week"], h["open_time"]))
 
 
+# A time as places stored before the API checked them: any string, cut to 5 characters, such as
+# "9:00", "9am", "9:30p" or "24:00".
+_STORED_TIME = re.compile(r"(\d{1,2})(?::?(\d{2}))?\s*(?:([ap])\.?m?\.?)?", re.IGNORECASE)
+
+
+def _read_time(value) -> str | None:
+    """A stored time as the API's 24-hour HH:MM, or None if it can't be read as one."""
+    match = _STORED_TIME.fullmatch(value.strip()) if isinstance(value, str) else None
+    if not match:
+        return None
+    hour, minute, meridiem = int(match[1]), int(match[2] or 0), (match[3] or "").lower()
+    if meridiem:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if meridiem == "p" else 0)
+    if (hour, minute) == (24, 0):
+        hour = 0  # midnight, as the end of the day
+    if hour > 23 or minute > 59:
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _read_hours(hours) -> list[dict]:
+    """
+    Stored business hours as the API returns them. Entries from before the API checked them are
+    converted to its format where they can be, and left out where they can't, rather than failing
+    the response they're part of (a user's whole bookmark list, or every search that finds the place).
+    """
+    readable = []
+    for entry in hours if isinstance(hours, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        day = entry.get("day_of_week")
+        open_time, close_time = _read_time(entry.get("open_time")), _read_time(entry.get("close_time"))
+        if type(day) is int and 0 <= day <= 6 and open_time and close_time:
+            readable.append({"day_of_week": day, "open_time": open_time, "close_time": close_time})
+    return sorted(readable, key=lambda h: (h["day_of_week"], h["open_time"]))
+
+
 def _location_fields(lat, lng):
     return {
         "location": firestore.GeoPoint(lat, lng),
@@ -102,7 +143,7 @@ def _to_place(data: dict) -> dict:
         "phone": data.get("phone"),
         "website": data.get("website"),
         "categories": data.get("categories", []),
-        "hours": data.get("hours", []),
+        "hours": _read_hours(data.get("hours") or []),
     }
 
 
@@ -141,13 +182,11 @@ def update_or_create_place(data: dict) -> dict:
     Upsert TomTom (or user-supplied) place data. Mirrors the old get_or_create + update logic.
     Raises InvalidDocumentKey if the TomTom ID can't be stored.
     """
-    client = get_client()
     ref = _places().document(doc_id(data["tomtom_id"]))
     location = data.get("location") or {}
     lat, lng = location.get("lat"), location.get("lng")
     hours = _normalize_hours(data.get("hours") or [])
 
-    @firestore.transactional
     def upsert(transaction):
         snapshot = ref.get(transaction=transaction)
 
@@ -177,7 +216,7 @@ def update_or_create_place(data: dict) -> dict:
             place.update(updates)
         return place
 
-    return _to_place(upsert(client.transaction()))
+    return _to_place(run_transaction(upsert))
 
 
 def search_places(query: str, limit=None):
@@ -204,9 +243,7 @@ def search_places(query: str, limit=None):
 
     # Only the implicit document-ID order, so the automatic single-field index serves this.
     candidates = (
-        _places()
-        .where(filter=FieldFilter("search_terms", "array_contains", term))
-        .order_by(FieldPath.document_id())
+        _places().where(filter=FieldFilter("search_terms", "array_contains", term)).order_by(FieldPath.document_id())
     )
     matches = []
     scanned = 0
@@ -235,7 +272,8 @@ def reindex_search_terms(batch_size: int = 400) -> int:
     whitespace-separated words). Returns the number of places updated.
 
     For local/dev data; run with
-    `uv run python manage.py shell -c "from apps.places.repository import reindex_search_terms; print(reindex_search_terms())"`.
+        uv run python manage.py shell -c \
+            "from apps.places.repository import reindex_search_terms; print(reindex_search_terms())"
     """
     client = get_client()
     query = _places().order_by(FieldPath.document_id())
@@ -270,8 +308,10 @@ def nearby_places(lat: float, lng: float, radius_km: float):
     prefixes = geohash_query_prefixes(lat, lng, radius_km)  # validates lat and radius_km
 
     def fetch(prefix):
-        query = _places().where(filter=FieldFilter("geohash", ">=", prefix)).where(
-            filter=FieldFilter("geohash", "<", prefix + "~")
+        query = (
+            _places()
+            .where(filter=FieldFilter("geohash", ">=", prefix))
+            .where(filter=FieldFilter("geohash", "<", prefix + "~"))
         )
         return list(query.stream())
 
@@ -337,10 +377,8 @@ def get_saved_place(user, place: dict):
 
 def save_place(user, place: dict, custom_name=None) -> dict:
     """Bookmark `place` for `user` (get_or_create). Updates the custom name if one is given."""
-    client = get_client()
     ref = _saved_places(user).document(doc_id(place["tomtom_id"]))
 
-    @firestore.transactional
     def get_or_create(transaction):
         snapshot = ref.get(transaction=transaction)
         if snapshot.exists:
@@ -354,7 +392,7 @@ def save_place(user, place: dict, custom_name=None) -> dict:
         transaction.set(ref, data)
         return data
 
-    return _to_saved_place(get_or_create(client.transaction()), place)
+    return _to_saved_place(run_transaction(get_or_create), place)
 
 
 def update_saved_place(user, place: dict, **fields):
@@ -363,7 +401,6 @@ def update_saved_place(user, place: dict, **fields):
 
     # Transactional, so a bookmark deleted after the read retries the transaction (and returns
     # None) instead of failing the update with NotFound.
-    @firestore.transactional
     def update(transaction):
         snapshot = ref.get(transaction=transaction)
         if not snapshot.exists:
@@ -374,7 +411,7 @@ def update_saved_place(user, place: dict, **fields):
             data.update(fields)
         return data
 
-    data = update(get_client().transaction())
+    data = run_transaction(update)
     return _to_saved_place(data, place) if data is not None else None
 
 
@@ -397,7 +434,7 @@ def delete_saved_place(user, tomtom_id: str) -> bool:
 
 
 # Sorts documents whose server timestamp is somehow missing first.
-_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+_EPOCH = datetime.datetime.min.replace(tzinfo=datetime.UTC)
 
 
 def list_saved_places(user):
@@ -408,9 +445,5 @@ def list_saved_places(user):
     saved = [s.to_dict() for s in _saved_places(user).stream()]
     saved.sort(key=lambda s: (s.get("created_at") or _EPOCH, s["id"]))
     refs = [_places().document(doc_id(s["tomtom_id"])) for s in saved]
-    places = {s.id: _to_place(s.to_dict()) for s in get_client().get_all(refs) if s.exists}
-    return [
-        _to_saved_place(s, places[doc_id(s["tomtom_id"])])
-        for s in saved
-        if doc_id(s["tomtom_id"]) in places
-    ]
+    places = {s.id: _to_place(s.to_dict() or {}) for s in get_client().get_all(refs) if s.exists}
+    return [_to_saved_place(s, places[doc_id(s["tomtom_id"])]) for s in saved if doc_id(s["tomtom_id"]) in places]

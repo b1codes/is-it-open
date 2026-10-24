@@ -7,6 +7,7 @@ import 'forgot_password_screen.dart';
 import '../../components/shared/glass_card.dart';
 import '../../components/shared/thermal_button.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/places_theme.dart';
 import '../../services/auth0_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -37,13 +38,18 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error),
-                backgroundColor: AppColors.thermalCore,
-              ),
-            );
+          // Only while it's the screen on top: Register, pushed over it,
+          // reports its own failures, and both reporting showed each twice.
+          final onTop = ModalRoute.of(context)?.isCurrent ?? true;
+          if (state is AuthFailure && onTop) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(state.error),
+                  backgroundColor: AppColors.thermalCore,
+                ),
+              );
           }
         },
         child: SafeArea(
@@ -64,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'Sign in to your list',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: context.places.inkMuted,
                     ),
                   ),
                   const SizedBox(height: 48),
@@ -99,6 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           // Auth0 Email Login Button
                           _buildAuth0EmailButton(
+                            context: context,
                             onPressed: () => _handleAuth0Login(),
                           ),
 
@@ -123,8 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
+                                    color: context.places.inkMuted,
                                   ),
                                 ),
                               ),
@@ -195,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       'Forgot password?',
                                       style: theme.textTheme.bodyMedium
                                           ?.copyWith(
-                                            color: AppColors.terracotta,
+                                            color: context.places.anchor,
                                             fontWeight: FontWeight.w600,
                                           ),
                                     ),
@@ -234,13 +240,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 48),
 
                   // Secondary Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wraps the link under the question when they don't fit
+                  // side by side (large text on a phone).
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text('New here?', style: theme.textTheme.bodyMedium),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacement(
+                          Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => const RegisterScreen(),
                             ),
@@ -249,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Text(
                           'Join the neighborhood',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.terracotta,
+                            color: context.places.anchor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -286,34 +295,44 @@ class _LoginScreenState extends State<LoginScreen> {
         children: [
           Icon(icon, size: 18, color: onSurface),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAuth0EmailButton({required VoidCallback onPressed}) {
+  Widget _buildAuth0EmailButton({
+    required BuildContext context,
+    required VoidCallback onPressed,
+  }) {
+    final anchor = context.places.anchor;
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.terracotta.withValues(alpha: 0.1),
-        foregroundColor: AppColors.terracotta,
+        backgroundColor: anchor.withValues(alpha: 0.1),
+        foregroundColor: anchor,
         elevation: 0,
-        side: const BorderSide(color: AppColors.terracotta, width: 1.0),
+        side: BorderSide(color: anchor, width: 1.0),
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(CupertinoIcons.mail, size: 18, color: AppColors.terracotta),
-          SizedBox(width: 12),
-          Text(
-            'Continue with Email',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          Icon(CupertinoIcons.mail, size: 18, color: anchor),
+          const SizedBox(width: 12),
+          const Flexible(
+            child: Text(
+              'Continue with Email',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

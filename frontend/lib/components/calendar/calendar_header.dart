@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_ui_cubit.dart';
+import '../../utils/calendar_dates.dart';
 import '../../utils/places_theme.dart';
 
 class CalendarHeaderWidget extends StatelessWidget {
@@ -79,14 +80,14 @@ String buildCalendarHeaderText(
   if (currentView == CalendarViewType.singleDay) {
     return DateFormat('EEEE, MMM d, yyyy').format(baseDate);
   } else if (currentView == CalendarViewType.threeDay) {
-    final endDate = baseDate.add(const Duration(days: 2));
+    final endDate = addCalendarDays(baseDate, 2);
     if (baseDate.month == endDate.month) {
       return '${_formatHeaderDate(baseDate)} – ${endDate.day}, ${DateFormat('yyyy').format(endDate)}';
     }
     return '${_formatHeaderDate(baseDate)} – ${_formatHeaderDate(endDate)}, ${DateFormat('yyyy').format(endDate)}';
   } else {
-    final weekStart = baseDate.subtract(Duration(days: baseDate.weekday - 1));
-    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekStart = addCalendarDays(baseDate, -(baseDate.weekday - 1));
+    final weekEnd = addCalendarDays(weekStart, 6);
     if (weekStart.month == weekEnd.month) {
       return '${_formatHeaderDate(weekStart)} – ${weekEnd.day}, ${DateFormat('yyyy').format(weekEnd)}';
     }

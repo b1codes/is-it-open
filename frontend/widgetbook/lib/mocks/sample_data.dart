@@ -1,4 +1,5 @@
 import 'package:calendar_view/calendar_view.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/models/hours.dart';
 import 'package:frontend/models/place.dart';
@@ -285,9 +286,9 @@ List<CalendarEventData<Object?>> _currentWeekEvents = const [];
 
 // Cached per calendar day so scopes keyed on calendar state stay stable
 // across rebuilds (CalendarEventData has identity equality), while still
-// moving with the other DateTime.now()-anchored fixtures past midnight.
+// moving with the other clock-anchored fixtures past midnight.
 List<CalendarEventData<Object?>> get currentWeekEvents {
-  final now = DateTime.now();
+  final now = clock.now();
   final today = DateTime(now.year, now.month, now.day);
   if (_currentWeekEventsDay != today) {
     _currentWeekEventsDay = today;

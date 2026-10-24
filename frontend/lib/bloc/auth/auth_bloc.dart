@@ -19,7 +19,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<RegisterRequested>(_onRegisterRequested);
     on<Auth0LoginRequested>(_onAuth0LoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
-    on<ProfileUpdateRequested>(_onProfileUpdateRequested);
+    on<ProfileUpdateRequested>(
+      (event, emit) =>
+          _saveProfile(emit, () => apiClient.updateProfile(event.updatedUser)),
+    );
+    on<ProfileFieldsUpdateRequested>(
+      (event, emit) =>
+          _saveProfile(emit, () => apiClient.updateProfileFields(event.fields)),
+    );
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -40,6 +47,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           await _saveUser(user);
           emit(AuthAuthenticated(user: user));
         } catch (e) {
+          if (e is ApiException && e.isUnauthorized) {
+            // The token expired or was revoked: signing in from the cache
+            // would leave every request failing.
+            apiClient.setAuthToken(null);
+            await _clearSession(prefs);
+            emit(AuthSessionExpired());
+            return;
+          }
+          // Offline or server trouble: carry on with the cached profile.
           if (userJsonString != null) {
             try {
               final decoded =
@@ -125,54 +141,63 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     LogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(AuthLoading());
+    // No AuthLoading first: listeners spot a sign-out as authenticated ->
+    // unauthenticated, and an in-between state would hide it.
     apiClient.setAuthToken(null);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_username');
-    await prefs.remove('auth_user_id');
-    await prefs.remove('auth_user_email');
+    await _clearSession(await SharedPreferences.getInstance());
     emit(AuthUnauthenticated());
   }
 
-  Future<void> _onProfileUpdateRequested(
-    ProfileUpdateRequested event,
+  /// Forgets the stored session, including the cached profile, so the next
+  /// person on this device doesn't see it.
+  Future<void> _clearSession(SharedPreferences prefs) async {
+    for (final key in const [
+      'auth_token',
+      'auth_user_json',
+      'auth_username',
+      'auth_user_id',
+      'auth_user_email',
+      'auth_calendar_url',
+    ]) {
+      await prefs.remove(key);
+    }
+  }
+
+  Future<void> _saveProfile(
     Emitter<AuthState> emit,
+    Future<User> Function() save,
   ) async {
     // Only update if currently authenticated
-    if (state is AuthAuthenticated) {
-      final currentState = state as AuthAuthenticated;
-      emit(AuthLoading());
-      try {
-        final user = await apiClient.updateProfile(event.updatedUser);
-        // Ensure token is persisted if it wasn't returned in the update
-        final updatedUserWithToken = user.token != null
-            ? user
-            : User(
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                homeAddress: user.homeAddress,
-                homeLat: user.homeLat,
-                homeLng: user.homeLng,
-                workAddress: user.workAddress,
-                workLat: user.workLat,
-                workLng: user.workLng,
-                useCurrentLocation: user.useCurrentLocation,
-                calendarSubscriptionUrl: user.calendarSubscriptionUrl,
-                token: currentState.user.token,
-              );
-
-        await _saveUser(updatedUserWithToken);
-        emit(ProfileUpdateSuccess(user: updatedUserWithToken));
-      } catch (e) {
-        // Emit ProfileUpdateFailure which extends AuthAuthenticated
-        emit(
-          ProfileUpdateFailure(user: currentState.user, error: e.toString()),
-        );
+    final before = state;
+    if (before is! AuthAuthenticated) return;
+    // Stays authenticated throughout. AuthLoading here made listeners
+    // that compare states see a fresh sign-in once the save finished.
+    emit(ProfileUpdating(user: before.user));
+    try {
+      final user = await save();
+      // Read the state again: saves can overlap, and the user may have
+      // signed out, or into another account, meanwhile, which a late save
+      // mustn't undo.
+      final current = state;
+      if (current is! AuthAuthenticated || current.user.id != before.user.id) {
+        return;
       }
+      // Keep the current token if the update didn't return one.
+      final updatedUserWithToken = user.token != null
+          ? user
+          : User.fromJson({...user.toJson(), 'token': current.user.token});
+
+      await _saveUser(updatedUserWithToken);
+      emit(ProfileUpdateSuccess(user: updatedUserWithToken));
+    } catch (e) {
+      // Back to the latest saved profile, not the one from before this save:
+      // an overlapping save may have succeeded meanwhile. Not if another
+      // account signed in meanwhile, though: its profile isn't this save's.
+      final current = state;
+      if (current is! AuthAuthenticated || current.user.id != before.user.id) {
+        return;
+      }
+      emit(ProfileUpdateFailure(user: current.user, error: e.toString()));
     }
   }
 

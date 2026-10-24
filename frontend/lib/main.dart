@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'bloc/auth/auth_bloc.dart';
@@ -24,14 +22,23 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  /// [apiService] and [icalParserService] default to the real ones; tests
+  /// pass fakes to run the whole app without a backend.
+  const MyApp({super.key, this.apiService, this.icalParserService});
+
+  final ApiService? apiService;
+  final IcalParserService? icalParserService;
+
+  static final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider(create: (context) => ApiService()),
-        RepositoryProvider(create: (context) => IcalParserService()),
+        RepositoryProvider(create: (context) => apiService ?? ApiService()),
+        RepositoryProvider(
+          create: (context) => icalParserService ?? IcalParserService(),
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -55,16 +62,29 @@ class MyApp extends StatelessWidget {
           ),
           BlocProvider<TodayRouteCubit>(create: (context) => TodayRouteCubit()),
         ],
+        // Runs on sign-in (into an authenticated state from any other) and
+        // on sign-out (out of an authenticated state, or a stored session
+        // that expired before it signed in). A profile save goes
+        // ProfileUpdating -> ProfileUpdateSuccess/Failure, all authenticated,
+        // so it triggers neither: pushed screens stay open and nothing is
+        // reloaded.
         child: BlocListener<AuthBloc, AuthState>(
           listenWhen: (previous, current) {
             bool login =
                 current is AuthAuthenticated && previous is! AuthAuthenticated;
             bool logout =
+                current is AuthSessionExpired ||
                 (current is AuthUnauthenticated || current is AuthFailure) &&
-                (previous is AuthAuthenticated);
+                    (previous is AuthAuthenticated);
             return login || logout;
           },
           listener: (context, state) {
+            // Home shows login or the app depending on the auth state, so
+            // drop any screens pushed on top of it (register, settings, a
+            // place) when the user signs in or out. Signing in loads that
+            // user's places and calendar; signing out clears them, so the
+            // next person on this device doesn't see them.
+            _navigatorKey.currentState?.popUntil((route) => route.isFirst);
             if (state is AuthAuthenticated) {
               context.read<CalendarDataBloc>().add(LoadSavedPlaces());
               final url = state.user.calendarSubscriptionUrl;
@@ -78,6 +98,7 @@ class MyApp extends StatelessWidget {
           child: BlocBuilder<ThemeCubit, ThemeMode>(
             builder: (context, themeMode) {
               return MaterialApp(
+                navigatorKey: _navigatorKey,
                 title: 'Is It Open',
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,

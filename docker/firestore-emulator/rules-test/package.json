@@ -1,0 +1,19 @@
+{
+  "name": "is-it-open-firestore-rules-test",
+  "private": true,
+  "description": "Checks that ../firestore.rules denies every direct client read and write. See \"Infrastructure\" in TESTING.md.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.13.6"
+  }
+}

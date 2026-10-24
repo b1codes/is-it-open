@@ -6,8 +6,12 @@ import 'package:flutter/services.dart';
 class EnvConfig {
   static Map<String, dynamic>? _config;
 
-  static Future<void> init() async {
-    const String env = String.fromEnvironment('ENV', defaultValue: 'dev');
+  /// Loads `envs/<env>.json`. [env] defaults to the `ENV` dart-define
+  /// (`--dart-define=ENV=e2e` for the E2E journeys), else `dev`.
+  static Future<void> init({
+    @visibleForTesting
+    String env = const String.fromEnvironment('ENV', defaultValue: 'dev'),
+  }) async {
     try {
       final String configString = await rootBundle.loadString('envs/$env.json');
       _config = json.decode(configString) as Map<String, dynamic>;
@@ -49,5 +53,22 @@ class EnvConfig {
 
   static String get auth0Audience {
     return _config?['auth0_audience'] as String? ?? 'https://is-it-open/api';
+  }
+
+  /// How long the API may take to start answering. envs/e2e.json raises it:
+  /// CI runners and the Firestore emulator are slower than production.
+  static Duration get apiReceiveTimeout {
+    final seconds = _config?['api_receive_timeout_seconds'];
+    return Duration(seconds: seconds is int ? seconds : 3);
+  }
+
+  /// The map's tile URL template. envs/e2e.json points it at the E2E stub's
+  /// blank tiles, so the journeys never fetch real tiles.
+  static String mapTileUrl({required bool dark}) {
+    final configured = _config?[dark ? 'map_tile_url_dark' : 'map_tile_url'];
+    if (configured is String) return configured;
+    return dark
+        ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   }
 }

@@ -8,6 +8,9 @@
 services:
   # The Django Backend (data lives in Google Cloud Firestore)
   backend:
+    # Its own tag: without one this would build to is-it-open-backend, the dev image (which
+    # has the test tooling), and each stack would replace the other's image.
+    image: is-it-open-backend-prod
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -41,5 +44,14 @@ services:
         fi
         exec "$$@"
       - entrypoint
+    # GET /health answers without checking ALLOWED_HOSTS or Firestore (backend/config/health.py).
+    # `docker compose up --wait` waits for it, and `docker compose ps` shows it.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 2s
+      retries: 3
     # The Dockerfile's CMD (an entrypoint override clears it, so it is repeated here).
-    command: ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-log", "-"]
+    command: ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-logfile", "-"]

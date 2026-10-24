@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -5,10 +6,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/today/today_cubit.dart';
+import '../../components/core/sheet_scrollable.dart';
 import '../../components/places/quick_add_place_sheet.dart';
 import '../../components/places/saved_place_row.dart';
 import '../../components/places/saved_place_tile.dart';
 import '../../components/places/status_pill.dart';
+import '../../models/place.dart';
 import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
 import '../../utils/place_status.dart';
@@ -39,7 +42,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   _VisitFilter _filter = _VisitFilter.all;
   Timer? _ticker;
 
-  int _lastRebuildMinute = DateTime.now().minute;
+  int _lastRebuildMinute = clock.now().minute;
 
   @override
   void initState() {
@@ -49,7 +52,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     // so status pills update from open → closing-soon → closed without redundant rebuilds.
     _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
-      final currentMinute = DateTime.now().minute;
+      final currentMinute = clock.now().minute;
       if (currentMinute != _lastRebuildMinute) {
         setState(() {
           _lastRebuildMinute = currentMinute;
@@ -76,7 +79,11 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
 
   Future<void> _refresh() async {
     final next = context.read<ApiService>().getBookmarks();
-    setState(() => _bookmarksFuture = next);
+    // A block body: an arrow would return the Future, which setState rejects
+    // in debug builds without rebuilding.
+    setState(() {
+      _bookmarksFuture = next;
+    });
     await next;
   }
 
@@ -87,15 +94,23 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     final bodyContent = FutureBuilder<List<SavedPlace>>(
       future: _bookmarksFuture,
       builder: (context, snapshot) {
+        // In the home sheet every state scrolls with the sheet's controller,
+        // so the sheet can be dragged and expanded before the list loads.
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return _SkeletonList();
+          return _SkeletonList(controller: widget.scrollController);
         }
         if (snapshot.hasError) {
-          return _ErrorState(onRetry: _refresh);
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _ErrorState(onRetry: _refresh),
+          );
         }
         final allPlaces = snapshot.data ?? const <SavedPlace>[];
         if (allPlaces.isEmpty) {
-          return const _EmptyState();
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _EmptyState(onPlaceAdded: _refresh),
+          );
         }
         return _PlacesBody(
           allPlaces: allPlaces,
@@ -172,27 +187,27 @@ class _PlacesBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
-    final now = DateTime.now();
+    final now = clock.now();
 
-    final filtered = allPlaces.where(
-      (p) => switch (filter) {
-        _VisitFilter.all => true,
-        _VisitFilter.wantToVisit => p.isCheckItOut,
-        _VisitFilter.visited => !p.isCheckItOut,
-      },
-    );
+    bool shown(SavedPlace p) => switch (filter) {
+      _VisitFilter.all => true,
+      _VisitFilter.wantToVisit => p.isCheckItOut,
+      _VisitFilter.visited => !p.isCheckItOut,
+    };
 
     // Compute status for each place once (avoids per-row recomputation in lists).
     final enriched = [
-      for (final p in filtered)
-        _EnrichedPlace(
-          savedPlace: p,
-          status: PlaceStatusCalculator.compute(
-            p.place,
-            now: now,
-            use24HourFormat: use24h,
+      for (final (i, p) in allPlaces.indexed)
+        if (shown(p))
+          _EnrichedPlace(
+            savedPlace: p,
+            colorIndex: i,
+            status: PlaceStatusCalculator.compute(
+              p.place,
+              now: now,
+              use24HourFormat: use24h,
+            ),
           ),
-        ),
     ];
 
     final groups = _groupByStatus(enriched);
@@ -205,7 +220,7 @@ class _PlacesBody extends StatelessWidget {
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          const SliverToBoxAdapter(child: _TodayStrip()),
+          SliverToBoxAdapter(child: _TodayStrip(places: allPlaces)),
           SliverToBoxAdapter(
             child: _FilterChips(
               filter: filter,
@@ -233,9 +248,9 @@ class _PlacesBody extends StatelessWidget {
                   horizontal: PlacesSpacing.lg,
                 ),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 320,
-                    mainAxisExtent: 168,
+                    mainAxisExtent: SavedPlaceTile.gridExtent(context),
                     crossAxisSpacing: PlacesSpacing.md,
                     mainAxisSpacing: PlacesSpacing.md,
                   ),
@@ -274,8 +289,8 @@ class _PlacesBody extends StatelessWidget {
       return an.compareTo(bn);
     });
     groups[PlaceStatusKind.closingSoon]!.sort(
-      (a, b) => (a.status.nextChange ?? DateTime.now()).compareTo(
-        b.status.nextChange ?? DateTime.now(),
+      (a, b) => (a.status.nextChange ?? clock.now()).compareTo(
+        b.status.nextChange ?? clock.now(),
       ),
     );
     groups[PlaceStatusKind.closed]!.sort((a, b) {
@@ -309,8 +324,15 @@ class _PlacesBody extends StatelessWidget {
 }
 
 class _EnrichedPlace {
-  const _EnrichedPlace({required this.savedPlace, required this.status});
+  const _EnrichedPlace({
+    required this.savedPlace,
+    required this.colorIndex,
+    required this.status,
+  });
   final SavedPlace savedPlace;
+  // Its position in all saved places, as on the map and calendar, whatever
+  // the filter and grouping.
+  final int colorIndex;
   final PlaceStatus status;
 }
 
@@ -325,7 +347,10 @@ class _StatusGroup {
 // ─────────────────────────────────────────────────────────────────────
 
 class _TodayStrip extends StatelessWidget {
-  const _TodayStrip();
+  const _TodayStrip({required this.places});
+
+  /// The loaded saved places, which the route's stops are looked up in.
+  final List<SavedPlace> places;
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +407,7 @@ class _TodayStrip extends StatelessWidget {
                       onTap: () =>
                           context.read<TodayRouteCubit>().dismissResetNote(),
                       child: Text(
-                        "Today's route reset for ${_friendlyDate(DateTime.now())}.",
+                        "Today's route reset for ${_friendlyDate(clock.now())}.",
                         style: PlacesType.bodySmall(theme.inkMuted),
                       ),
                     ),
@@ -411,8 +436,13 @@ class _TodayStrip extends StatelessWidget {
                     itemCount: route.tomtomIds.length,
                     separatorBuilder: (_, _) =>
                         const SizedBox(width: PlacesSpacing.sm),
-                    itemBuilder: (context, i) =>
-                        _TodayStopCard(tomtomId: route.tomtomIds[i], index: i),
+                    itemBuilder: (context, i) => _TodayStopCard(
+                      tomtomId: route.tomtomIds[i],
+                      savedPlace: places
+                          .where((p) => p.place.tomtomId == route.tomtomIds[i])
+                          .firstOrNull,
+                      index: i,
+                    ),
                   ),
                 ),
             ],
@@ -443,94 +473,91 @@ class _TodayStrip extends StatelessWidget {
 }
 
 class _TodayStopCard extends StatelessWidget {
-  const _TodayStopCard({required this.tomtomId, required this.index});
+  const _TodayStopCard({
+    required this.tomtomId,
+    required this.savedPlace,
+    required this.index,
+  });
 
   final String tomtomId;
+
+  /// Null when the stop is no longer one of the user's saved places.
+  final SavedPlace? savedPlace;
   final int index;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    // Resolve display info from the cached bookmarks list above; the
-    // FutureBuilder upstream already has it. We re-fetch lightly here.
-    return FutureBuilder<List<SavedPlace>>(
-      future: context.read<ApiService>().getBookmarks(),
-      builder: (context, snap) {
-        final places = snap.data ?? const <SavedPlace>[];
-        final match = places.cast<SavedPlace?>().firstWhere(
-          (p) => p?.place.tomtomId == tomtomId,
-          orElse: () => null,
-        );
-        final use24 = context.watch<PreferencesCubit>().state.use24HourFormat;
-        final status = match == null
-            ? const PlaceStatus(kind: PlaceStatusKind.unknown, supporting: '')
-            : PlaceStatusCalculator.compute(
-                match.place,
-                now: DateTime.now(),
-                use24HourFormat: use24,
-              );
-        final name = match == null
-            ? 'Loading…'
-            : (match.customName ?? match.place.name);
+    // The stop comes from the already-loaded list. Fetching here, in build,
+    // refetched every bookmark once per stop on every rebuild (the minute
+    // ticker included) and flickered through a loading state.
+    final match = savedPlace;
+    final use24 = context.watch<PreferencesCubit>().state.use24HourFormat;
+    final status = match == null
+        ? const PlaceStatus(kind: PlaceStatusKind.unknown, supporting: '')
+        : PlaceStatusCalculator.compute(
+            match.place,
+            now: clock.now(),
+            use24HourFormat: use24,
+          );
+    final name = match == null
+        ? 'Not in your places'
+        : (match.customName ?? match.place.name);
 
-        return Semantics(
-          button: true,
-          label: 'Route stop: $name. Long press to open options menu.',
-          child: GestureDetector(
-            onLongPress: () => _showStopMenu(context, tomtomId, index),
-            child: Container(
-              width: 220,
-              padding: const EdgeInsets.all(PlacesSpacing.md),
-              decoration: BoxDecoration(
-                color: theme.paperRaised,
-                borderRadius: BorderRadius.circular(PlacesRadius.md),
-                border: Border.all(color: theme.ashSoft),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Semantics(
+      button: true,
+      label: 'Route stop: $name. Long press to open options menu.',
+      child: GestureDetector(
+        onLongPress: () => _showStopMenu(context, tomtomId, index),
+        child: Container(
+          width: 220,
+          padding: const EdgeInsets.all(PlacesSpacing.md),
+          decoration: BoxDecoration(
+            color: theme.paperRaised,
+            borderRadius: BorderRadius.circular(PlacesRadius.md),
+            border: Border.all(color: theme.ashSoft),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: theme.anchor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              color: theme.anchorOnContrast,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                            ),
-                          ),
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: theme.anchor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          color: theme.anchorOnContrast,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
                         ),
                       ),
-                      const SizedBox(width: PlacesSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: PlacesType.title(
-                            theme.ink,
-                          ).copyWith(fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const Spacer(),
-                  StatusPill(status: status),
+                  const SizedBox(width: PlacesSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: PlacesType.title(theme.ink).copyWith(fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
-            ),
+              const Spacer(),
+              StatusPill(status: status),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -636,6 +663,7 @@ class _FilterChips extends StatelessWidget {
       onTap: () => onChanged(value),
       borderRadius: BorderRadius.circular(PlacesRadius.pill),
       child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(
           horizontal: PlacesSpacing.md,
           vertical: PlacesSpacing.sm,
@@ -753,6 +781,7 @@ class _RowRouter extends StatelessWidget {
         final onToday = route.contains(enriched.savedPlace.place.tomtomId);
         return SavedPlaceRow(
           savedPlace: enriched.savedPlace,
+          colorIndex: enriched.colorIndex,
           status: enriched.status,
           isOnToday: onToday,
           onTap: () => _openDetail(context, enriched, onRefresh),
@@ -781,6 +810,7 @@ class _TileRouter extends StatelessWidget {
         final onToday = route.contains(enriched.savedPlace.place.tomtomId);
         return SavedPlaceTile(
           savedPlace: enriched.savedPlace,
+          colorIndex: enriched.colorIndex,
           status: enriched.status,
           isOnToday: onToday,
           onTap: () => _openDetail(context, enriched, onRefresh),
@@ -827,7 +857,13 @@ void _openActionSheet(
   final theme = context.places;
   final api = context.read<ApiService>();
   final todayCubit = context.read<TodayRouteCubit>();
+  final messenger = ScaffoldMessenger.of(context);
   final sp = enriched.savedPlace;
+  void reportFailure(String action) => messenger.showSnackBar(
+    SnackBar(
+      content: Text("Couldn't $action ${sp.customName ?? sp.place.name}."),
+    ),
+  );
   showModalBottomSheet(
     context: context,
     backgroundColor: theme.paperRaised,
@@ -877,7 +913,9 @@ void _openActionSheet(
               try {
                 await api.togglePinPlace(sp.place.tomtomId, !sp.isPinned);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure(sp.isPinned ? 'unpin' : 'pin');
+              }
             },
           ),
           ListTile(
@@ -895,7 +933,9 @@ void _openActionSheet(
               try {
                 await api.toggleCheckItOut(sp.place.tomtomId, !sp.isCheckItOut);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure('update');
+              }
             },
           ),
           ListTile(
@@ -920,7 +960,9 @@ void _openActionSheet(
                 await api.deleteBookmark(sp.place.tomtomId);
                 todayCubit.remove(sp.place.tomtomId);
                 onRefresh();
-              } catch (_) {}
+              } catch (_) {
+                reportFailure('remove');
+              }
             },
           ),
           const SizedBox(height: PlacesSpacing.sm),
@@ -935,10 +977,15 @@ void _openActionSheet(
 // ─────────────────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatelessWidget {
+  const _SkeletonList({this.controller});
+
+  final ScrollController? controller;
+
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
     return ListView.separated(
+      controller: controller,
       padding: const EdgeInsets.only(top: PlacesSpacing.lg),
       itemCount: 6,
       separatorBuilder: (_, _) => const SizedBox(height: 0),
@@ -1006,7 +1053,10 @@ class _ShimmerBox extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onPlaceAdded});
+
+  /// Reloads the list once a place is added, so the first one appears.
+  final Future<void> Function() onPlaceAdded;
 
   @override
   Widget build(BuildContext context) {
@@ -1055,7 +1105,11 @@ class _EmptyState extends StatelessWidget {
                   _SecondaryAction(
                     label: 'Add a custom place',
                     icon: Icons.add_location_alt_outlined,
-                    onPressed: () => _openQuickAdd(context),
+                    onPressed: () async {
+                      if (await _openQuickAdd(context) != null) {
+                        await onPlaceAdded();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -1120,7 +1174,8 @@ class _PrimaryAction extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(PlacesRadius.md),
         onTap: onPressed,
-        child: Padding(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(
             horizontal: PlacesSpacing.lg,
             vertical: PlacesSpacing.md,
@@ -1130,12 +1185,14 @@ class _PrimaryAction extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: theme.anchorOnContrast),
               const SizedBox(width: PlacesSpacing.sm),
-              Text(
-                label,
-                style: TextStyle(
-                  color: theme.anchorOnContrast,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: theme.anchorOnContrast,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1162,6 +1219,7 @@ class _SecondaryAction extends StatelessWidget {
       onTap: onPressed,
       borderRadius: BorderRadius.circular(PlacesRadius.md),
       child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
         padding: const EdgeInsets.symmetric(
           horizontal: PlacesSpacing.lg,
           vertical: PlacesSpacing.md,
@@ -1176,12 +1234,14 @@ class _SecondaryAction extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: theme.ink),
             const SizedBox(width: PlacesSpacing.sm),
-            Text(
-              label,
-              style: TextStyle(
-                color: theme.ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: theme.ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -1191,8 +1251,9 @@ class _SecondaryAction extends StatelessWidget {
   }
 }
 
-void _openQuickAdd(BuildContext context) {
-  showModalBottomSheet(
+/// Completes with the saved place, or null if the sheet was dismissed.
+Future<Place?> _openQuickAdd(BuildContext context) {
+  return showModalBottomSheet<Place>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
