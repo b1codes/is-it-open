@@ -10,6 +10,7 @@ import 'package:frontend/screens/profile/settings_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../helpers/fake_http_adapter.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/mocks.dart';
 import '../../helpers/pump_app.dart';
@@ -25,14 +26,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  User sentUser(MockApiService api) =>
-      verify(() => api.updateProfile(captureAny())).captured.last as User;
+  Map<String, dynamic> sentFields(MockApiService api) =>
+      verify(() => api.updateProfileFields(captureAny())).captured.last
+          as Map<String, dynamic>;
 
   MockApiService echoingApi() {
     final api = MockApiService();
-    when(() => api.updateProfile(any())).thenAnswer(
+    when(() => api.updateProfileFields(any())).thenAnswer(
       (call) async => User.fromJson({
-        ...(call.positionalArguments.single as User).toJson(),
+        ...demoUser.toJson(),
+        ...call.positionalArguments.single as Map<String, dynamic>,
         'token': 'tok',
       }),
     );
@@ -61,41 +64,63 @@ void main() {
     expect(find.text('N'), findsOneWidget);
   });
 
-  testWidgets('saves names and keeps coordinates for unchanged addresses', (
-    tester,
-  ) async {
+  testWidgets('saves only the fields that changed, trimmed', (tester) async {
     final api = echoingApi();
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
     await tester.enterText(field('First Name'), '  Avery J ');
+    await tester.enterText(field('Last Name'), '');
     await save(tester);
 
-    final sent = sentUser(api);
-    expect(sent.firstName, 'Avery J');
-    expect(sent.homeLat, demoUser.homeLat);
-    expect(sent.workLng, demoUser.workLng);
+    expect(sentFields(api), {'first_name': 'Avery J', 'last_name': ''});
     expect(find.text('Profile saved successfully!'), findsOneWidget);
   });
 
-  testWidgets('drops stale coordinates when an address changes', (
-    tester,
-  ) async {
+  testWidgets('sends an edited address without coordinates', (tester) async {
     final api = echoingApi();
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
     // Both address sections start expanded.
     await tester.enterText(field('City').first, 'Brooklyn');
     await save(tester);
 
-    final sent = sentUser(api);
-    expect(sent.homeCity, 'Brooklyn');
-    expect(sent.homeLat, isNull, reason: 'lets the server geocode it');
-    expect(sent.homeLng, isNull);
-    expect(sent.workLat, demoUser.workLat, reason: 'work is unchanged');
+    // The server geocodes it, and keeps the work address's coordinates.
+    expect(sentFields(api), {'home_city': 'Brooklyn'});
+  });
+
+  testWidgets("doesn't resend what the form didn't change", (tester) async {
+    // This device's cached profile predates another device turning on "Use
+    // Current Location" (and maybe re-geocoding home). A name change here
+    // mustn't send the stale switch or coordinates, which the server takes
+    // as explicit changes.
+    final http = FakeHttpAdapter()
+      ..on(
+        'PUT',
+        '/auth/me',
+        FakeResponse(200, {...demoUser.toJson(), 'first_name': 'Avery J'}),
+      );
+    await tester.pumpApp(
+      const MeScreen(),
+      api: ApiService(httpClientAdapter: http),
+      size: desktopSize,
+    );
+    await tester.enterText(field('First Name'), 'Avery J');
+    // Quiet Dio's request log; restored before the test ends, as
+    // flutter_test checks.
+    final originalDebugPrint = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) {};
+    try {
+      await save(tester);
+    } finally {
+      debugPrint = originalDebugPrint;
+    }
+
+    final puts = http.requests.where((r) => r.method == 'PUT');
+    expect(puts.single.data, {'first_name': 'Avery J'});
   });
 
   testWidgets('the save button shows a spinner while saving', (tester) async {
     final reply = Completer<User>();
     final api = MockApiService();
-    when(() => api.updateProfile(any())).thenAnswer((_) => reply.future);
+    when(() => api.updateProfileFields(any())).thenAnswer((_) => reply.future);
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
     await tester.ensureVisible(find.text('Save Profile'));
     await tester.tap(find.text('Save Profile'));
@@ -121,7 +146,7 @@ void main() {
   testWidgets('shows a failed save', (tester) async {
     final api = MockApiService();
     when(
-      () => api.updateProfile(any()),
+      () => api.updateProfileFields(any()),
     ).thenThrow(ApiException('Failed to update profile: 500'));
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
     await save(tester);

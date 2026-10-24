@@ -103,80 +103,38 @@ class _MeScreenState extends State<MeScreen> {
     super.dispose();
   }
 
-  // Whether the form's address differs from the saved one ('' and null are
-  // the same "not set").
-  static bool _addressChanged(
-    List<TextEditingController> controllers,
-    List<String?> saved,
-  ) {
-    for (var i = 0; i < controllers.length; i++) {
-      if (controllers[i].text.trim() != (saved[i] ?? '').trim()) return true;
-    }
-    return false;
-  }
-
   void _saveProfile(User currentUser) {
     if (_formKey.currentState!.validate()) {
-      // Coordinates sent with the profile override geocoding on the server,
-      // so only resend them for an address that didn't change; an edited
-      // address is geocoded afresh.
-      final homeChanged = _addressChanged(
-        [
-          _homeAddressController,
-          _homeStreetController,
-          _homeCityController,
-          _homeStateController,
-          _homeZipController,
-        ],
-        [
-          currentUser.homeAddress,
-          currentUser.homeStreet,
-          currentUser.homeCity,
-          currentUser.homeState,
-          currentUser.homeZip,
-        ],
-      );
-      final workChanged = _addressChanged(
-        [
-          _workAddressController,
-          _workStreetController,
-          _workCityController,
-          _workStateController,
-          _workZipController,
-        ],
-        [
-          currentUser.workAddress,
-          currentUser.workStreet,
-          currentUser.workCity,
-          currentUser.workState,
-          currentUser.workZip,
-        ],
-      );
-      final updatedUser = User(
-        id: currentUser.id,
-        username: currentUser.username,
-        email: currentUser.email,
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        homeAddress: _homeAddressController.text.trim(),
-        homeStreet: _homeStreetController.text.trim(),
-        homeCity: _homeCityController.text.trim(),
-        homeState: _homeStateController.text.trim(),
-        homeZip: _homeZipController.text.trim(),
-        homeLat: homeChanged ? null : currentUser.homeLat,
-        homeLng: homeChanged ? null : currentUser.homeLng,
-        workAddress: _workAddressController.text.trim(),
-        workStreet: _workStreetController.text.trim(),
-        workCity: _workCityController.text.trim(),
-        workState: _workStateController.text.trim(),
-        workZip: _workZipController.text.trim(),
-        workLat: workChanged ? null : currentUser.workLat,
-        workLng: workChanged ? null : currentUser.workLng,
-        useCurrentLocation: currentUser.useCurrentLocation,
-      );
+      // Send only the fields edited here: the server keeps every field left
+      // out, so a profile cached before another device's edit (say, turning
+      // on "Use Current Location") doesn't undo it. Coordinates are never
+      // sent: an edited address is geocoded afresh, and an unchanged one
+      // keeps the server's.
+      final saved = currentUser.toJson();
+      final fields = <String, dynamic>{};
+      for (final MapEntry(key: name, value: controller) in {
+        'first_name': _firstNameController,
+        'last_name': _lastNameController,
+        'home_address': _homeAddressController,
+        'home_street': _homeStreetController,
+        'home_city': _homeCityController,
+        'home_state': _homeStateController,
+        'home_zip': _homeZipController,
+        'work_address': _workAddressController,
+        'work_street': _workStreetController,
+        'work_city': _workCityController,
+        'work_state': _workStateController,
+        'work_zip': _workZipController,
+      }.entries) {
+        final text = controller.text.trim();
+        // '' and null are the same "not set".
+        if (text != ((saved[name] as String?) ?? '').trim()) {
+          fields[name] = text;
+        }
+      }
 
       context.read<AuthBloc>().add(
-        ProfileUpdateRequested(updatedUser: updatedUser),
+        ProfileFieldsUpdateRequested(fields: fields),
       );
 
       ScaffoldMessenger.of(
