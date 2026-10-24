@@ -96,6 +96,8 @@ def check(name: str, step: Callable[[], str]) -> None:
         detail = step()
     except SmokeFailure as error:
         print(f"FAIL  {name}: {error}", flush=True)
+        for note in getattr(error, "__notes__", []):
+            print(f"      {note}", flush=True)
         raise
     print(f"ok    {name} ({(time.monotonic() - start) * 1000:.0f} ms): {detail}", flush=True)
 
@@ -144,8 +146,14 @@ def run(base_url: str, username: str, password: str, query: str, wait: float) ->
         try:
             if tomtom_id not in bookmarked_ids(api):
                 raise SmokeFailure(f"GET /api/places/bookmarks doesn't list {tomtom_id} after saving it")
-        finally:
-            api.expect(204, "DELETE", path)
+        except BaseException as failure:
+            # Delete the bookmark anyway, but report what failed first: a failed delete is only a note.
+            try:
+                api.expect(204, "DELETE", path)
+            except Exception as cleanup:
+                failure.add_note(f"Deleting the bookmark afterwards failed too: {cleanup}")
+            raise
+        api.expect(204, "DELETE", path)
         if tomtom_id in bookmarked_ids(api):
             raise SmokeFailure(f"GET /api/places/bookmarks still lists {tomtom_id} after deleting it")
         return f"saved, listed and deleted {place['name']!r}"

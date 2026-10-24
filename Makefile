@@ -17,9 +17,9 @@ FRONTEND_MIN_COVERAGE ?= 95
 # Backend commands run in the dev container, which has the test tooling and reaches the emulator.
 # SECRET_KEY is only for tests; the dev compose file doesn't set one.
 BACKEND_RUN = docker compose run --rm -e SECRET_KEY=test-only-not-secret backend
-# Same, with the E2E stub server and the smoke test mounted at /e2e and /smoke so ruff checks them with the
-# backend's settings (as CI does).
-BACKEND_RUN_WITH_E2E = docker compose run --rm -e SECRET_KEY=test-only-not-secret -v ./e2e:/e2e -v ./smoke:/smoke backend
+# Same, with the E2E stub server mounted at /e2e so ruff checks it, and the smoke test (always mounted at
+# /smoke), with the backend's settings (as CI does).
+BACKEND_RUN_WITH_E2E = docker compose run --rm -e SECRET_KEY=test-only-not-secret -v ./e2e:/e2e backend
 
 # Start the containers in the background
 up:

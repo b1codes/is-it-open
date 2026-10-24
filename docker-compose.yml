@@ -27,6 +27,8 @@ services:
       - ./contracts:/contracts
       # The production compose file, whose settings and entrypoint backend/tests/deploy/ checks
       - ./docker-compose.prod.yml:/docker-compose.prod.yml:ro
+      # The post-deploy smoke test, which backend/tests/deploy/ tests and ruff checks
+      - ./smoke:/smoke
     ports:
       - "8001:8000"
     depends_on:
