@@ -61,6 +61,11 @@ class User:
     use_current_location: bool = False
     calendar_subscription_url: str = ""
 
+    # Set while an address's coordinates are still the old address's: it changed while TomTom
+    # couldn't geocode it, so a later profile update tries again. Not part of the API.
+    home_geocode_pending: bool = False
+    work_geocode_pending: bool = False
+
     @property
     def doc_id(self) -> str:
         return doc_id(self.username)

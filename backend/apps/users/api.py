@@ -149,9 +149,10 @@ def update_me(request, data: ProfileUpdateInput):
     if data.last_name is not None:
         set_field("last_name", data.last_name)
 
-    # We will track if address fields changed to determine if we need to geocode
-    home_address_changed = False
-    work_address_changed = False
+    # We will track if address fields changed to determine if we need to geocode. One whose geocode
+    # is pending (it changed while TomTom couldn't be asked; see below) is geocoded again.
+    home_address_changed = user.home_geocode_pending
+    work_address_changed = user.work_geocode_pending
 
     # Define fields that trigger geocoding
     home_geo_fields = ["home_street", "home_city", "home_state", "home_zip"]
@@ -172,17 +173,23 @@ def update_me(request, data: ProfileUpdateInput):
             work_address_changed = work_address_changed or field in work_geo_fields
 
     # Allow explicit lat/lng overrides from frontend. Don't re-geocode if coordinates are
-    # provided, even if they're the same values.
-    for field in ("home_lat", "home_lng"):
-        val = getattr(data, field)
-        if val is not None:
+    # provided, even if they're the same values. While a geocode is pending, though, the stored
+    # coordinates are the old address's, and sending them back unchanged (as a client resending
+    # the profile it has cached does) doesn't choose them.
+    def override_coordinates(prefix):
+        given = {f: v for f in (f"{prefix}_lat", f"{prefix}_lng") if (v := getattr(data, f)) is not None}
+        echoed = getattr(user, f"{prefix}_geocode_pending") and all(getattr(user, f) == v for f, v in given.items())
+        if not given or echoed:
+            return False
+        for field, val in given.items():
             set_field(field, val)
-            home_address_changed = False
-    for field in ("work_lat", "work_lng"):
-        val = getattr(data, field)
-        if val is not None:
-            set_field(field, val)
-            work_address_changed = False
+        set_field(f"{prefix}_geocode_pending", False)
+        return True
+
+    if override_coordinates("home"):
+        home_address_changed = False
+    if override_coordinates("work"):
+        work_address_changed = False
 
     if data.use_current_location is not None:
         set_field("use_current_location", data.use_current_location)
@@ -191,7 +198,8 @@ def update_me(request, data: ProfileUpdateInput):
 
     # Perform geocoding if needed. The old coordinates belong to the old address, so an address
     # that's cleared or that TomTom has no match for has none. If TomTom can't be asked (an outage,
-    # no API key), the old ones are kept, rather than lost, until the address is next edited.
+    # no API key), the old ones are kept, rather than lost, and the geocode is pending: each later
+    # update tries again, whatever it changes, until it gets an answer or coordinates are given.
     if home_address_changed or work_address_changed:
         client = TomTomClient()
 
@@ -205,9 +213,11 @@ def update_me(request, data: ProfileUpdateInput):
             try:
                 coords = client.geocode_address(full_address) if full_address else None
             except GeocodeUnavailable:
+                set_field(f"{prefix}_geocode_pending", True)
                 continue
             set_field(f"{prefix}_lat", coords["lat"] if coords else None)
             set_field(f"{prefix}_lng", coords["lon"] if coords else None)
+            set_field(f"{prefix}_geocode_pending", False)
 
     if changed:
         repository.save_user(user, changed)

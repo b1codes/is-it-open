@@ -374,6 +374,76 @@ class TestUpdateMe:
         stored = users.get_user(user.username)
         assert (stored.home_city, stored.home_lat, stored.home_lng) == ("Shelbyville", 1.0, 2.0)
 
+    @pytest.fixture
+    def after_an_outage(self, make_user, tomtom):
+        """A client whose home address changed to Shelbyville while TomTom was down; Home is still Springfield's."""
+        user = make_user("alice", home_city="Springfield", home_lat=1.0, home_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+        tomtom.get(GEOCODE_URL, status=503)
+        client.put("/auth/me", {"home_city": "Shelbyville"})
+        tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
+        tomtom.calls.reset()
+        return client
+
+    @pytest.mark.parametrize("update", [{"first_name": "Al"}, {}], ids=["other-field", "nothing"])
+    def test_an_address_geocoding_missed_is_geocoded_by_a_later_update(self, after_an_outage, tomtom, update):
+        # Later updates don't change the address, so it used to keep the old address's coordinates.
+        response = after_an_outage.put("/auth/me", update)
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        (call,) = tomtom.calls
+        assert "Shelbyville" in unquote(call.request.url)
+        stored = users.get_user("alice")
+        assert (stored.home_lat, stored.home_lng, stored.home_geocode_pending) == (5.0, 6.0, False)
+
+        after_an_outage.put("/auth/me", update)
+        assert len(tomtom.calls) == 1  # geocoded once
+
+    def test_a_pending_geocode_is_retried_until_tomtom_answers(self, after_an_outage, tomtom):
+        tomtom.replace("GET", GEOCODE_URL, body=requests.Timeout("timed out"))
+
+        response = after_an_outage.put("/auth/me", {"first_name": "Al"})
+
+        assert (response.json()["first_name"], response.json()["home_lat"]) == ("Al", 1.0)
+        assert users.get_user("alice").home_geocode_pending
+        assert len(tomtom.calls) == 1
+
+    def test_a_pending_geocode_with_no_match_clears_the_coordinates(self, after_an_outage, tomtom):
+        tomtom.replace("GET", GEOCODE_URL, json={"results": []})
+
+        response = after_an_outage.put("/auth/me", {})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (None, None)
+        assert not users.get_user("alice").home_geocode_pending
+
+    def test_sending_back_the_stale_coordinates_does_not_cancel_a_pending_geocode(self, after_an_outage, tomtom):
+        # The app's profile screen resends the coordinates it has cached with every save.
+        response = after_an_outage.put("/auth/me", {"first_name": "Al", "home_lat": 1.0, "home_lng": 2.0})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        assert len(tomtom.calls) == 1
+
+    def test_new_coordinates_win_over_a_pending_geocode(self, after_an_outage, tomtom):
+        response = after_an_outage.put("/auth/me", {"home_lat": 7.0, "home_lng": 8.0})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (7.0, 8.0)
+        after_an_outage.put("/auth/me", {"first_name": "Al"})
+        assert len(tomtom.calls) == 0
+        stored = users.get_user("alice")
+        assert (stored.home_lat, stored.home_lng, stored.home_geocode_pending) == (7.0, 8.0, False)
+
+    def test_the_work_address_is_geocoded_by_a_later_update_too(self, make_user, tomtom):
+        user = make_user(work_city="Springfield", work_lat=1.0, work_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+        tomtom.get(GEOCODE_URL, status=503)
+        client.put("/auth/me", {"work_city": "Shelbyville"})
+        tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
+
+        response = client.put("/auth/me", {"first_name": "Al"})
+
+        assert (response.json()["work_lat"], response.json()["work_lng"]) == (5.0, 6.0)
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (None, None)  # home wasn't pending
+
     def test_geocoding_is_skipped_without_a_tomtom_key_and_keeps_the_coordinates(self, make_user, http_mock):
         user = make_user(home_lat=1.0, home_lng=2.0)
         client = ApiClient(users.get_or_create_token(user))
