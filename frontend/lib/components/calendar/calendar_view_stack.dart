@@ -6,6 +6,7 @@ import 'package:calendar_view/calendar_view.dart';
 
 import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_ui_cubit.dart';
+import '../../utils/calendar_dates.dart';
 import '../../utils/places_theme.dart';
 import 'calendar_event_tile.dart';
 import 'calendar_header.dart';
@@ -93,10 +94,8 @@ class CalendarViewStackWidget extends StatelessWidget {
       daysToAdvance = 3;
       weekDays = [
         WeekDays.values[uiState.baseDate.weekday - 1],
-        WeekDays.values[uiState.baseDate.add(const Duration(days: 1)).weekday -
-            1],
-        WeekDays.values[uiState.baseDate.add(const Duration(days: 2)).weekday -
-            1],
+        WeekDays.values[addCalendarDays(uiState.baseDate, 1).weekday - 1],
+        WeekDays.values[addCalendarDays(uiState.baseDate, 2).weekday - 1],
       ];
     } else if (uiState.currentView == CalendarViewType.singleDay) {
       daysToAdvance = 1;
@@ -361,7 +360,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                 tooltip: 'Previous',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.subtract(Duration(days: daysToAdvance)),
+                    addCalendarDays(uiState.baseDate, -daysToAdvance),
                   );
                 },
               ),
@@ -381,7 +380,7 @@ class CalendarViewStackWidget extends StatelessWidget {
                 tooltip: 'Next',
                 onPressed: () {
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.add(Duration(days: daysToAdvance)),
+                    addCalendarDays(uiState.baseDate, daysToAdvance),
                   );
                 },
               ),

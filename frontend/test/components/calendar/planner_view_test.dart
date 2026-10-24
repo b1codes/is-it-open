@@ -119,4 +119,35 @@ void main() {
       expect(monday.style?.color, PlacesTheme.light.anchor);
     });
   });
+
+  // New York's clocks go back at 2am on Sunday 1 Nov 2026 (CI runs in that
+  // zone): a base date of 00:30 that day plus 24 hours is 23:30 the same day.
+  testWidgets('shows consecutive days across the end of daylight time', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(DateTime(2026, 11, 3, 10)), () async {
+      await pump(tester, base: DateTime(2026, 11, 1, 0, 30), windows: const []);
+      expect(find.text('Nov 1 – 3'), findsOneWidget);
+      for (final day in ['SUN', 'MON', 'TUE']) {
+        expect(find.text(day), findsOneWidget);
+      }
+      // Today, Tuesday the 3rd, is the last day shown.
+      expect(find.text('Today'), findsNothing);
+    });
+  });
+
+  // And forward at 2am on Sunday 8 Mar: 23:30 on the 7th plus 24 hours is
+  // 00:30 on the 9th.
+  testWidgets('shows consecutive days across the start of daylight time', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(DateTime(2026, 3, 8, 10)), () async {
+      await pump(tester, base: DateTime(2026, 3, 7, 23, 30), windows: const []);
+      expect(find.text('Mar 7 – 9'), findsOneWidget);
+      for (final day in ['SAT', 'SUN', 'MON']) {
+        expect(find.text(day), findsOneWidget);
+      }
+      expect(find.text('Today'), findsNothing);
+    });
+  });
 }

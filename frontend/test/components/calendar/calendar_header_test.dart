@@ -54,6 +54,33 @@ void main() {
         'Oct 26 – Nov 1, 2026',
       );
     });
+
+    // New York's clocks go back at 2am on 1 Nov 2026 and forward at 2am on
+    // 8 Mar 2026 (CI runs in that zone), so whole days of 24 hours land an
+    // hour off from these late-night and just-after-midnight base dates.
+    test('three days and weeks across a DST change', () {
+      expect(
+        buildCalendarHeaderText(
+          CalendarViewType.threeDay,
+          DateTime(2026, 11, 1, 0, 30),
+        ),
+        'Nov 1 – 3, 2026',
+      );
+      expect(
+        buildCalendarHeaderText(
+          CalendarViewType.week,
+          DateTime(2026, 11, 1, 23, 30),
+        ),
+        'Oct 26 – Nov 1, 2026',
+      );
+      expect(
+        buildCalendarHeaderText(
+          CalendarViewType.week,
+          DateTime(2026, 3, 2, 23, 30),
+        ),
+        'Mar 2 – 8, 2026',
+      );
+    });
   });
 
   testWidgets('the segmented control changes the view', (tester) async {

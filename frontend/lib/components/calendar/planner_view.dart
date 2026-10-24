@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../utils/places_theme.dart';
 import '../../utils/availability_calculator.dart';
+import '../../utils/calendar_dates.dart';
 
 class PlannerView extends StatelessWidget {
   final DateTime baseDate;
@@ -50,7 +51,7 @@ class PlannerView extends StatelessWidget {
   bool _isTodayVisible() {
     final now = clock.now();
     for (int i = 0; i < dayCount; i++) {
-      if (DateUtils.isSameDay(baseDate.add(Duration(days: i)), now)) {
+      if (DateUtils.isSameDay(addCalendarDays(baseDate, i), now)) {
         return true;
       }
     }
@@ -103,7 +104,7 @@ class PlannerView extends StatelessWidget {
 
   String _getHeaderText() {
     final start = baseDate;
-    final end = baseDate.add(Duration(days: dayCount - 1));
+    final end = addCalendarDays(baseDate, dayCount - 1);
     if (dayCount == 1) {
       return DateFormat('EEEE, MMM d').format(start);
     }
@@ -149,7 +150,7 @@ class _PlannerTimeline extends StatelessWidget {
           children: [
             _buildTimeLabels(theme),
             ...List.generate(dayCount, (index) {
-              final date = baseDate.add(Duration(days: index));
+              final date = addCalendarDays(baseDate, index);
               return Expanded(
                 child: _DayColumn(
                   date: date,

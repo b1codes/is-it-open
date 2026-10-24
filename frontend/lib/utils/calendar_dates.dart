@@ -19,3 +19,17 @@ DateTime lastDayOfTimedEvent(DateTime start, DateTime end) {
   );
   return lastDay.isBefore(startDay) ? startDay : lastDay;
 }
+
+/// [date] moved by [days] calendar days, at the same wall-clock time.
+/// Adding `Duration(days: n)` adds n × 24 hours instead, which across a DST
+/// change lands an hour off: on the same day again, or a day too far.
+DateTime addCalendarDays(DateTime date, int days) => DateTime(
+  date.year,
+  date.month,
+  date.day + days,
+  date.hour,
+  date.minute,
+  date.second,
+  date.millisecond,
+  date.microsecond,
+);

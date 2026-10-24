@@ -15,6 +15,7 @@ import '../../bloc/calendar/calendar_ui_state.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
 import '../../utils/availability_calculator.dart';
+import '../../utils/calendar_dates.dart';
 import '../../utils/graphics_helper.dart';
 import '../../utils/places_theme.dart';
 import '../../components/core/refractive_glass.dart';
@@ -357,7 +358,7 @@ class _CalendarScreenContent extends StatelessWidget {
                       ? 3
                       : 1;
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.subtract(Duration(days: days)),
+                    addCalendarDays(uiState.baseDate, -days),
                   );
                 },
                 onNavigateRight: () {
@@ -365,7 +366,7 @@ class _CalendarScreenContent extends StatelessWidget {
                       ? 3
                       : 1;
                   context.read<CalendarUiCubit>().navigateDate(
-                    uiState.baseDate.add(Duration(days: days)),
+                    addCalendarDays(uiState.baseDate, days),
                   );
                 },
                 onNavigateToday: () {

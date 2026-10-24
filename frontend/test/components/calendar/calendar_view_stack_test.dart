@@ -132,6 +132,28 @@ void main() {
     });
   });
 
+  // New York's clocks go back at 2am on Sunday 1 Nov 2026 (CI runs in that
+  // zone): 00:30 that day plus 24 hours is 23:30 the same day.
+  testWidgets('arrows and day headers step whole days across a DST change', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_now), () async {
+      final base = DateTime(2026, 11, 1, 0, 30);
+      await pump(tester, CalendarViewType.threeDay, base: base);
+      for (final day in ['SUN', 'MON', 'TUE']) {
+        expect(find.text(day), findsOneWidget);
+      }
+
+      await pump(tester, CalendarViewType.singleDay, base: base);
+      await tester.tap(find.byIcon(Icons.chevron_right));
+      await tester.pumpAndSettle();
+      expect(cubit.state.baseDate, DateTime(2026, 11, 2, 0, 30));
+      await tester.tap(find.byIcon(Icons.chevron_left));
+      await tester.pumpAndSettle();
+      expect(cubit.state.baseDate, base);
+    });
+  });
+
   testWidgets('"Today" appears only when today is off screen', (tester) async {
     await withClock(Clock.fixed(_now), () async {
       // Today is the third of three days shown.

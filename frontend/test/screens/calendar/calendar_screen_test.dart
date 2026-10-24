@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_event.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
+import 'package:frontend/bloc/calendar/calendar_ui_cubit.dart';
+import 'package:frontend/bloc/calendar/calendar_ui_state.dart';
 import 'package:frontend/components/calendar/calendar_event_tile.dart';
 import 'package:frontend/components/calendar/calendar_sidebar.dart';
 import 'package:frontend/components/calendar/calendar_view_stack.dart';
@@ -264,6 +266,29 @@ void main() {
         [for (var day = 20; day <= 24; day++) tripOn(day)],
         [false, true, true, true, false],
       );
+    });
+  });
+
+  // New York's clocks go back at 2am on Sunday 1 Nov 2026 (CI runs in that
+  // zone): 00:30 that day plus 24 hours is 23:30 the same day.
+  testWidgets('the planner arrows step a whole day across a DST change', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(DateTime(2026, 11, 1, 0, 30)), () async {
+      await pump(tester, _data(const []));
+      // The screen has no view switcher yet; the one-day view is the planner.
+      tester
+          .element(find.byType(CalendarViewStackWidget))
+          .read<CalendarUiCubit>()
+          .changeViewType(CalendarViewType.singleDay);
+      await tester.pumpAndSettle();
+      expect(find.text('Sunday, Nov 1'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.chevron_right));
+      await tester.pumpAndSettle();
+      expect(find.text('Monday, Nov 2'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.chevron_left));
+      await tester.pumpAndSettle();
+      expect(find.text('Sunday, Nov 1'), findsOneWidget);
     });
   });
 
