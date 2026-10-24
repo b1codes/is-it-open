@@ -499,6 +499,81 @@ class TestParseOpeningHours:
 
         assert self.parse({"timeRanges": ranges}) == [{"day_of_week": 0, "open_time": "09:00", "close_time": "00:00"}]
 
+    @staticmethod
+    def time_range(opens, closes):
+        """A range from `opens` to `closes`, each "YYYY-MM-DD HH:MM", which may be on different dates."""
+        start, end = (datetime.datetime.strptime(t, "%Y-%m-%d %H:%M") for t in (opens, closes))
+        return {
+            "startTime": {"date": start.date().isoformat(), "hour": start.hour, "minute": start.minute},
+            "endTime": {"date": end.date().isoformat(), "hour": end.hour, "minute": end.minute},
+        }
+
+    @staticmethod
+    def blocks(*days):
+        return [{"day_of_week": d, "open_time": o, "close_time": c} for d, o, c in days]
+
+    # 2026-10-12 is a Monday.
+    @pytest.mark.parametrize(
+        "opens, closes, expected",
+        [
+            ("2026-10-16 22:00", "2026-10-17 02:00", [(4, "22:00", "02:00")]),
+            ("2026-10-12 09:00", "2026-10-13 09:00", [(0, "09:00", "09:00")]),
+            ("2026-10-12 00:00", "2026-10-13 00:00", [(0, "00:00", "00:00")]),
+            ("2026-10-12 09:00", "2026-10-12 17:00", [(0, "09:00", "17:00")]),
+        ],
+        ids=["overnight", "24-hours-from-9", "midnight-to-midnight", "same-day"],
+    )
+    def test_a_range_of_up_to_a_day_is_one_block_on_its_first_day(self, opens, closes, expected):
+        # A block that closes at or before it opens runs past midnight, as the app reads it.
+        assert self.parse({"timeRanges": [self.time_range(opens, closes)]}) == self.blocks(*expected)
+
+    def test_a_week_long_range_is_open_all_day_every_day(self):
+        # How a 24/7 place comes back: one Monday's midnight to the next's. It was open on Mondays only.
+        ranges = [self.time_range("2026-10-12 00:00", "2026-10-19 00:00")]
+
+        assert self.parse({"timeRanges": ranges}) == self.blocks(*((d, "00:00", "00:00") for d in range(7)))
+
+    @pytest.mark.parametrize(
+        "opens, closes, expected",
+        [
+            ("2026-10-12 09:00", "2026-10-13 10:00", [(0, "09:00", "00:00"), (1, "00:00", "10:00")]),
+            (
+                "2026-10-12 09:00",
+                "2026-10-14 10:00",
+                [(0, "09:00", "00:00"), (1, "00:00", "00:00"), (2, "00:00", "10:00")],
+            ),
+            ("2026-10-12 09:00", "2026-10-14 00:00", [(0, "09:00", "00:00"), (1, "00:00", "00:00")]),
+            (
+                "2026-10-18 20:00",
+                "2026-10-20 06:30",
+                [(6, "20:00", "00:00"), (0, "00:00", "00:00"), (1, "00:00", "06:30")],
+            ),
+        ],
+        ids=["25-hours", "over-two-days", "ends-at-midnight", "across-the-week"],
+    )
+    def test_a_range_longer_than_a_day_is_split_at_midnight(self, opens, closes, expected):
+        # It was one block on its first day, from its start time to its end time: Monday 09:00 to
+        # Tuesday 10:00 came out as an hour on Mondays.
+        assert self.parse({"timeRanges": [self.time_range(opens, closes)]}) == self.blocks(*expected)
+
+    def test_a_range_far_into_the_future_stops_after_a_week(self):
+        ranges = [self.time_range("2026-10-14 12:00", "9999-12-31 23:00")]
+
+        assert self.parse({"timeRanges": ranges}) == self.blocks(
+            (2, "12:00", "00:00"), *((d % 7, "00:00", "00:00") for d in range(3, 9))
+        )
+
+    def test_a_split_range_and_another_range_on_its_last_day(self):
+        ranges = [
+            self.time_range("2026-10-12 09:00", "2026-10-13 10:00"),
+            self.time_range("2026-10-13 18:00", "2026-10-13 22:00"),
+            self.time_range("2026-10-19 09:00", "2026-10-20 10:00"),  # next week's Monday and Tuesday
+        ]
+
+        assert self.parse({"timeRanges": ranges}) == self.blocks(
+            (0, "09:00", "00:00"), (1, "00:00", "10:00"), (1, "18:00", "22:00")
+        )
+
     @pytest.mark.parametrize("data", [None, {}, {"mode": "nextSevenDays"}, {"timeRanges": []}, {"timeRanges": None}])
     def test_no_hours(self, data):
         assert self.parse(data) == []
@@ -522,6 +597,10 @@ class TestParseOpeningHours:
             {"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"hour": 24}},
             {"startTime": {"date": "2026-10-12", "hour": 9, "minute": 60}, "endTime": {"hour": 17}},
             {"startTime": {"date": "2026-10-12", "hour": -1}, "endTime": {"hour": 17}},
+            {"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"date": "2026-10-32", "hour": 17}},
+            {"startTime": {"date": "2026-10-12", "hour": 9}, "endTime": {"date": 20261013, "hour": 17}},
+            # Split into days, it would run past the last date Python has.
+            {"startTime": {"date": "9999-12-29", "hour": 9}, "endTime": {"date": "9999-12-31", "hour": 17}},
         ],
         ids=[
             "no-date",
@@ -539,6 +618,9 @@ class TestParseOpeningHours:
             "hour-24",
             "minute-60",
             "negative-hour",
+            "impossible-end-date",
+            "numeric-end-date",
+            "past-year-9999",
         ],
     )
     def test_malformed_ranges_are_skipped(self, bad_range):

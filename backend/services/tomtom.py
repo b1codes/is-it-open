@@ -1,6 +1,6 @@
 import hashlib
 import math
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
 import requests
@@ -41,6 +41,37 @@ def _format_time(time: dict) -> str:
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise ValueError(f"Not a time: {time!r}")
     return f"{hour:02d}:{minute:02d}"
+
+
+def _days_open(start: dict, end: dict, open_time: str, close_time: str) -> list[tuple[date, str, str]]:
+    """
+    A TomTom time range as (date, open, close) blocks, one per day it's open. A block that closes at
+    or before it opens runs past midnight (00:00 to 00:00 is a full day), as the app reads it, so a
+    range of up to a day (overnight, 22:00 to 02:00 the next day) is one block on the day it opens.
+    A longer one is split at midnight: open until midnight on its first day, all day on the days
+    between, and from midnight on its last day. Read as one block, a 24/7 place's range (00:00 one
+    Monday to 00:00 the next) was open on Mondays only. Raises ValueError on a bad date, and
+    OverflowError on a range reaching past the year 9999.
+    """
+    start_date = datetime.strptime(start["date"], "%Y-%m-%d").date()
+    # Without an end date, it's read as one block, as before end dates were.
+    if end.get("date") is None:
+        return [(start_date, open_time, close_time)]
+    opens_at = datetime.combine(start_date, datetime.strptime(open_time, "%H:%M").time())
+    end_date = datetime.strptime(end["date"], "%Y-%m-%d").date()
+    closes_at = datetime.combine(end_date, datetime.strptime(close_time, "%H:%M").time())
+    if closes_at - opens_at <= timedelta(days=1):
+        return [(start_date, open_time, close_time)]
+
+    blocks = [(start_date, open_time, "00:00")]
+    day = start_date + timedelta(days=1)
+    # Seven days cover every weekday, and later ones would repeat one, so a range reaching far into
+    # the future stops there.
+    while len(blocks) < 7 and datetime.combine(day, datetime.min.time()) < closes_at:
+        last = closes_at <= datetime.combine(day + timedelta(days=1), datetime.min.time())
+        blocks.append((day, "00:00", close_time if last else "00:00"))
+        day += timedelta(days=1)
+    return blocks
 
 
 class GeocodeUnavailable(Exception):
@@ -171,27 +202,25 @@ class TomTomClient:
         # nextSevenDays can reach the same weekday twice (today and a week from today); the first
         # date seen for a weekday is the closest, so only its ranges are kept. A split day (open
         # 11:00-14:00 and 17:00-22:00) has several ranges on that one date, and all of them count.
-        first_date_of_day: dict[int, str] = {}
+        first_date_of_day: dict[int, date] = {}
 
         # Malformed ranges (missing or null parts, bad dates or times) are skipped.
         for time_range in _array(opening_hours_data.get("timeRanges")):
             try:
                 start = time_range["startTime"]
                 end = time_range["endTime"]
-                date = start["date"]
-                day_of_week = datetime.strptime(date, "%Y-%m-%d").weekday()  # 0=Monday, 6=Sunday
-                if first_date_of_day.get(day_of_week, date) != date:
-                    continue  # A later week's date for a weekday we already have
-
-                open_time = _format_time(start)
-                close_time = _format_time(end)
-            except (AttributeError, KeyError, TypeError, ValueError):
+                days = _days_open(start, end, _format_time(start), _format_time(end))
+            except (AttributeError, KeyError, OverflowError, TypeError, ValueError):
                 continue
 
-            first_date_of_day[day_of_week] = date
-            block = {"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time}
-            if block not in parsed_hours:
-                parsed_hours.append(block)
+            for day, open_time, close_time in days:
+                day_of_week = day.weekday()  # 0=Monday, 6=Sunday
+                if first_date_of_day.get(day_of_week, day) != day:
+                    continue  # A later week's date for a weekday we already have
+                first_date_of_day[day_of_week] = day
+                block = {"day_of_week": day_of_week, "open_time": open_time, "close_time": close_time}
+                if block not in parsed_hours:
+                    parsed_hours.append(block)
 
         return parsed_hours
 

@@ -62,7 +62,23 @@ def test_parsing_never_raises_and_output_is_well_formed(data):
         assert isinstance(h["open_time"], str) and isinstance(h["close_time"], str)
 
 
-@given(st.lists(st.fixed_dictionaries({"startTime": times(), "endTime": times()}), max_size=14))
+def _opens_at(time: dict) -> datetime.datetime:
+    return datetime.datetime.fromisoformat(time["date"]).replace(hour=time.get("hour", 0), minute=time.get("minute", 0))
+
+
+def _time_at(moment: datetime.datetime) -> dict:
+    return {"date": moment.date().isoformat(), "hour": moment.hour, "minute": moment.minute}
+
+
+@st.composite
+def ranges_of_up_to_a_day(draw):
+    """A well-formed range that closes at most a day after it opens (or, malformed, before it)."""
+    start = draw(times())
+    closes = _opens_at(start) + datetime.timedelta(minutes=draw(st.integers(-7 * 24 * 60, 24 * 60)))
+    return {"startTime": start, "endTime": _time_at(closes)}
+
+
+@given(st.lists(ranges_of_up_to_a_day(), max_size=14))
 def test_well_formed_ranges_keep_every_range_on_the_first_date_of_each_weekday(ranges):
     hours = parse_hours({"timeRanges": ranges})
 
@@ -82,6 +98,36 @@ def test_well_formed_ranges_keep_every_range_on_the_first_date_of_each_weekday(r
             expected.append(block)
     assert hours == expected
     assert all(HH_MM.fullmatch(h["open_time"]) and HH_MM.fullmatch(h["close_time"]) for h in hours)
+
+
+WEEK = 7 * 24 * 60
+
+
+def _week_minutes(start: int, end: int) -> set[int]:
+    """The minutes of the week (0 is Monday 00:00) from `start` to `end`, wrapping around."""
+    return {minute % WEEK for minute in range(start, end)}
+
+
+@given(times(), st.integers(24 * 60 + 1, 9 * 24 * 60))
+def test_a_range_longer_than_a_day_is_open_for_exactly_its_minutes_of_the_week(start, length):
+    opens = _opens_at(start)
+    hours = parse_hours(
+        {"timeRanges": [{"startTime": start, "endTime": _time_at(opens + datetime.timedelta(minutes=length))}]}
+    )
+
+    def minutes(hh_mm):
+        return int(hh_mm[:2]) * 60 + int(hh_mm[3:])
+
+    open_minutes: set[int] = set()
+    for h in hours:
+        # As the app reads a block: one that closes at or before it opens runs past midnight.
+        day_start = h["day_of_week"] * 24 * 60 + minutes(h["open_time"])
+        block_length = (minutes(h["close_time"]) - minutes(h["open_time"])) % (24 * 60) or 24 * 60
+        open_minutes |= _week_minutes(day_start, day_start + block_length)
+    # Only the first date of each weekday counts, so a range of over a week stops a week after its first day began.
+    first_minute = opens.weekday() * 24 * 60 + opens.hour * 60 + opens.minute
+    end = min(length, WEEK - opens.hour * 60 - opens.minute)
+    assert open_minutes == _week_minutes(first_minute, first_minute + end)
 
 
 # TomTom search results with every field possibly missing or null.
