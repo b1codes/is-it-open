@@ -21,12 +21,18 @@ from . import repository
 # with made-up kids can't make the server hammer Auth0 or tie up its workers waiting on it.
 JWKS_MAX_AGE = 60 * 60
 JWKS_MIN_REFETCH_INTERVAL = 60
+# Auth0 publishes a key before it signs with it, so a token issued before the cached JWKS was fetched
+# was signed by a key in it, unless Auth0 has revoked that key since. Its unknown kid is rejected
+# without a refetch. This margin allows for clock skew and a JWKS cached on Auth0's side; a token issued
+# within it of the fetch, or after it, may have a key Auth0 has just rotated to.
+JWKS_ISSUED_BEFORE_FETCH_MARGIN = 5 * 60
 
 
 @dataclass
 class _CachedJwks:
     jwks: dict
     fetched_at: float  # time.monotonic() of the fetch that returned `jwks`
+    fetched_at_wall: float  # and its time.time(), to compare with tokens' `iat`
     refetched_at: float | None = None  # of the last refetch, whether or not it succeeded
 
 
@@ -117,13 +123,15 @@ class GlobalAuth(HttpBearer):
                 return None
 
             # 2. Get JWKS (from cache or API)
-            jwks, fetched = self.get_jwks(domain)
+            cached, fetched = self.get_jwks(domain)
 
             # 3. Find matching key. An unknown kid may be a key Auth0 rotated to since the JWKS was
-            # fetched, unless it was fetched for this request.
-            key = _find_key(jwks, kid)
-            if key is None and not fetched:
-                key = _find_key(self.get_jwks(domain, refetch=True)[0], kid)
+            # fetched, unless it was fetched for this request or the token was issued before it was.
+            # Rejecting those outright makes them a 401, not a 503 while the refetch is throttled or
+            # failing, so the app signs out a token whose key Auth0 revoked, or that isn't Auth0's.
+            key = _find_key(cached.jwks, kid)
+            if key is None and not fetched and not _issued_before(token, cached.fetched_at_wall):
+                key = _find_key(self.get_jwks(domain, refetch=True)[0].jwks, kid)
             if key is None:
                 return None
             rsa_key = {name: key.get(name) for name in ("kty", "kid", "use", "n", "e")}
@@ -147,7 +155,7 @@ class GlobalAuth(HttpBearer):
         except Exception:
             return None
 
-    def get_jwks(self, domain, *, refetch=False) -> tuple[dict, bool]:
+    def get_jwks(self, domain, *, refetch=False) -> tuple[_CachedJwks, bool]:
         """
         The tenant's JWKS, and whether this call fetched it: the cached copy, unless `refetch` asks
         for a new one or it's JWKS_MAX_AGE old, and the last refetch was at least
@@ -157,18 +165,18 @@ class GlobalAuth(HttpBearer):
         interval, or if `refetch` asked for one and it fails or is throttled: the token's kid isn't
         cached, and it may be a key Auth0 rotated to after the last refetch, so it can't be rejected.
         """
-        now = time.monotonic()
+        now, now_wall = time.monotonic(), time.time()
         with _jwks_lock:
             cached = _jwks_cache.get(domain)
             if cached is not None:
                 wanted = refetch or now - cached.fetched_at >= JWKS_MAX_AGE
                 too_soon = cached.refetched_at is not None and now - cached.refetched_at < JWKS_MIN_REFETCH_INTERVAL
                 if not wanted:
-                    return cached.jwks, False
+                    return cached, False
                 if too_soon:
                     if refetch:
                         raise JwksUnavailable(domain)
-                    return cached.jwks, False
+                    return cached, False
                 # Claim the refetch, so requests meanwhile use the cached copy rather than fetching too.
                 cached.refetched_at = now
             elif domain in _jwks_failed_at:
@@ -186,12 +194,25 @@ class GlobalAuth(HttpBearer):
             # Past JWKS_MAX_AGE, keep using the keys we have until the tenant can be reached.
             if refetch:
                 raise JwksUnavailable(domain)
-            return cached.jwks, False
+            return cached, False
         with _jwks_lock:
             refetched_at = cached.refetched_at if cached is not None else None
-            _jwks_cache[domain] = _CachedJwks(jwks, fetched_at=now, refetched_at=refetched_at)
+            fresh = _CachedJwks(jwks, fetched_at=now, fetched_at_wall=now_wall, refetched_at=refetched_at)
+            _jwks_cache[domain] = fresh
             _jwks_failed_at.pop(domain, None)
-        return jwks, True
+        return fresh, True
+
+
+def _issued_before(token, fetched_at_wall: float) -> bool:
+    """Whether the token's (unverified) `iat` is over JWKS_ISSUED_BEFORE_FETCH_MARGIN before the fetch.
+
+    A forged `iat` gains nothing: a later one only turns a 401 into a 503, and an earlier one a 503
+    into a 401. A token without one counts as issued now.
+    """
+    iat = jwt.decode(token, options={"verify_signature": False}).get("iat")
+    if not isinstance(iat, int | float) or isinstance(iat, bool):
+        return False
+    return iat < fetched_at_wall - JWKS_ISSUED_BEFORE_FETCH_MARGIN
 
 
 def _fetch_jwks(domain) -> dict | None:

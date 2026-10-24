@@ -323,6 +323,47 @@ class TestJwksRefetch:
             verify(auth0_tenant.token(kid="made-up-again"))
         assert len(http_mock.calls) == 3
 
+    @staticmethod
+    def issued_before_the_fetch(seconds=0):
+        """An `iat` that's JWKS_ISSUED_BEFORE_FETCH_MARGIN, plus `seconds`, before now."""
+        margin = datetime.timedelta(seconds=auth_module.JWKS_ISSUED_BEFORE_FETCH_MARGIN + seconds)
+        return datetime.datetime.now(datetime.UTC) - margin
+
+    def test_unknown_kid_issued_before_the_fetch_is_rejected_while_the_refetch_is_throttled(
+        self, clock, verify, auth0_tenant, http_mock
+    ):
+        assert verify(auth0_tenant.token()) is not None
+        assert verify(auth0_tenant.token(kid="made-up-0")) is None  # refetches
+        assert len(http_mock.calls) == 2
+
+        # Its key was published before the JWKS was fetched, so it would be in it: Auth0 has revoked it,
+        # or it's another tenant's. A 503 would keep the app from signing the user out.
+        assert verify(auth0_tenant.token(kid="revoked-key", iat=self.issued_before_the_fetch(1))) is None
+        # Issued within the margin, it may be a key Auth0 has just rotated to.
+        with pytest.raises(auth_module.JwksUnavailable):
+            verify(auth0_tenant.token(kid="rotated-key", iat=self.issued_before_the_fetch()))
+        assert len(http_mock.calls) == 2
+
+    def test_unknown_kid_issued_before_the_fetch_is_rejected_without_a_refetch(
+        self, clock, verify, auth0_tenant, http_mock
+    ):
+        assert verify(auth0_tenant.token()) is not None
+        http_mock.replace("GET", auth0_tenant.jwks_url, body=requests.ConnectionError("refused"))
+
+        # Even with Auth0 unreachable: a refetch can't add a key the cached JWKS already left out.
+        assert verify(auth0_tenant.token(kid="revoked-key", iat=self.issued_before_the_fetch(1))) is None
+        assert len(http_mock.calls) == 1
+
+    def test_unknown_kid_is_401_or_503_by_when_it_was_issued_through_the_api(self, firestore_db, auth0_tenant):
+        assert ApiClient(auth0_tenant.token()).get("/auth/me").status_code == 200
+        assert ApiClient(auth0_tenant.token(kid="made-up")).get("/auth/me").status_code == 401  # refetches
+
+        old = ApiClient(auth0_tenant.token(kid="revoked-key", iat=self.issued_before_the_fetch(1)))
+        new = ApiClient(auth0_tenant.token(kid="rotated-key"))
+
+        assert old.get("/auth/me").status_code == 401
+        assert new.get("/auth/me").status_code == 503
+
     def test_concurrent_unknown_kids_refetch_once(self, verify, auth0_tenant, http_mock):
         assert verify(auth0_tenant.token()) is not None
         tokens = [auth0_tenant.token(kid=f"made-up-{i}") for i in range(8)]
