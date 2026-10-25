@@ -196,10 +196,21 @@ jobs:
           echo "retry: 1" >> dart_test.yaml
           dart run tool/coverage.dart imports
           mkdir -p test-results
-          flutter test --coverage -x quarantine --file-reporter json:test-results/flutter.json
+          flutter test --coverage -x quarantine -x monkey --file-reporter json:test-results/flutter.json
 
       - name: Coverage gate
         run: dart run tool/coverage.dart check --min="$FRONTEND_MIN_COVERAGE"
+
+      # The whole app under seeded random input (test/monkey/), with a fixed seed so a PR can't fail
+      # on a newly drawn sequence; nightly.yml runs a longer one with a random seed. A failure
+      # prints the actions that led to it and the command that replays them. See "Monkey testing"
+      # in TESTING.md.
+      - name: Monkey test
+        if: success() || failure()
+        run: >
+          flutter test --tags monkey -x quarantine
+          --dart-define=MONKEY_STEPS=1500
+          --file-reporter json:test-results/monkey/flutter.json
 
       - name: Diff coverage (informational)
         if: github.event_name == 'pull_request'
@@ -216,6 +227,13 @@ jobs:
           path: |
             frontend/test-results/
             frontend/coverage/lcov.info
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: monkey-frontend
+          path: frontend/build/monkey/
           if-no-files-found: ignore
 
   widgetbook:

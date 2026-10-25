@@ -2,3 +2,7 @@
 tags:
   # Known-flaky tests: excluded from the required CI job (`-x quarantine`) and run by the nightly workflow.
   quarantine:
+  # Random-input (monkey) runs of the whole app (test/monkey/): a separate CI step, with its own seed.
+  # No retry: a failure replays the same way, and a retry that passes would hide a real bug.
+  monkey:
+    retry: 0
