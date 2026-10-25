@@ -157,6 +157,30 @@ void main() {
     });
   });
 
+  // A failed reload shows the error state. It also used to escape as an
+  // uncaught error from the reload when a place's details closed (found by
+  // the monkey test).
+  testWidgets('a reload that fails after details close shows the error', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_noon), () async {
+      final api = MockApiService();
+      var loads = 0;
+      when(() => api.getBookmarks()).thenAnswer((_) async {
+        if (loads++ == 0) return sampleSavedPlaces;
+        throw ApiException('offline');
+      });
+      await pump(tester, api: api);
+      await tester.tap(find.text(gymPlace.name));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
+      expect(find.byType(PlaceDetailScreen), findsNothing);
+      expect(find.text("Couldn't load your places."), findsOneWidget);
+      await tester.unmount();
+    });
+  });
+
   // The list reloads when a place's details close. If it had gone in the
   // meantime (the home screen switching layout on rotation, say), the reload
   // used its defunct context and threw (found by the monkey test).

@@ -87,7 +87,12 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     setState(() {
       _bookmarksFuture = next;
     });
-    await next;
+    try {
+      await next;
+    } catch (_) {
+      // The list shows the error. Most callers don't wait for the reload
+      // (it runs when details close, say), so rethrowing left it uncaught.
+    }
   }
 
   @override
