@@ -753,39 +753,51 @@ class _StickyCTA extends StatelessWidget {
         child: InkWell(
           onTap: loading ? null : (isOnToday ? onRemove : onAdd),
           borderRadius: BorderRadius.circular(PlacesRadius.md),
-          child: SizedBox(
-            height: 56,
-            child: Center(
-              child: loading
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(fg),
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isOnToday ? Icons.check_rounded : Icons.add_rounded,
-                          color: fg,
+          // At least 56 high, and taller when large text on a small phone
+          // wraps the label.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: PlacesSpacing.md,
+                vertical: PlacesSpacing.sm,
+              ),
+              child: Center(
+                heightFactor: 1,
+                child: loading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(fg),
                         ),
-                        const SizedBox(width: PlacesSpacing.sm),
-                        Text(
-                          isOnToday
-                              ? "On today's route"
-                              : "Add to today's route",
-                          style: TextStyle(
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isOnToday ? Icons.check_rounded : Icons.add_rounded,
                             color: fg,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: PlacesSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              isOnToday
+                                  ? "On today's route"
+                                  : "Add to today's route",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: fg,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),

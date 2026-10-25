@@ -44,6 +44,34 @@ void main() {
     // Monday 19 Oct 2026, noon.
     final noon = DateTime(2026, 10, 19, 12);
 
+    // The today's-route button had a fixed height and a label that couldn't
+    // wrap; on a 320-wide phone (the Android emulator's default) at 2× text
+    // it overflowed (found by the monkey test on a device).
+    for (final onToday in [false, true]) {
+      testWidgets(
+        'the ${onToday ? 'on' : 'add to'} today button fits a small phone '
+        'at 2× text',
+        (tester) async {
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await withClock(Clock.fixed(noon), () async {
+            await tester.pumpApp(
+              PlaceDetailScreen(place: hardwarePlace),
+              size: const Size(320, 640),
+              todayRouteIds: onToday ? const ['custom_hardware'] : const [],
+            );
+            await tester.pumpAndSettle();
+            expect(
+              find.text(onToday ? "On today's route" : "Add to today's route"),
+              findsOneWidget,
+            );
+            expect(tester.takeException(), isNull);
+            await tester.unmount();
+          });
+        },
+      );
+    }
+
     Future<void> open(
       WidgetTester tester,
       Place place, {

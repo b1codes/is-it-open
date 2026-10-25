@@ -24,6 +24,9 @@ import '../helpers/pump_app.dart';
 
 const _landscape = Size(844, 390);
 
+/// The Android emulator's default screen, and phones like the iPhone SE (1st gen).
+const _smallPhone = Size(320, 640);
+
 const _tabs = [
   ('My Places', MyPlacesScreen),
   ('Calendar', CalendarScreen),
@@ -117,6 +120,7 @@ void main() {
     for (final (size, orientation) in [
       (phoneSize, 'upright'),
       (_landscape, 'on its side'),
+      (_smallPhone, 'small, upright'),
     ]) {
       for (final (tab, screen) in _tabs) {
         testWidgets('$tab fits a phone $orientation', (tester) async {
