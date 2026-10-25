@@ -2,13 +2,30 @@ name: E2E on mobile
 
 # The E2E journeys (frontend/integration_test) on an iOS simulator and an Android emulator, for what
 # the per-PR web runs can't cover: native plugins (geolocator, shared_preferences, device_calendar),
-# native networking and the platform builds. Called by nightly.yml; see e2e/README.md.
+# native networking and the platform builds. Then the monkey tests on each device ("Monkey testing"
+# in TESTING.md). Called by nightly.yml; see e2e/README.md.
 on:
   workflow_call:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests (default random)
+        type: string
+        required: false
+        default: ''
   workflow_dispatch:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests (default random)
+        required: false
+        default: ''
 
 permissions:
   contents: read
+
+env:
+  SEED: ${{ inputs.monkey_seed }}
+  MONKEY_STEPS: '800'
+  MONKEY_EVENTS: '5000'
 
 jobs:
   ios:
@@ -65,6 +82,24 @@ jobs:
           --dart-define=ENV=e2e
           --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
 
+      - name: Pick a monkey seed
+        if: success() || failure()
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey on the iOS simulator: seed \`$SEED\`, $MONKEY_STEPS steps." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run the monkey
+        if: success() || failure()
+        working-directory: frontend
+        timeout-minutes: 25
+        run: >
+          flutter test integration_test/monkey_test.dart -r expanded
+          -d "${{ steps.simulator.outputs.udid }}"
+          --dart-define=ENV=e2e
+          --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
+          --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
+
       - uses: actions/upload-artifact@v4
         if: failure() || cancelled()
         with:
@@ -118,6 +153,29 @@ jobs:
             adb reverse tcp:18090 tcp:18090
             flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e
 
+      - name: Pick a monkey seed
+        if: success() || failure()
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey on the Android emulator: seed \`$SEED\`, $MONKEY_STEPS steps, then $MONKEY_EVENTS adb monkey events." >> "$GITHUB_STEP_SUMMARY"
+
+      # The app's monkey, then Android's own (adb shell monkey): see e2e/android-monkey.sh.
+      - name: Run the monkey
+        if: success() || failure()
+        timeout-minutes: 30
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: frontend
+          script: |
+            adb reverse tcp:18000 tcp:18000
+            adb reverse tcp:18090 tcp:18090
+            ../e2e/android-monkey.sh
+
       - name: Stack logs
         if: failure() || cancelled()
         run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
@@ -126,5 +184,7 @@ jobs:
         if: failure() || cancelled()
         with:
           name: e2e-failure-android
-          path: e2e-stack.log
+          path: |
+            e2e-stack.log
+            frontend/build/android-monkey/
           if-no-files-found: ignore

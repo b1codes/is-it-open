@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/fixtures.dart';
 import '../helpers/mocks.dart';
 import '../helpers/pump_app.dart';
-import 'monkey.dart';
+import '../../integration_test/helpers/monkey.dart';
 
 /// Where each scenario writes its action log, and a screenshot on failure.
 const _outDir = 'build/monkey';

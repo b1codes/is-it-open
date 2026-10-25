@@ -16,7 +16,7 @@ import '../helpers/fixtures.dart';
 import '../helpers/mocks.dart';
 import '../helpers/pump_app.dart';
 import '../helpers/recording_api.dart';
-import '../monkey/monkey.dart';
+import '../../integration_test/helpers/monkey.dart';
 
 // What people type that a form might not expect: emoji (with skin tones,
 // ZWJ sequences and flags), combining marks, right-to-left and CJK text,

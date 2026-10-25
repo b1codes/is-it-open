@@ -1,13 +1,18 @@
 name: Nightly
 
-# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test and API fuzzing
-# runs, the live TomTom contract check, the E2E journeys on mobile, mutation testing, the dependency
-# audit, a scan of the production image, and a DAST scan of the API.
+# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test, API fuzzing and
+# monkey (random UI input) runs, the live TomTom contract check, the E2E journeys on mobile,
+# mutation testing, the dependency audit, a scan of the production image, and a DAST scan of the API.
 # Results land in each run's summary and artifacts; nothing here blocks a merge.
 on:
   schedule:
     - cron: '0 7 * * *'  # 07:00 UTC
   workflow_dispatch:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests, to replay a failed night (default random)
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -169,10 +174,67 @@ jobs:
           path: frontend/test-results/
           if-no-files-found: ignore
 
-  # The E2E journeys on an iOS simulator and an Android emulator (see e2e/README.md).
+  # The whole app under random input (test/monkey/), for far longer than the per-PR run and with a
+  # new seed each night. See "Monkey testing" in TESTING.md.
+  monkey-frontend:
+    name: Frontend monkey test (random seed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      SEED: ${{ inputs.monkey_seed }}
+      MONKEY_STEPS: '25000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+      - run: flutter pub get
+      - name: Pick a seed
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey seed: $SEED"
+      - name: Monkey test
+        run: >
+          flutter test --tags monkey -x quarantine -r expanded
+          --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Frontend monkey test"
+            echo
+            echo "Seed \`$SEED\`, $MONKEY_STEPS steps per scenario."
+            if [ "${{ job.status }}" != "success" ]; then
+              echo
+              echo "To replay a failure locally (add \`--plain-name \"<scenario>\"\` for one scenario):"
+              echo
+              echo '```sh'
+              echo "cd frontend && flutter test test/monkey/monkey_test.dart --dart-define=SEED=$SEED --dart-define=MONKEY_STEPS=$MONKEY_STEPS"
+              echo '```'
+              echo
+              echo "Or rerun this workflow with \`monkey_seed: $SEED\`. Each scenario's action log, and a"
+              echo "screenshot of the failure, are in the **monkey-nightly** artifact."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: monkey-nightly
+          path: frontend/build/monkey/
+          if-no-files-found: ignore
+
+  # The E2E journeys, then the monkey tests, on an iOS simulator and an Android emulator (see
+  # e2e/README.md).
   e2e-mobile:
     name: E2E on mobile
     uses: ./.github/workflows/e2e-mobile.yml
+    with:
+      monkey_seed: ${{ inputs.monkey_seed }}
 
   # Advisories published since the lockfiles last changed (ci.yml runs the audit when they do).
   dependency-audit:
