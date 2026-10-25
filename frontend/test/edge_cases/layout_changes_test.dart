@@ -130,6 +130,34 @@ void main() {
         });
       }
 
+      // At 2× text the calendar's own header fills most of the sheet. Off
+      // today it grows a "Today" button and its title wraps, and in a
+      // lowered sheet the week view got less than its day row and
+      // overflowed (found by the monkey test).
+      if (size == phoneSize) {
+        for (final sheetSize in [0.4, 0.3, 0.2, 0.17, 0.12]) {
+          testWidgets('Calendar fits a sheet lowered to $sheetSize', (
+            tester,
+          ) async {
+            await start(tester);
+            await openTab(tester, 'Calendar');
+            await tester.pumpAndSettle();
+            tester
+                .widget<DraggableScrollableSheet>(
+                  find.byType(DraggableScrollableSheet),
+                )
+                .controller!
+                .jumpTo(sheetSize);
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+            await tester.tap(find.byTooltip('Next'), warnIfMissed: false);
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull);
+            await tester.unmount();
+          });
+        }
+      }
+
       testWidgets('signing in and up fit a phone $orientation', (tester) async {
         await start(tester, signedIn: false);
         await resize(tester, size);

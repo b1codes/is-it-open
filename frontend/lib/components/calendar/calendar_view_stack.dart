@@ -348,7 +348,7 @@ class CalendarViewStackWidget extends StatelessWidget {
       );
     }
 
-    return Column(
+    final stack = Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -416,6 +416,24 @@ class CalendarViewStackWidget extends StatelessWidget {
           ),
         ),
       ],
+    );
+
+    // A lowered sheet at large text left the calendar less height than its
+    // header and day row, and they overflowed. Below a minimum (the header,
+    // the day row and a few hours) it keeps that height and shows its top;
+    // dragging the sheet up shows the rest.
+    final minHeight = 140 + MediaQuery.textScalerOf(context).scale(90);
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxHeight >= minHeight
+          ? stack
+          : ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                minHeight: minHeight,
+                maxHeight: minHeight,
+                child: stack,
+              ),
+            ),
     );
   }
 }
