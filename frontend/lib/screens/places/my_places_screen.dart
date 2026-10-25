@@ -78,6 +78,9 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   }
 
   Future<void> _refresh() async {
+    // Also called when a place's details close, by which time this screen
+    // may have gone (the home screen switches layout on rotation).
+    if (!mounted) return;
     final next = context.read<ApiService>().getBookmarks();
     // A block body: an arrow would return the Future, which setState rejects
     // in debug builds without rebuilding.

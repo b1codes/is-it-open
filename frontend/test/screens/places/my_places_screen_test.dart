@@ -156,6 +156,37 @@ void main() {
     });
   });
 
+  // The list reloads when a place's details close. If it had gone in the
+  // meantime (the home screen switching layout on rotation, say), the reload
+  // used its defunct context and threw (found by the monkey test).
+  testWidgets('closing details after the list has gone is harmless', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_noon), () async {
+      final showList = ValueNotifier(true);
+      await tester.pumpApp(
+        ValueListenableBuilder<bool>(
+          valueListenable: showList,
+          builder: (_, show, _) =>
+              show ? const MyPlacesScreen() : const SizedBox.shrink(),
+        ),
+        size: const Size(600, 2000),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(gymPlace.name));
+      await tester.pumpAndSettle();
+
+      showList.value = false;
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlaceDetailScreen), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.unmount();
+    });
+  });
+
   group("today's route", () {
     testWidgets('adding a place shows it as a numbered stop', (tester) async {
       await withClock(Clock.fixed(_noon), () async {
