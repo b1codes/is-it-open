@@ -2,7 +2,7 @@
 
 .PHONY: up down build logs shell firestore-reset \
 	check lint lint-backend lint-frontend lint-infra format audit \
-	test test-backend test-frontend test-widgetbook test-goldens goldens-pull test-rules \
+	test test-backend test-frontend test-monkey test-widgetbook test-goldens goldens-pull test-rules \
 	coverage coverage-backend coverage-frontend \
 	contracts-update \
 	e2e e2e-up e2e-down e2e-logs e2e-seed test-e2e test-e2e-phone \
@@ -89,14 +89,22 @@ format:
 
 # --- Tests ---
 
-test: test-backend test-frontend test-widgetbook test-goldens test-rules
+test: test-backend test-frontend test-monkey test-widgetbook test-goldens test-rules
 
 # Backend suite against the Firestore emulator (skips tests marked quarantine)
 test-backend:
 	$(BACKEND_RUN) pytest -m "not quarantine"
 
 test-frontend:
-	cd frontend && $(FLUTTER) test -x quarantine
+	cd frontend && $(FLUTTER) test -x quarantine -x monkey
+
+# The monkey test: the whole app under seeded random input, as CI runs it. SEED replays a run (default: CI's
+# fixed seed), STEPS sets the actions per scenario, and NAME picks one scenario. See "Monkey testing" in
+# TESTING.md
+STEPS ?= 1500
+test-monkey:
+	cd frontend && $(FLUTTER) test test/monkey/monkey_test.dart $(if $(SEED),--dart-define=SEED=$(SEED)) \
+		--dart-define=MONKEY_STEPS=$(STEPS) $(if $(NAME),--plain-name "$(NAME)")
 
 test-widgetbook:
 	cd frontend/widgetbook && $(FLUTTER) test -x quarantine -x golden
@@ -123,7 +131,7 @@ coverage-backend:
 	@echo "HTML report: backend/htmlcov/index.html"
 
 coverage-frontend:
-	cd frontend && $(DART) run tool/coverage.dart imports && $(FLUTTER) test --coverage -x quarantine && $(DART) run tool/coverage.dart check --min=$(FRONTEND_MIN_COVERAGE)
+	cd frontend && $(DART) run tool/coverage.dart imports && $(FLUTTER) test --coverage -x quarantine -x monkey && $(DART) run tool/coverage.dart check --min=$(FRONTEND_MIN_COVERAGE)
 
 # --- API contract (see contracts/README.md) ---
 

@@ -65,6 +65,8 @@ A failing journey saves a screenshot to `frontend/build/e2e-screenshots/`.
 | `calendar_journey.dart` | A saved iCal subscription syncs through `/calendar/proxy` and its events show (#44: the app can't add one yet) |
 | `errors_journey.dart` | Backend down (signing in, and a cached session); a TomTom outage; a revoked session |
 
+`monkey_test.dart` is a second entry point, not a journey: the monkey test (random taps, gestures and text) signed in on a device. It runs nightly on the iOS simulator and the Android emulator after the journeys, and on Android `android-monkey.sh` adds Android's own `adb shell monkey`. See "Monkey testing" in [TESTING.md](../TESTING.md#monkey-testing).
+
 Helpers (`helpers/e2e.dart`):
 
 - `journey()`: a `testWidgets` that screenshots failures.
