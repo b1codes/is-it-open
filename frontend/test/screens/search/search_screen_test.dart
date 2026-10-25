@@ -97,6 +97,27 @@ void main() {
     });
   });
 
+  // The cards had fixed heights, and at 2× text a two-line name alone was
+  // taller than a recent search's card (found by the monkey test).
+  testWidgets('cards grow with large text', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    SharedPreferences.setMockInitialValues({
+      'recent_search_places': [jsonEncode(libraryPlace.toJson())],
+    });
+    FakeGeolocator.install(addTearDown);
+    await pump(tester, FakeApiService(latency: Duration.zero));
+    expect(find.text('Recent Searches'), findsOneWidget);
+    expect(find.text('Trending Nearby'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await search(tester, 'a');
+    await tester.tap(find.byTooltip('Grid View'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchResultGridCard), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   group('searching', () {
     testWidgets('lists results, switches to a grid, and clears', (
       tester,

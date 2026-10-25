@@ -85,7 +85,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             SizedBox(
-              height: 120,
+              height: SearchResultGridCard.extent(context, minimum: 120),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -113,9 +113,12 @@ class _SearchScreenState extends State<SearchScreen> {
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 300,
-                  mainAxisExtent: 140,
+                  mainAxisExtent: SearchResultGridCard.extent(
+                    context,
+                    minimum: 140,
+                  ),
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
@@ -275,9 +278,12 @@ class _SearchScreenState extends State<SearchScreen> {
                               controller: widget.scrollController,
                               padding: const EdgeInsets.all(8),
                               gridDelegate:
-                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  SliverGridDelegateWithMaxCrossAxisExtent(
                                     maxCrossAxisExtent: 300,
-                                    mainAxisExtent: 140,
+                                    mainAxisExtent: SearchResultGridCard.extent(
+                                      context,
+                                      minimum: 140,
+                                    ),
                                     crossAxisSpacing: 8,
                                     mainAxisSpacing: 8,
                                   ),
