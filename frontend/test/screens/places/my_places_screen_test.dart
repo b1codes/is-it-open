@@ -157,6 +157,42 @@ void main() {
     });
   });
 
+  // "Edit details" opened the place from the row that opened the menu. If
+  // the list had gone meanwhile (the phone turned, say), its context was
+  // defunct and the tap threw (found by the monkey test).
+  testWidgets('edit details still opens after the list has gone', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(_noon), () async {
+      final showList = ValueNotifier(true);
+      await tester.pumpApp(
+        ValueListenableBuilder<bool>(
+          valueListenable: showList,
+          builder: (_, show, _) =>
+              show ? const MyPlacesScreen() : const SizedBox.shrink(),
+        ),
+        size: const Size(600, 2000),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(
+        find.descendant(
+          of: find.byType(SavedPlaceRow),
+          matching: find.text(gymPlace.name),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      showList.value = false;
+      await tester.pump();
+      await tester.tap(find.text('Edit details'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PlaceDetailScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.unmount();
+    });
+  });
+
   // A failed reload shows the error state. It also used to escape as an
   // uncaught error from the reload when a place's details closed (found by
   // the monkey test).

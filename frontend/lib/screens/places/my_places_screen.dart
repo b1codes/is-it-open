@@ -866,6 +866,9 @@ void _openActionSheet(
   final api = context.read<ApiService>();
   final todayCubit = context.read<TodayRouteCubit>();
   final messenger = ScaffoldMessenger.of(context);
+  // Looked up now: the row that opened the menu may be gone by the time an
+  // action runs (the home screen switches layout when a phone turns).
+  final navigator = Navigator.of(context);
   final sp = enriched.savedPlace;
   void reportFailure(String action) => messenger.showSnackBar(
     SnackBar(
@@ -956,12 +959,13 @@ void _openActionSheet(
               title: const Text('Edit details'),
               onTap: () {
                 Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PlaceDetailScreen(place: sp.place),
-                  ),
-                ).then((_) => onRefresh());
+                navigator
+                    .push(
+                      MaterialPageRoute(
+                        builder: (_) => PlaceDetailScreen(place: sp.place),
+                      ),
+                    )
+                    .then((_) => onRefresh());
               },
             ),
             ListTile(
