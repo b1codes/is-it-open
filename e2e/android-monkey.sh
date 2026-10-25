@@ -30,6 +30,10 @@ echo "::group::adb shell monkey (seed ${seed}, ${events} events)"
 flutter build apk --debug --dart-define=ENV=e2e || exit 1
 adb install -r build/app/outputs/flutter-apk/app-debug.apk || exit 1
 adb logcat -c
+# A debug build takes a while to start on the emulator; touches sent before its window is up count
+# as an ANR. Start it, wait until it's displayed, and give it a moment before the monkey takes over.
+adb shell am start -W -n "${package}/.MainActivity" > /dev/null
+sleep 15
 # No system keys or app switches: home and recents would leave the app, and the monkey would spend
 # the run outside it.
 adb shell monkey -p "${package}" -s "${seed}" --throttle 100 \
