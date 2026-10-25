@@ -136,6 +136,18 @@ final knownFlutterBugs =
             '${details.stack}'.contains('ScrollableState._handleDrag'),
       ),
       (
+        // A text field's toolbar showing while the field's own scrolling
+        // changes size mid-layout (here, a long search query cleared).
+        issue: 'https://github.com/b1codes/is-it-open/issues/61',
+        matches: (details) =>
+            '${details.stack}'.contains(
+              'EditableTextState._handleContextMenuOnScroll',
+            ) &&
+            RegExp(
+              r"'(selection\.isValid|sizeAccessAllowed)'",
+            ).hasMatch('${details.exception}'),
+      ),
+      (
         // A SnackBar shown while a route is pushed or popped. Either check
         // in _HeroFlight.divert, depending on which way the flight turns.
         issue: 'https://github.com/b1codes/is-it-open/issues/61',
@@ -249,27 +261,56 @@ class Monkey {
       _record('seed $seed, $steps steps');
       for (var step = 1; step <= steps; step++) {
         final action = _pick();
-        final description = await _perform(action);
-        _record('#$step ${action.name}: $description');
-        await _pause();
+        if (_live) {
+          // On a device a step can hang (a frame that never comes), and the
+          // job would time out without saying where. Name the step first,
+          // and give up on it after a while.
+          onLog?.call('#$step ${action.name}…');
+          await _step(step, action).timeout(
+            _stepTimeout,
+            onTimeout: () => _fail(
+              step,
+              'The ${action.name} action, or the pause after it, '
+              "didn't finish in ${_stepTimeout.inSeconds} s: the app is stuck.",
+            ),
+          );
+        } else {
+          await _step(step, action);
+        }
         final error = tester.takeException();
         if (error != null) {
-          final details = errors.isEmpty ? '$error' : '${errors.first}';
-          throw MonkeyFailure(step, details, log, replay);
+          _fail(step, errors.isEmpty ? '$error' : '${errors.first}');
         }
         if (!_hasRoute()) {
-          throw MonkeyFailure(
+          _fail(
             step,
             'The app popped its last route: the screen is blank, and the '
             "next rebuild fails Navigator's `_history.isNotEmpty` assertion.",
-            log,
-            replay,
           );
         }
       }
     } finally {
       FlutterError.onError = report;
     }
+  }
+
+  /// A device test runs in real time, a widget test in fake time.
+  bool get _live => tester.binding is LiveTestWidgetsFlutterBinding;
+
+  static const _stepTimeout = Duration(seconds: 60);
+
+  Future<void> _step(int step, MonkeyAction action) async {
+    final description = await _perform(action);
+    _record('#$step ${action.name}: $description');
+    await _pause();
+  }
+
+  /// Throws a [MonkeyFailure], logging it first: on a device a stuck app can
+  /// keep the test from ever reporting it.
+  Never _fail(int step, String error) {
+    final failure = MonkeyFailure(step, error, log, replay);
+    onLog?.call('$failure');
+    throw failure;
   }
 
   /// Whether the app's navigator still shows a route. Popping the only one
@@ -386,7 +427,10 @@ class Monkey {
         ]) {
           tester.binding.handleAppLifecycleStateChanged(state);
         }
-        await tester.pump(Duration(milliseconds: _random.nextInt(2000)));
+        final away = Duration(milliseconds: _random.nextInt(2000));
+        // In the background the app draws no frames, so on a device a pump
+        // would wait for one forever; just let the time pass.
+        await (_live ? tester.binding.delayed(away) : tester.pump(away));
         for (final state in [
           AppLifecycleState.hidden,
           AppLifecycleState.inactive,

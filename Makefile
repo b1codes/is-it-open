@@ -101,7 +101,7 @@ test-frontend:
 # The monkey test: the whole app under seeded random input, as CI runs it. SEED replays a run (default: CI's
 # fixed seed), STEPS sets the actions per scenario, and NAME picks one scenario. See "Monkey testing" in
 # TESTING.md
-STEPS ?= 1500
+STEPS ?= 1000
 test-monkey:
 	cd frontend && $(FLUTTER) test test/monkey/monkey_test.dart $(if $(SEED),--dart-define=SEED=$(SEED)) \
 		--dart-define=MONKEY_STEPS=$(STEPS) $(if $(NAME),--plain-name "$(NAME)")

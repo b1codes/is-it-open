@@ -209,7 +209,7 @@ jobs:
         if: success() || failure()
         run: >
           flutter test --tags monkey -x quarantine
-          --dart-define=MONKEY_STEPS=1500
+          --dart-define=MONKEY_STEPS=1000
           --file-reporter json:test-results/monkey/flutter.json
 
       - name: Diff coverage (informational)

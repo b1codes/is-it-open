@@ -49,6 +49,7 @@ known = [
     "'_hold == null'",
     "'manifest.fromHero == newManifest.toHero'",
     "'manifest.toHero == newManifest.fromHero'",
+    "_handleContextMenuOnScroll",
 ]
 lines = [l.split(": ", 1)[-1] for l in open(sys.argv[1], errors="replace") if " flutter " in l]
 errors = []
