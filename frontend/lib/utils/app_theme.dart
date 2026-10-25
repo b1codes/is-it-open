@@ -152,7 +152,10 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.terracotta,
         foregroundColor: Colors.white,
+        // Not inherited, like the dark theme's default (labelLarge), so the
+        // button's text style can animate when the theme switches.
         textStyle: GoogleFonts.montserrat(
+          textStyle: const TextStyle(inherit: false),
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,
         ),

@@ -17,6 +17,41 @@ void main() {
     );
   });
 
+  // MaterialApp cross-fades between the themes, and a button animates its
+  // text style along with it. Styles that can't be interpolated threw on
+  // every switch with a button on screen (found by the monkey test).
+  for (final (from, to) in [
+    (ThemeMode.light, ThemeMode.dark),
+    (ThemeMode.dark, ThemeMode.light),
+  ]) {
+    testWidgets('switching from ${from.name} to ${to.name} animates cleanly', (
+      tester,
+    ) async {
+      Widget app(ThemeMode mode) => MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: mode,
+        home: Scaffold(
+          body: Column(
+            children: [
+              ElevatedButton(onPressed: () {}, child: const Text('Elevated')),
+              TextButton(onPressed: () {}, child: const Text('Text')),
+              OutlinedButton(onPressed: () {}, child: const Text('Outlined')),
+              const TextField(decoration: InputDecoration(labelText: 'Field')),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(app(from));
+      await tester.pumpWidget(app(to));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 30));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   group('AppEffects', () {
     const a = AppEffects(
       glassBlur: 10,
