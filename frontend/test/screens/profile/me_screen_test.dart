@@ -64,6 +64,35 @@ void main() {
     expect(find.text('N'), findsOneWidget);
   });
 
+  // The initials took the first UTF-16 code unit of each name, half of an
+  // emoji's surrogate pair, which can't be laid out (found by the edge-case
+  // tests for the monkey testing task).
+  for (final (first, last, username, initials) in [
+    ('😀Avery', 'Ünal', 'demo', '😀Ü'),
+    ('👍🏽Avery', '🇨🇦Park', 'demo', '👍🏽🇨🇦'),
+    (null, null, '東京tower', '東'),
+    (null, null, '👨‍👩‍👧‍👦fam', '👨‍👩‍👧‍👦'),
+  ]) {
+    testWidgets('initials of ${first ?? username} keep whole characters', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        const MeScreen(),
+        authState: AuthAuthenticated(
+          user: User(
+            id: 9,
+            username: username,
+            firstName: first,
+            lastName: last,
+            token: 'tok',
+          ),
+        ),
+      );
+      expect(find.text(initials), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('saves only the fields that changed, trimmed', (tester) async {
     final api = echoingApi();
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);

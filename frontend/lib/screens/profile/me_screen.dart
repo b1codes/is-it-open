@@ -76,14 +76,18 @@ class _MeScreenState extends State<MeScreen> {
     _isInitialized = true;
   }
 
+  // Whole characters (`characters`), not UTF-16 code units: a name that
+  // starts with an emoji would otherwise give half of it, which can't be
+  // laid out.
   String _getInitials(User user) {
+    String initial(String s) => s.characters.first.toUpperCase();
     if (user.firstName != null &&
         user.lastName != null &&
         user.firstName!.isNotEmpty &&
         user.lastName!.isNotEmpty) {
-      return '${user.firstName![0]}${user.lastName![0]}'.toUpperCase();
+      return '${initial(user.firstName!)}${initial(user.lastName!)}';
     }
-    return user.username.substring(0, 1).toUpperCase();
+    return initial(user.username);
   }
 
   @override
