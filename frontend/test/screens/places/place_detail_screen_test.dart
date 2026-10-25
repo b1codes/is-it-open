@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -185,6 +187,36 @@ void main() {
           remaining.map((b) => b.place.tomtomId),
           isNot(contains('tt_coffee')),
         );
+      });
+    });
+
+    // Leaving while the removal was in flight used to pop again once it
+    // finished, closing the screen underneath and leaving the navigator
+    // empty (found by the monkey test).
+    testWidgets('going back during a removal closes only this screen', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        final api = MockApiService();
+        final deleted = Completer<void>();
+        when(
+          () => api.getBookmarks(),
+        ).thenAnswer((_) async => [SavedPlace(id: 1, place: coffeePlace)]);
+        when(() => api.deleteBookmark(any())).thenAnswer((_) => deleted.future);
+        await open(tester, coffeePlace, api: api);
+        await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Remove from saved'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+        await tester.pump(const Duration(milliseconds: 100)); // mid-transition
+        deleted.complete();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PlaceDetailScreen), findsNothing);
+        expect(find.text('open'), findsOneWidget);
+        expect(tester.takeException(), isNull);
       });
     });
 

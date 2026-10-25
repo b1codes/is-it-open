@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/components/places/quick_add_place_sheet.dart';
@@ -122,6 +124,29 @@ void main() {
     expect(find.byType(QuickAddPlaceSheet), findsOneWidget);
     expect(find.text('Save place'), findsOneWidget); // spinner is gone
     expect(saved, isEmpty);
+  });
+
+  // Dismissing the sheet while it saved used to pop again once the save
+  // finished, closing the screen under it (found by the monkey test).
+  testWidgets('dismissed during a save, closes only itself', (tester) async {
+    final bookmarked = Completer<void>();
+    when(
+      () => api.savePlace(any()),
+    ).thenAnswer((call) async => (call.positionalArguments.single as Place));
+    when(() => api.bookmarkPlace(any())).thenAnswer((_) => bookmarked.future);
+    await open(tester);
+    await fill(tester, 'Trailhead', '1 Forest Rd');
+    await tester.tap(find.text('Save place'));
+    await tester.pump();
+
+    await tester.binding.handlePopRoute(); // the system back button
+    await tester.pump(const Duration(milliseconds: 100)); // mid-transition
+    bookmarked.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QuickAddPlaceSheet), findsNothing);
+    expect(find.text('open'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('cancel closes without saving', (tester) async {

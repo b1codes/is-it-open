@@ -12,6 +12,7 @@ import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
 import '../../utils/graphics_helper.dart';
 import '../../utils/place_status.dart';
+import '../../utils/navigation.dart';
 import '../../utils/places_theme.dart';
 import 'plan_visit_screen.dart';
 
@@ -82,10 +83,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     final api = context.read<ApiService>();
     final today = context.read<TodayRouteCubit>();
     final nav = Navigator.of(context);
+    final route = ModalRoute.of(context);
     try {
       await api.deleteBookmark(widget.place.tomtomId);
       await today.remove(widget.place.tomtomId);
-      if (mounted) nav.pop();
+      closeRoute(nav, route);
     } catch (_) {}
   }
 

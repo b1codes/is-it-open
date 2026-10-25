@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/place.dart';
 import '../../services/api_service.dart';
+import '../../utils/navigation.dart';
 import '../../utils/places_theme.dart';
 
 // Add-a-custom-place sheet. Lightweight: name + address are required; the
@@ -38,6 +39,7 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
     if (!_form.currentState!.validate()) return;
     final api = context.read<ApiService>();
     final nav = Navigator.of(context);
+    final route = ModalRoute.of(context);
     final scaffold = ScaffoldMessenger.of(context);
     setState(() => _submitting = true);
     try {
@@ -53,8 +55,8 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
       if (onSaved != null) {
         onSaved(savedPlace);
         if (mounted) setState(() => _submitting = false);
-      } else if (mounted) {
-        nav.pop(savedPlace);
+      } else {
+        closeRoute(nav, route, savedPlace);
       }
     } catch (e) {
       scaffold.showSnackBar(SnackBar(content: Text('Couldn\'t save place.')));
