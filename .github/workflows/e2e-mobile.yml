@@ -5,6 +5,9 @@ name: E2E on mobile
 # native networking and the platform builds. Then the monkey tests on each device ("Monkey testing"
 # in TESTING.md). Called by nightly.yml; see e2e/README.md.
 on:
+  # TEMPORARY: runs on this PR to check the monkey steps; remove before merging.
+  pull_request:
+    branches: [ main ]
   workflow_call:
     inputs:
       monkey_seed:
