@@ -14,6 +14,12 @@
 BACKEND_MIN_COVERAGE ?= 95
 FRONTEND_MIN_COVERAGE ?= 95
 
+# Flutter and Dart from the SDK pinned in .fvmrc when fvm is installed, else the ones on PATH (as in CI,
+# where flutter-action installs the pinned version from .fvmrc).
+FVM := $(shell command -v fvm 2>/dev/null)
+FLUTTER ?= $(if $(FVM),fvm flutter,flutter)
+DART ?= $(if $(FVM),fvm dart,dart)
+
 # Backend commands run in the dev container, which has the test tooling and reaches the emulator.
 # SECRET_KEY is only for tests; the dev compose file doesn't set one.
 BACKEND_RUN = docker compose run --rm -e SECRET_KEY=test-only-not-secret backend
@@ -56,8 +62,8 @@ lint-backend:
 	$(BACKEND_RUN_WITH_E2E) sh -c "ruff check . /e2e /smoke && ruff format --check . /e2e /smoke && mypy . && bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'"
 
 lint-frontend:
-	cd frontend && dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver && flutter analyze lib test tool integration_test test_driver
-	cd frontend/widgetbook && flutter analyze
+	cd frontend && $(DART) format --output=none --set-exit-if-changed lib test tool integration_test test_driver && $(FLUTTER) analyze lib test tool integration_test test_driver
+	cd frontend/widgetbook && $(FLUTTER) analyze
 
 # infra/ as CI's Terraform job checks it, with the same tool versions (needs Docker)
 TERRAFORM = docker run --rm -v "$(CURDIR)/infra:/infra" -w /infra hashicorp/terraform:1.16.5
@@ -79,7 +85,7 @@ audit:
 # Apply formatting and autofixable lint fixes
 format:
 	$(BACKEND_RUN_WITH_E2E) sh -c 'ruff check --fix . /e2e /smoke && ruff format . /e2e /smoke'
-	cd frontend && dart format lib test tool integration_test test_driver
+	cd frontend && $(DART) format lib test tool integration_test test_driver
 
 # --- Tests ---
 
@@ -90,14 +96,14 @@ test-backend:
 	$(BACKEND_RUN) pytest -m "not quarantine"
 
 test-frontend:
-	cd frontend && flutter test -x quarantine
+	cd frontend && $(FLUTTER) test -x quarantine
 
 test-widgetbook:
-	cd frontend/widgetbook && flutter test -x quarantine -x golden
+	cd frontend/widgetbook && $(FLUTTER) test -x quarantine -x golden
 
 # Golden tests: compared on Linux only (skipped elsewhere). See "Visual regression" in TESTING.md
 test-goldens:
-	cd frontend/widgetbook && TZ=UTC flutter test --tags golden
+	cd frontend/widgetbook && TZ=UTC $(FLUTTER) test --tags golden
 
 # Firestore security rules against the emulator, which it starts (needs Node.js 22+). See "Infrastructure" in TESTING.md
 test-rules:
@@ -117,7 +123,7 @@ coverage-backend:
 	@echo "HTML report: backend/htmlcov/index.html"
 
 coverage-frontend:
-	cd frontend && dart run tool/coverage.dart imports && flutter test --coverage -x quarantine && dart run tool/coverage.dart check --min=$(FRONTEND_MIN_COVERAGE)
+	cd frontend && $(DART) run tool/coverage.dart imports && $(FLUTTER) test --coverage -x quarantine && $(DART) run tool/coverage.dart check --min=$(FRONTEND_MIN_COVERAGE)
 
 # --- API contract (see contracts/README.md) ---
 
@@ -203,14 +209,14 @@ test-load:
 # (macOS doesn't build with Xcode 26+, #45). PERF_DEVICE picks another device.
 PERF_DEVICE ?= linux
 perf-frames:
-	cd frontend && flutter drive --profile -d $(PERF_DEVICE) --driver=test_driver/perf_driver.dart \
+	cd frontend && $(FLUTTER) drive --profile -d $(PERF_DEVICE) --driver=test_driver/perf_driver.dart \
 		--target=integration_test/perf_test.dart --dart-define=ENV=e2e
 
 # Release build sizes against frontend/app_size.json. Locally the sizes are only indicative: the
-# baseline is measured by CI, with the Flutter version pinned in perf.yml.
+# baseline is measured by CI, with the Flutter version pinned in .fvmrc.
 app-size:
-	cd frontend && flutter build apk --release --analyze-size --target-platform android-arm64 && flutter build web --release
-	cd frontend && dart run tool/app_size.dart check --analysis="$$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
+	cd frontend && $(FLUTTER) build apk --release --analyze-size --target-platform android-arm64 && $(FLUTTER) build web --release
+	cd frontend && $(DART) run tool/app_size.dart check --analysis="$$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
 
 # Replaces frontend/app_size.json with the sizes the App size CI job measured (RUN=<run id>, or the latest
 # Performance or Nightly run on this branch), after an intended size change or a Flutter upgrade
@@ -223,4 +229,4 @@ mutation-backend:
 	$(BACKEND_RUN) sh -c 'mutmut run; mutmut results'
 
 mutation-frontend:
-	cd frontend && flutter test --coverage && dart pub global activate mutation_test 1.8.0 && dart pub global run mutation_test --exclude-strings -c coverage/lcov.info mutation_test.xml
+	cd frontend && $(FLUTTER) test --coverage && $(DART) pub global activate mutation_test 1.8.0 && $(DART) pub global run mutation_test --exclude-strings -c coverage/lcov.info mutation_test.xml

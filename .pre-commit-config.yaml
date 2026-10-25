@@ -1,5 +1,6 @@
 # Optional local hooks: `uvx pre-commit install` (see TESTING.md).
-# They use the repo's own pinned tools (backend uv env, Flutter SDK), so results match CI.
+# They use the repo's own pinned tools (backend uv env, the Flutter SDK in .fvmrc via fvm when it's
+# installed), so results match CI.
 repos:
   - repo: local
     hooks:
@@ -17,7 +18,7 @@ repos:
         files: ^backend/
       - id: dart-format
         name: dart format (frontend)
-        entry: dart format
+        entry: sh -c 'if command -v fvm > /dev/null 2>&1; then exec fvm dart format "$@"; else exec dart format "$@"; fi' --
         language: system
         types: [dart]
         files: ^frontend/(lib|test|tool|integration_test|test_driver)/

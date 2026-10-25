@@ -77,7 +77,10 @@ if ! curl -fsS "http://127.0.0.1:${port}/status" > /dev/null 2>&1; then
 fi
 
 rm -rf build/e2e-screenshots
-flutter drive \
+# The Flutter SDK pinned in .fvmrc when fvm is installed.
+flutter=(flutter)
+command -v fvm > /dev/null 2>&1 && flutter=(fvm flutter)
+"${flutter[@]}" drive \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/app_test.dart \
   -d web-server --browser-name=chrome --headless \

@@ -22,8 +22,6 @@ migrate_working_dir/
 *.iws
 .idea/
 
-
-
 # Flutter repo-specific
 /bin/cache/
 /bin/internal/bootstrap.bat
@@ -207,3 +205,6 @@ e2e/.native/
 
 # Load test results (make load)
 perf/results/
+
+# FVM Version Cache
+.fvm/
