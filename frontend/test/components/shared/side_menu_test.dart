@@ -12,7 +12,11 @@ import '../../helpers/pump_app.dart';
 void main() {
   late List<int> selected;
 
-  Future<void> pump(WidgetTester tester, {int index = 0}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    int index = 0,
+    Size size = desktopSize,
+  }) async {
     selected = [];
     await tester.pumpApp(
       Scaffold(
@@ -22,9 +26,32 @@ void main() {
           ],
         ),
       ),
-      size: desktopSize,
+      size: size,
     );
   }
+
+  // A phone on its side gets the side menu (it's over 800 wide), but only
+  // 390 high; with large text the menu overflowed (found by the monkey test).
+  testWidgets('scrolls when it is too short for large text', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pump(tester, size: const Size(844, 390));
+    expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(find.text('Logout'), 100);
+    await tester.tap(find.text('Logout'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps the actions at the bottom when there is room', (
+    tester,
+  ) async {
+    await pump(tester);
+    expect(
+      tester.getBottomLeft(find.text('Logout')).dy,
+      greaterThan(desktopSize.height - 80),
+    );
+  });
 
   testWidgets('lists every destination and reports taps', (tester) async {
     await pump(tester, index: 2);

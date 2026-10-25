@@ -31,20 +31,24 @@ class SideMenu extends StatelessWidget {
         color: theme.paperRaised,
         border: Border(right: BorderSide(color: theme.ashSoft, width: 1)),
       ),
+      // One scroll view for the whole menu: on a short window (a phone on
+      // its side, large text) the actions scroll into view instead of
+      // overflowing. With room to spare they sit at the bottom.
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-              child: Text(
-                'Is It Open',
-                style: PlacesType.display(theme.ink).copyWith(fontSize: 28),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Text(
+                  'Is It Open',
+                  style: PlacesType.display(theme.ink).copyWith(fontSize: 28),
+                ),
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              sliver: SliverList.list(
                 children: [
                   _buildNavItem(context, 0, 'My Places', Icons.star_rounded),
                   _buildNavItem(
@@ -59,46 +63,59 @@ class SideMenu extends StatelessWidget {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Divider(color: theme.ashSoft, height: 1),
-            ),
-            const SizedBox(height: 12),
-            _buildActionItem(
-              context,
-              'Settings',
-              Icons.settings_outlined,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                );
-              },
-            ),
-            _buildActionItem(
-              context,
-              isDarkMode ? 'Dark Mode' : 'Light Mode',
-              isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-              trailing: Switch(
-                value: isDarkMode,
-                onChanged: (value) {
-                  context.read<ThemeCubit>().setTheme(
-                    value ? ThemeMode.dark : ThemeMode.light,
-                  );
-                },
-                activeTrackColor: theme.anchor.withValues(alpha: 0.3),
-                activeThumbColor: theme.anchor,
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Divider(color: theme.ashSoft, height: 1),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionItem(
+                    context,
+                    'Settings',
+                    Icons.settings_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildActionItem(
+                    context,
+                    isDarkMode ? 'Dark Mode' : 'Light Mode',
+                    isDarkMode
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
+                    trailing: Switch(
+                      value: isDarkMode,
+                      onChanged: (value) {
+                        context.read<ThemeCubit>().setTheme(
+                          value ? ThemeMode.dark : ThemeMode.light,
+                        );
+                      },
+                      activeTrackColor: theme.anchor.withValues(alpha: 0.3),
+                      activeThumbColor: theme.anchor,
+                    ),
+                  ),
+                  _buildActionItem(
+                    context,
+                    'Logout',
+                    Icons.logout_rounded,
+                    onTap: () {
+                      context.read<AuthBloc>().add(LogoutRequested());
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
-            _buildActionItem(
-              context,
-              'Logout',
-              Icons.logout_rounded,
-              onTap: () {
-                context.read<AuthBloc>().add(LogoutRequested());
-              },
-            ),
-            const SizedBox(height: 12),
           ],
         ),
       ),
