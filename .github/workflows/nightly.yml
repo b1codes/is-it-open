@@ -154,7 +154,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
       - run: flutter pub get
       - name: Test
@@ -256,7 +256,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
       - run: flutter pub get
       - name: Collect coverage

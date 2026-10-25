@@ -69,10 +69,9 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
-          # Sizes change with Flutter, so the baseline was measured with this version. After a
-          # bump, accept the new sizes with `make app-size-pull` (see "Performance" in TESTING.md).
-          flutter-version: '3.47.7'
+          # Sizes change with Flutter, so the baseline was measured with the version in .fvmrc.
+          # After a bump, accept the new sizes with `make app-size-pull` (see "Performance" in TESTING.md).
+          flutter-version-file: .fvmrc
           cache: true
 
       - run: flutter pub get
@@ -110,10 +109,9 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
           # Frame times change with the engine; the budgets in test_driver/perf_driver.dart were
-          # set with this version.
-          flutter-version: '3.47.7'
+          # set with the version in .fvmrc.
+          flutter-version-file: .fvmrc
           cache: true
 
       - name: Start the E2E stack

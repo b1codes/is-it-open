@@ -53,11 +53,13 @@ jobs:
               - 'smoke/**'
             frontend:
               - *shared
+              - '.fvmrc'
               - 'frontend/**'
             contracts:
               - 'contracts/**'
             e2e:
               - *shared
+              - '.fvmrc'
               - 'backend/**'
               - 'frontend/**'
               - 'docker/**'
@@ -175,7 +177,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
 
       - name: Install dependencies
@@ -230,7 +232,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
 
       - name: Install dependencies
@@ -259,7 +261,7 @@ jobs:
 
   # Visual regression: every Widgetbook use case compared against test/goldens/. Font rasterization
   # changes between OS images and Flutter engine versions, so the goldens are only valid for the
-  # runner image and Flutter version below, which generated them. Bump them together, then
+  # runner image and the Flutter version in .fvmrc, which generated them. Bump them together, then
   # regenerate (see "Visual regression" in TESTING.md). On a mismatch, the job uploads the failure
   # images and a regenerated set, which `make goldens-pull` fetches for review.
   goldens:
@@ -278,8 +280,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
-          flutter-version: '3.47.7'
+          flutter-version-file: .fvmrc
           cache: true
 
       - name: Install dependencies
@@ -367,7 +368,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
 
       - name: Install dependencies
