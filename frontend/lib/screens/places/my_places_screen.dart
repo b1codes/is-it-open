@@ -875,101 +875,110 @@ void _openActionSheet(
         top: Radius.circular(PlacesRadius.lg),
       ),
     ),
+    // Scrolls when the screen is short (a phone on its side, large text).
     builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: PlacesSpacing.sm),
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.ash,
-                borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: PlacesSpacing.sm),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.ash,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              PlacesSpacing.lg,
-              PlacesSpacing.md,
-              PlacesSpacing.lg,
-              PlacesSpacing.sm,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                PlacesSpacing.lg,
+                PlacesSpacing.md,
+                PlacesSpacing.lg,
+                PlacesSpacing.sm,
+              ),
+              child: Text(
+                sp.customName ?? sp.place.name,
+                style: PlacesType.title(theme.ink),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            child: Text(
-              sp.customName ?? sp.place.name,
-              style: PlacesType.title(theme.ink),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            ListTile(
+              leading: Icon(
+                sp.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                color: theme.anchor,
+              ),
+              title: Text(sp.isPinned ? 'Unpin' : 'Pin'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await api.togglePinPlace(sp.place.tomtomId, !sp.isPinned);
+                  onRefresh();
+                } catch (_) {
+                  reportFailure(sp.isPinned ? 'unpin' : 'pin');
+                }
+              },
             ),
-          ),
-          ListTile(
-            leading: Icon(
-              sp.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-              color: theme.anchor,
+            ListTile(
+              leading: Icon(
+                sp.isCheckItOut
+                    ? Icons.check_circle_outline
+                    : Icons.visibility_off_outlined,
+                color: theme.inkMuted,
+              ),
+              title: Text(
+                sp.isCheckItOut ? 'Mark as visited' : 'Move to want to visit',
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await api.toggleCheckItOut(
+                    sp.place.tomtomId,
+                    !sp.isCheckItOut,
+                  );
+                  onRefresh();
+                } catch (_) {
+                  reportFailure('update');
+                }
+              },
             ),
-            title: Text(sp.isPinned ? 'Unpin' : 'Pin'),
-            onTap: () async {
-              Navigator.pop(ctx);
-              try {
-                await api.togglePinPlace(sp.place.tomtomId, !sp.isPinned);
-                onRefresh();
-              } catch (_) {
-                reportFailure(sp.isPinned ? 'unpin' : 'pin');
-              }
-            },
-          ),
-          ListTile(
-            leading: Icon(
-              sp.isCheckItOut
-                  ? Icons.check_circle_outline
-                  : Icons.visibility_off_outlined,
-              color: theme.inkMuted,
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: theme.inkMuted),
+              title: const Text('Edit details'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PlaceDetailScreen(place: sp.place),
+                  ),
+                ).then((_) => onRefresh());
+              },
             ),
-            title: Text(
-              sp.isCheckItOut ? 'Mark as visited' : 'Move to want to visit',
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: theme.closingColor),
+              title: Text(
+                'Remove',
+                style: TextStyle(color: theme.closingColor),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  await api.deleteBookmark(sp.place.tomtomId);
+                  todayCubit.remove(sp.place.tomtomId);
+                  onRefresh();
+                } catch (_) {
+                  reportFailure('remove');
+                }
+              },
             ),
-            onTap: () async {
-              Navigator.pop(ctx);
-              try {
-                await api.toggleCheckItOut(sp.place.tomtomId, !sp.isCheckItOut);
-                onRefresh();
-              } catch (_) {
-                reportFailure('update');
-              }
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.edit_outlined, color: theme.inkMuted),
-            title: const Text('Edit details'),
-            onTap: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlaceDetailScreen(place: sp.place),
-                ),
-              ).then((_) => onRefresh());
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.delete_outline, color: theme.closingColor),
-            title: Text('Remove', style: TextStyle(color: theme.closingColor)),
-            onTap: () async {
-              Navigator.pop(ctx);
-              try {
-                await api.deleteBookmark(sp.place.tomtomId);
-                todayCubit.remove(sp.place.tomtomId);
-                onRefresh();
-              } catch (_) {
-                reportFailure('remove');
-              }
-            },
-          ),
-          const SizedBox(height: PlacesSpacing.sm),
-        ],
+            const SizedBox(height: PlacesSpacing.sm),
+          ],
+        ),
       ),
     ),
   );

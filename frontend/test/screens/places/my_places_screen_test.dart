@@ -37,6 +37,7 @@ void main() {
     List<String> todayRouteIds = const [],
     bool apiFails = false,
     ApiService? api,
+    Size size = const Size(600, 2000),
   }) async {
     await tester.pumpApp(
       const MyPlacesScreen(),
@@ -44,7 +45,7 @@ void main() {
       todayRouteIds: todayRouteIds,
       apiFails: apiFails,
       api: api,
-      size: const Size(600, 2000),
+      size: size,
     );
     await tester.pumpAndSettle();
   }
@@ -287,6 +288,40 @@ void main() {
             expect(find.textContaining("route reset"), findsNothing);
           },
         );
+        await tester.unmount();
+      });
+    });
+  });
+
+  // A phone on its side at 2× text: the actions didn't fit and overflowed
+  // (found by the monkey test).
+  group('on a short screen with large text', () {
+    setUp(() {
+      TestWidgetsFlutterBinding
+              .instance
+              .platformDispatcher
+              .textScaleFactorTestValue =
+          2;
+    });
+    tearDown(
+      TestWidgetsFlutterBinding
+          .instance
+          .platformDispatcher
+          .clearTextScaleFactorTestValue,
+    );
+
+    testWidgets("a place's actions scroll", (tester) async {
+      await withClock(Clock.fixed(_noon), () async {
+        await pump(tester, size: const Size(844, 390));
+        await tester.longPress(find.byType(SavedPlaceRow).first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(
+          find.text('Remove'),
+          100,
+          scrollable: find.byType(Scrollable).last,
+        );
+        expect(find.text('Remove'), findsOneWidget);
         await tester.unmount();
       });
     });
