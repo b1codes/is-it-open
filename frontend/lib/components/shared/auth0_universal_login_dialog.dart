@@ -255,9 +255,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // Keyed: the name field comes and goes above the
+                      // others, and without keys each field's state (focus,
+                      // scroll, text toolbar) moved to the field below or
+                      // above it. A toolbar left on a field whose text was
+                      // swapped out also failed a Flutter debug assertion
+                      // (https://github.com/b1codes/is-it-open/issues/61).
                       children: [
                         if (_isSignUp) ...[
                           TextFormField(
+                            key: const ValueKey('name'),
                             controller: _nameController,
                             decoration: const InputDecoration(
                               labelText: 'Full Name',
@@ -275,6 +282,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                           const SizedBox(height: 12),
                         ],
                         TextFormField(
+                          key: const ValueKey('email'),
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: const InputDecoration(
@@ -295,6 +303,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          key: const ValueKey('password'),
                           controller: _passwordController,
                           obscureText: true,
                           decoration: const InputDecoration(

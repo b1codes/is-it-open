@@ -94,6 +94,31 @@ void main() {
     expect(field('Full Name'), findsNothing);
   });
 
+  // The name field appears above the email field. Each field keeps its own
+  // state: here, the email field's focus and text toolbar, which used to
+  // move to the new name field and fail a Flutter debug assertion (#61).
+  testWidgets('switching to sign-up leaves the email field as it was', (
+    tester,
+  ) async {
+    await open(tester);
+    await tester.enterText(field('Email address'), '${'a' * 200}@example.com');
+    await tester.pumpAndSettle();
+    final email = find.descendant(
+      of: field('Email address'),
+      matching: find.byType(EditableText),
+    );
+    tester.state<EditableTextState>(email).showToolbar();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign up'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.state<EditableTextState>(email).widget.focusNode.hasFocus,
+      isTrue,
+    );
+  });
+
   testWidgets('Apple sign-in splits the name into given and family', (
     tester,
   ) async {
