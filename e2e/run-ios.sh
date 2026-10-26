@@ -4,9 +4,10 @@
 #
 #   UDID=<simulator udid> ../e2e/run-ios.sh --dart-define=ENV=e2e --dart-define=MONKEY=true
 #
-# After the build, `flutter test` launches the app and waits, with no timeout, for it to print its
-# VM service address on the simulator's log. Now and then on CI that never comes (#63): the app
-# normally attaches about 40 s after the build, but some runs sat there until the job timed out.
+# After the build, `flutter test` launches the app with `simctl launch` and then waits for it to
+# attach, with no timeout on either. Now and then on CI the launch never returns and the app never
+# starts (#63): it normally attaches about 40 s after the build, but some runs sat there until the
+# job timed out.
 # So this boots the simulator and waits until it has finished booting, and if no test has started
 # ATTACH_TIMEOUT seconds after the build, it stops that attempt (`flutter test` and everything it
 # started, and the app), reboots the simulator and tries again, up to ATTEMPTS times. The output
