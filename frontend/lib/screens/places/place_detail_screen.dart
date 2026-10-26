@@ -758,10 +758,7 @@ class _StickyCTA extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: PlacesSpacing.md,
-                vertical: PlacesSpacing.sm,
-              ),
+              padding: const EdgeInsets.symmetric(vertical: PlacesSpacing.sm),
               child: Center(
                 heightFactor: 1,
                 child: loading
