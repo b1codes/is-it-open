@@ -31,7 +31,7 @@ jobs:
   ios:
     name: E2E (iOS simulator)
     runs-on: macos-15
-    timeout-minutes: 75
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,8 @@ jobs:
       - name: Start the E2E stack
         run: e2e/start-native.sh
 
-      - name: Boot a simulator
+      # e2e/run-ios.sh boots it.
+      - name: Pick a simulator
         id: simulator
         run: |
           udid=$(xcrun simctl list devices available --json | python3 -c '
@@ -70,7 +71,6 @@ jobs:
                   print(phones[0]["udid"])
                   break
           ')
-          xcrun simctl boot "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Pick a monkey seed
@@ -79,13 +79,15 @@ jobs:
           echo "SEED=$SEED" >> "$GITHUB_ENV"
           echo "Monkey on the iOS simulator: seed \`$SEED\`, $MONKEY_STEPS steps." >> "$GITHUB_STEP_SUMMARY"
 
-      # The journeys, then the monkey (MONKEY=true), in one launch of the test app.
+      # The journeys, then the monkey (MONKEY=true), in one launch of the test app. run-ios.sh
+      # retries a launch that doesn't attach to flutter test (#63).
       - name: Run the journeys and the monkey
         working-directory: frontend
-        timeout-minutes: 45
+        timeout-minutes: 55
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
         run: >
-          flutter test integration_test/app_test.dart -r expanded
-          -d "${{ steps.simulator.outputs.udid }}"
+          ../e2e/run-ios.sh
           --dart-define=ENV=e2e
           --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
           --dart-define=MONKEY=true
@@ -95,7 +97,9 @@ jobs:
         if: failure() || cancelled()
         with:
           name: e2e-failure-ios
-          path: e2e/.native/*.log
+          path: |
+            e2e/.native/*.log
+            frontend/build/ios-e2e/
           include-hidden-files: true  # e2e/.native is a dot directory
           if-no-files-found: ignore
 
