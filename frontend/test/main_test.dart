@@ -211,6 +211,32 @@ void main() {
     }
   });
 
+  // A SnackBar replaced while a page is pushed, then the page popped before
+  // the push finished: the SnackBar's hero flight was turned around between
+  // the wrong pair of heroes, failing a Flutter debug assertion (#61).
+  testWidgets('a SnackBar changing mid-navigation is fine', (tester) async {
+    await start(tester);
+    await tester.pumpAndSettle();
+    final messenger = ScaffoldMessenger.of(
+      tester.element(find.byType(LoginScreen)),
+    );
+    void report() =>
+        messenger.showSnackBar(const SnackBar(content: Text('Offline')));
+    report();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    messenger.removeCurrentSnackBar();
+    report();
+    await tester.pump();
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
   testWidgets('signing out closes pushed screens', (tester) async {
     storeSession(demoUser);
     await start(tester, api: _CountingApi(), size: desktopSize);

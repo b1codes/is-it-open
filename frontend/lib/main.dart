@@ -103,6 +103,17 @@ class MyApp extends StatelessWidget {
                 theme: AppTheme.lightTheme,
                 darkTheme: AppTheme.darkTheme,
                 themeMode: themeMode,
+                // No hero animations between pages. The app has no Hero of
+                // its own; the only ones are Flutter's, around each
+                // SnackBar, to hold it still while a page slides in. A
+                // SnackBar replaced while a page was pushed and then popped
+                // turned that flight around between the wrong pair of
+                // heroes and failed a Flutter debug assertion
+                // (https://github.com/b1codes/is-it-open/issues/61). Now a
+                // SnackBar just moves with its page. Remove this to use
+                // Hero widgets.
+                builder: (context, navigator) =>
+                    HeroControllerScope.none(child: navigator!),
                 home: BlocBuilder<AuthBloc, AuthState>(
                   buildWhen: (previous, current) {
                     if (current is AuthInitial) return true;
