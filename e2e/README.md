@@ -93,3 +93,5 @@ Helpers (`helpers/e2e.dart`):
 | `nightly.yml` → `e2e-mobile.yml` | Nightly, or manually | An iOS simulator (macOS, Docker-free stack, Xcode 16; see #45) and an Android emulator (Linux with KVM, compose stack, through `adb reverse`) |
 
 On failure, the web jobs upload the screenshots, chromedriver's log and the stack's logs. The mobile jobs upload the stack's logs.
+
+The iOS job runs the journeys through `e2e/run-ios.sh`. Now and then on CI, the app on the simulator never attaches to `flutter test` after the build (#63), and `flutter test` waits for it with no timeout. The script waits for the simulator to finish booting first. If no test has started 4 minutes after the build (it normally takes about 40 seconds), it stops that attempt and the app, reboots the simulator, and tries again, up to 3 times. Each attempt's output, and the simulator's log of the app for each one that didn't attach, go in the `e2e-failure-ios` artifact.
