@@ -190,6 +190,31 @@ void main() {
       });
     });
 
+    // A failed add that finished after the user left used to show its
+    // SnackBar and set state on the closed screen (found by the monkey test).
+    testWidgets('an add that fails after going back is dropped', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(noon), () async {
+        final api = MockApiService();
+        final saved = Completer<Place>();
+        when(() => api.getBookmarks()).thenAnswer((_) async => []);
+        when(() => api.savePlace(any())).thenAnswer((_) => saved.future);
+        await open(tester, gymPlace, api: api);
+        await tester.tap(find.text("Add to today's route"));
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+        await tester.pumpAndSettle();
+        saved.completeError(ApiException('down'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(PlaceDetailScreen), findsNothing);
+        expect(find.text("Couldn't add to today."), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    });
+
     testWidgets('a bookmarks failure still shows the place', (tester) async {
       await withClock(Clock.fixed(noon), () async {
         await open(tester, coffeePlace, apiFails: true);

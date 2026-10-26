@@ -70,6 +70,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       await today.add(widget.place.tomtomId);
       await _hydrateSaved();
     } catch (e) {
+      // The user may have gone back while it was saving.
+      if (!mounted) return;
       scaffold.showSnackBar(SnackBar(content: Text("Couldn't add to today.")));
       setState(() => _loadingSaved = false);
     }
