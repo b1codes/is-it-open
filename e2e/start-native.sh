@@ -80,8 +80,9 @@ export SAFE_FETCH_PRIVATE_HOSTS=127.0.0.1
 wait_for firestore http://127.0.0.1:18080/
 wait_for stub http://127.0.0.1:18090/health
 "${state}/venv/bin/python" manage.py seed_e2e > "${state}/backend.log" 2>&1
+# --keep-alive as in backend/Dockerfile.
 "${state}/venv/bin/gunicorn" config.asgi:application -k uvicorn.workers.UvicornWorker \
-  --bind 127.0.0.1:18000 --workers 2 --access-logfile - >> "${state}/backend.log" 2>&1 &
+  --bind 127.0.0.1:18000 --workers 2 --keep-alive 20 --access-logfile - >> "${state}/backend.log" 2>&1 &
 wait_for backend http://127.0.0.1:18000/api/openapi.json
 
 echo "E2E stack is up (logs in e2e/.native/). Stop it with: e2e/start-native.sh stop"

@@ -43,5 +43,8 @@ RUN SECRET_KEY=build-time-only python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-# Use gunicorn with uvicorn workers for ASGI support
-CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--access-logfile", "-"]
+# Use gunicorn with uvicorn workers for ASGI support. Idle connections are kept for 20 s, longer
+# than a client keeps them for reuse (Dart's HttpClient: 15 s). With gunicorn's default of 2 s, a
+# request the app sent just as the server closed the connection failed ("Connection reset by
+# peer", "Connection closed before full header was received").
+CMD ["gunicorn", "config.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--keep-alive", "20", "--access-logfile", "-"]
