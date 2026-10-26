@@ -124,36 +124,24 @@ String randomMonkeyText(Random random) {
 
 /// Flutter bugs the monkey runs into that the app can't fix or avoid: debug
 /// assertions inside the framework. The monkey skips exactly these errors
-/// (and logs each skip), so they don't fail every run. Remove an entry once
-/// the Flutter version in .fvmrc fixes it.
+/// (and logs each skip), so they don't fail every run. Each entry links the
+/// upstream Flutter issue; remove it once the Flutter version in .fvmrc
+/// fixes it, and keep e2e/android-monkey.sh's `known` list in step.
+///
+/// Two of the three in https://github.com/b1codes/is-it-open/issues/61 are
+/// avoided by the app instead: the sign-in dialog keys its fields and the
+/// search clear button closes the text toolbar first (the toolbar
+/// assertion), and MyApp turns off page hero flights (the SnackBar hero).
 final knownFlutterBugs =
     <({String issue, bool Function(FlutterErrorDetails) matches})>[
       (
-        // A sheet released between snap sizes, then tapped.
-        issue: 'https://github.com/b1codes/is-it-open/issues/61',
+        // A phone sheet released between snap sizes, then tapped: the tap's
+        // drag cancel finds the sheet's scroll hold still set, because the
+        // sheet's own snap starts no scroll activity (#61).
+        issue: 'https://github.com/flutter/flutter/issues/172174',
         matches: (details) =>
             '${details.exception}'.contains("'_hold == null'") &&
             '${details.stack}'.contains('ScrollableState._handleDrag'),
-      ),
-      (
-        // A text field's toolbar showing while the field's own scrolling
-        // changes size mid-layout (here, a long search query cleared).
-        issue: 'https://github.com/b1codes/is-it-open/issues/61',
-        matches: (details) =>
-            '${details.stack}'.contains(
-              'EditableTextState._handleContextMenuOnScroll',
-            ) &&
-            RegExp(
-              r"'(selection\.isValid|sizeAccessAllowed)'",
-            ).hasMatch('${details.exception}'),
-      ),
-      (
-        // A SnackBar shown while a route is pushed or popped. Either check
-        // in _HeroFlight.divert, depending on which way the flight turns.
-        issue: 'https://github.com/b1codes/is-it-open/issues/61',
-        matches: (details) => RegExp(
-          r"'manifest\.(fromHero == newManifest\.toHero|toHero == newManifest\.fromHero)'",
-        ).hasMatch('${details.exception}'),
       ),
     ];
 

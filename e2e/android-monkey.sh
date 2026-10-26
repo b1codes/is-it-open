@@ -41,11 +41,9 @@ python3 - "${out}/logcat.txt" <<'PY' || status=1
 import sys
 
 # Matched with whitespace collapsed: the log wraps long messages.
+# Keep in step with knownFlutterBugs in integration_test/helpers/monkey.dart.
 known = [
     "'_hold == null'",
-    "'manifest.fromHero == newManifest.toHero'",
-    "'manifest.toHero == newManifest.fromHero'",
-    "_handleContextMenuOnScroll",
 ]
 lines = [l.split(": ", 1)[-1] for l in open(sys.argv[1], errors="replace") if " flutter " in l]
 errors = []
