@@ -1,0 +1,116 @@
+name: iOS attach diagnostics (temporary)
+
+# TEMPORARY, for #63: runs the iOS journeys on the PR head and on 8fe3065 (the last commit that
+# passed) side by side, with `flutter test -v`, the simulator's log and any crash reports kept.
+# Remove before merging.
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS attach (${{ matrix.name }})
+    runs-on: macos-15
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: head
+            ref: ${{ github.event.pull_request.head.sha }}
+          - name: 8fe3065
+            ref: 8fe30657b61c2a2f155fe2f9e627356d39bec939
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Versions
+        run: |
+          echo "Runner image: ${ImageOS:-?} ${ImageVersion:-?}"
+          sw_vers
+          xcodebuild -version
+          xcrun simctl list runtimes
+          flutter --version
+
+      - name: Start the E2E stack
+        run: e2e/start-native.sh
+
+      - name: Boot a simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          for runtime in sorted(runtimes, reverse=True):
+              phones = [d for d in runtimes[runtime] if "iOS" in runtime and d["name"].startswith("iPhone")]
+              if phones:
+                  print(runtime, phones[0]["name"], phones[0]["udid"], file=sys.stderr)
+                  print(phones[0]["udid"])
+                  break
+          ')
+          xcrun simctl boot "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/diag"
+          # Everything the simulator logs, for the VM service line flutter waits for.
+          xcrun simctl spawn "$udid" log stream --level debug --style compact \
+            > "$RUNNER_TEMP/diag/simulator.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/diag/logstream.pid"
+
+      - name: Run the journeys (verbose)
+        working-directory: frontend
+        timeout-minutes: 20
+        run: |
+          flutter test integration_test/app_test.dart -v -r expanded \
+            -d "${{ steps.simulator.outputs.udid }}" \
+            --dart-define=ENV=e2e \
+            --dart-define=E2E_STUB_URL=http://127.0.0.1:18090 \
+            2>&1 | tee "$RUNNER_TEMP/diag/flutter-test.log"
+
+      - name: State after the run
+        if: always()
+        run: |
+          udid="${{ steps.simulator.outputs.udid }}"
+          diag="$RUNNER_TEMP/diag"
+          kill "$(cat "$diag/logstream.pid")" 2>/dev/null || true
+          echo "--- Runner processes on the simulator"
+          xcrun simctl spawn "$udid" launchctl list | grep -i -e runner -e flutter || echo none
+          ps aux | grep -i -e 'Runner.app' -e dartdev -e 'dart.*dds' | grep -v grep || true
+          echo "--- Last flutter output"
+          tail -n 80 "$diag/flutter-test.log" || true
+          echo "--- VM service lines in the simulator log"
+          grep -i -e 'vm service' -e 'observatory' -e 'dart vm' "$diag/simulator.log" | tail -n 20 || true
+          echo "--- Runner lines in the simulator log"
+          grep -e 'Runner\[' -e 'Runner:' "$diag/simulator.log" | tail -n 80 || true
+          mkdir -p "$diag/crashes"
+          cp ~/Library/Logs/DiagnosticReports/*Runner* "$diag/crashes/" 2>/dev/null || true
+          ls -la "$diag/crashes"
+          gzip -f "$diag/simulator.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-diagnostics-${{ matrix.name }}
+          path: ${{ runner.temp }}/diag/
+          if-no-files-found: ignore
