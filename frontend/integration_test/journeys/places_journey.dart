@@ -144,6 +144,9 @@ void placesJourneys() {
     await tester.enterField('Name', "Dad's house");
     await tester.enterField('Address', '9 Elm Street, Springfield');
     await tester.tapAndSettle(find.text('Save place'));
+    // The sheet closes once the place is saved and bookmarked. (Waiting for
+    // the name alone returned at once: find.text matches the Name field.)
+    await tester.waitForAbsent(find.text('Save place'));
     await tester.waitFor(find.text("Dad's house"));
 
     final saved = (await api.bookmarks(user)).single;
