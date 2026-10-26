@@ -34,7 +34,7 @@ jobs:
   ios:
     name: E2E (iOS simulator)
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -76,31 +76,22 @@ jobs:
           xcrun simctl boot "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      - name: Run the journeys
-        working-directory: frontend
-        timeout-minutes: 30
-        run: >
-          flutter test integration_test/app_test.dart -r expanded
-          -d "${{ steps.simulator.outputs.udid }}"
-          --dart-define=ENV=e2e
-          --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
-
       - name: Pick a monkey seed
-        if: success() || failure()
         run: |
           [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
           echo "SEED=$SEED" >> "$GITHUB_ENV"
           echo "Monkey on the iOS simulator: seed \`$SEED\`, $MONKEY_STEPS steps." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run the monkey
-        if: success() || failure()
+      # The journeys, then the monkey (MONKEY=true), in one launch of the test app.
+      - name: Run the journeys and the monkey
         working-directory: frontend
-        timeout-minutes: 25
+        timeout-minutes: 45
         run: >
-          flutter test integration_test/monkey_test.dart -r expanded
+          flutter test integration_test/app_test.dart -r expanded
           -d "${{ steps.simulator.outputs.udid }}"
           --dart-define=ENV=e2e
           --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
+          --dart-define=MONKEY=true
           --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
 
       - uses: actions/upload-artifact@v4
@@ -114,7 +105,7 @@ jobs:
   android:
     name: E2E (Android emulator)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -141,8 +132,15 @@ jobs:
         working-directory: frontend
         run: flutter pub get
 
-      - name: Run the journeys
-        timeout-minutes: 30
+      - name: Pick a monkey seed
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey on the Android emulator: seed \`$SEED\`, $MONKEY_STEPS steps, then $MONKEY_EVENTS adb monkey events." >> "$GITHUB_STEP_SUMMARY"
+
+      # The journeys, then the monkey (MONKEY=true), in one launch of the test app.
+      - name: Run the journeys and the monkey
+        timeout-minutes: 45
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
         with:
           api-level: 34
@@ -154,19 +152,12 @@ jobs:
           script: |
             adb reverse tcp:18000 tcp:18000
             adb reverse tcp:18090 tcp:18090
-            flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e
+            flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e --dart-define=MONKEY=true --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
 
-      - name: Pick a monkey seed
+      # Android's own monkey (adb shell monkey) on a debug build: see e2e/android-monkey.sh.
+      - name: Run adb monkey
         if: success() || failure()
-        run: |
-          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
-          echo "SEED=$SEED" >> "$GITHUB_ENV"
-          echo "Monkey on the Android emulator: seed \`$SEED\`, $MONKEY_STEPS steps, then $MONKEY_EVENTS adb monkey events." >> "$GITHUB_STEP_SUMMARY"
-
-      # The app's monkey, then Android's own (adb shell monkey): see e2e/android-monkey.sh.
-      - name: Run the monkey
-        if: success() || failure()
-        timeout-minutes: 30
+        timeout-minutes: 20
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
         with:
           api-level: 34

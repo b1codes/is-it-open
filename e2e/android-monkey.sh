@@ -1,30 +1,22 @@
 #!/usr/bin/env bash
-# The monkey tests on a running Android emulator, against the E2E stack (see TESTING.md, "Monkey
-# testing"). Run from frontend/, with the stack's ports reversed into the emulator:
+# Android's own monkey (adb shell monkey) on a running emulator (see TESTING.md, "Monkey testing").
+# Run from frontend/, with the E2E stack's ports reversed into the emulator:
 #
-#   SEED=123 MONKEY_STEPS=800 MONKEY_EVENTS=5000 ../e2e/android-monkey.sh
+#   SEED=123 MONKEY_EVENTS=5000 ../e2e/android-monkey.sh
 #
-# 1. The app's own monkey (integration_test/monkey_test.dart), signed in.
-# 2. Android's monkey (adb shell monkey) on a debug build of the app, from a fresh install (signed
-#    out). It sends real touch events through the OS, so it also catches native crashes and ANRs.
-#    A debug build logs every Flutter error to logcat; any that isn't a known Flutter bug (see
-#    knownFlutterBugs in integration_test/helpers/monkey.dart) fails the run too.
-#
-# Both run even if the first fails. Logs land in build/android-monkey/.
+# It installs a debug build of the app and sends random events through the OS, from a fresh install
+# (signed out), so it also catches native crashes and ANRs. A debug build logs every Flutter error to
+# logcat; any that isn't a known Flutter bug (knownFlutterBugs in
+# integration_test/helpers/monkey.dart) fails the run too. Logs land in build/android-monkey/.
+# (The app's own monkey runs after the journeys, in integration_test/app_test.dart.)
 set -uo pipefail
 
 seed="${SEED:?set SEED}"
-steps="${MONKEY_STEPS:-800}"
 events="${MONKEY_EVENTS:-5000}"
 package=com.example.frontend
 out=build/android-monkey
 mkdir -p "${out}"
 status=0
-
-echo "::group::App monkey (seed ${seed}, ${steps} steps)"
-flutter test integration_test/monkey_test.dart -r expanded -d emulator-5554 \
-  --dart-define=ENV=e2e --dart-define=SEED="${seed}" --dart-define=MONKEY_STEPS="${steps}" || status=1
-echo "::endgroup::"
 
 echo "::group::adb shell monkey (seed ${seed}, ${events} events)"
 flutter build apk --debug --dart-define=ENV=e2e || exit 1
