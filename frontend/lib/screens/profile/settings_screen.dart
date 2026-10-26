@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/preferences/preferences_cubit.dart';
-import '../../models/user.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,16 +14,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _isUpdating = false;
 
-  Future<void> _handleCurrentLocationToggle(
-    bool value,
-    User currentUser,
-  ) async {
+  Future<void> _handleCurrentLocationToggle(bool value) async {
     setState(() {
       _isUpdating = true;
     });
 
-    double? currentLat = currentUser.homeLat;
-    double? currentLng = currentUser.homeLng;
+    double? currentLat;
+    double? currentLng;
 
     if (value) {
       bool serviceEnabled;
@@ -90,32 +86,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
 
-    final updatedUser = User(
-      id: currentUser.id,
-      username: currentUser.username,
-      email: currentUser.email,
-      firstName: currentUser.firstName,
-      lastName: currentUser.lastName,
-      homeAddress: currentUser.homeAddress,
-      homeStreet: currentUser.homeStreet,
-      homeCity: currentUser.homeCity,
-      homeState: currentUser.homeState,
-      homeZip: currentUser.homeZip,
-      homeLat: value ? currentLat : currentUser.homeLat,
-      homeLng: value ? currentLng : currentUser.homeLng,
-      workAddress: currentUser.workAddress,
-      workStreet: currentUser.workStreet,
-      workCity: currentUser.workCity,
-      workState: currentUser.workState,
-      workZip: currentUser.workZip,
-      workLat: currentUser.workLat,
-      workLng: currentUser.workLng,
-      useCurrentLocation: value,
-    );
+    // Only the fields this changes: the rest of the cached profile may be
+    // older than the server's, and sending it would undo newer edits.
+    final fields = {
+      'use_current_location': value,
+      if (value) ...{'home_lat': currentLat, 'home_lng': currentLng},
+    };
 
     if (mounted) {
       context.read<AuthBloc>().add(
-        ProfileUpdateRequested(updatedUser: updatedUser),
+        ProfileFieldsUpdateRequested(fields: fields),
       );
       setState(() {
         _isUpdating = false;
@@ -135,16 +115,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               backgroundColor: Colors.green,
             ),
           );
-        } else if (state is AuthFailure) {
+        } else if (state is ProfileUpdateFailure || state is AuthFailure) {
+          final error = state is ProfileUpdateFailure
+              ? state.error
+              : (state as AuthFailure).error;
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+            SnackBar(content: Text(error), backgroundColor: Colors.red),
           );
         }
       },
       builder: (context, state) {
         if (state is AuthAuthenticated) {
           final user = state.user;
+          // Reading the position, then saving it.
+          final busy = _isUpdating || state is ProfileUpdating;
           return Scaffold(
             appBar: AppBar(
               title: const Text('Settings'),
@@ -182,12 +167,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Allow the app to access your device location',
                         ),
                         value: user.useCurrentLocation,
-                        onChanged: _isUpdating
-                            ? null
-                            : (value) =>
-                                  _handleCurrentLocationToggle(value, user),
+                        onChanged: busy ? null : _handleCurrentLocationToggle,
                       ),
-                      if (_isUpdating)
+                      if (busy)
                         const Padding(
                           padding: EdgeInsets.all(16.0),
                           child: Center(child: CircularProgressIndicator()),

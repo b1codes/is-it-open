@@ -10,46 +10,560 @@ concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+# Minimum total line coverage. Raise these as the backend/frontend suites grow; never lower them.
+env:
+  BACKEND_MIN_COVERAGE: '95'
+  FRONTEND_MIN_COVERAGE: '95'
+
 jobs:
-  ci:
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      rules: ${{ steps.filter.outputs.rules }}
+      infra: ${{ steps.filter.outputs.infra }}
+      deps: ${{ steps.filter.outputs.deps }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad  # v3.0.4
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - '.github/workflows/ci.yml'
+              - 'contracts/**'
+            backend:
+              - *shared
+              - 'backend/**'
+              - 'docker/**'
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+              - '.github/workflows/production-image.yml'
+              - 'e2e/stub/**'
+              - 'smoke/**'
+            frontend:
+              - *shared
+              - '.fvmrc'
+              - 'frontend/**'
+            contracts:
+              - 'contracts/**'
+            e2e:
+              - *shared
+              - '.fvmrc'
+              - 'backend/**'
+              - 'frontend/**'
+              - 'docker/**'
+              - 'e2e/**'
+              - 'docker-compose.e2e.yml'
+              - 'smoke/**'
+            rules:
+              - '.github/workflows/ci.yml'
+              - 'docker/firestore-emulator/**'
+            infra:
+              - '.github/workflows/ci.yml'
+              - 'infra/**'
+            deps:
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/dependency-audit.yml'
+              - 'backend/pyproject.toml'
+              - 'backend/uv.lock'
+              - 'frontend/pubspec.yaml'
+              - 'frontend/widgetbook/pubspec.yaml'
+              - 'docker/firestore-emulator/rules-test/package-lock.json'
+
+  backend:
+    name: Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'  # matches the Dockerfile base image
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: ci  # fixed property-test examples, so a PR can't fail on a newly drawn one
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # diff-cover compares against the base branch
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        # ../e2e is the E2E stub server and ../smoke the post-deploy smoke test, linted with the
+        # backend's settings.
+        run: |
+          uv run ruff check --output-format=github . ../e2e ../smoke
+          uv run ruff format --check . ../e2e ../smoke
+
+      - name: Type check (mypy)
+        run: uv run mypy .
+
+      - name: Security lint (bandit)
+        # App code only (see [tool.bandit] in pyproject.toml); any finding fails.
+        run: uv run bandit -q -c pyproject.toml -r . -x '*/tests.py,*/tests_*.py'
+
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+
+      - name: Test
+        run: >
+          uv run pytest -p no:cacheprovider
+          -m "not quarantine" --reruns 1
+          --cov --cov-report=xml --cov-report=term
+          --cov-fail-under="$BACKEND_MIN_COVERAGE"
+          --junitxml=test-results/junit.xml
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f .coverage ]; then
+            { echo "## Backend coverage (minimum ${BACKEND_MIN_COVERAGE}%)"; echo; uv run coverage report --format=markdown; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Diff coverage (informational)
+        if: github.event_name == 'pull_request'
+        run: |
+          uvx diff-cover==10.6.0 coverage.xml --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
+          { echo "## Backend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend
+          path: |
+            backend/test-results/
+            backend/coverage.xml
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # A zone with DST, so date and time code is tested across clock changes. The suite also
+      # passes in UTC.
+      TZ: America/New_York
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Format
+        run: dart format --output=none --set-exit-if-changed lib test tool integration_test test_driver
+
+      - name: Analyze
+        # Scoped so the nested widgetbook/ package (analyzed in its own job) isn't picked up without its deps.
+        run: flutter analyze lib test tool integration_test test_driver
+
+      - name: Test
+        run: |
+          # Retry a failing test once in CI only; locally a flaky test fails on its first try.
+          echo "retry: 1" >> dart_test.yaml
+          dart run tool/coverage.dart imports
+          mkdir -p test-results
+          flutter test --coverage -x quarantine -x monkey --file-reporter json:test-results/flutter.json
+
+      - name: Coverage gate
+        run: dart run tool/coverage.dart check --min="$FRONTEND_MIN_COVERAGE"
+
+      # The whole app under seeded random input (test/monkey/), with a fixed seed so a PR can't fail
+      # on a newly drawn sequence; nightly.yml runs a longer one with a random seed. A failure
+      # prints the actions that led to it and the command that replays them. See "Monkey testing"
+      # in TESTING.md.
+      - name: Monkey test
+        if: success() || failure()
+        run: >
+          flutter test --tags monkey -x quarantine
+          --dart-define=MONKEY_STEPS=1000
+          --file-reporter json:test-results/monkey/flutter.json
+
+      - name: Diff coverage (informational)
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: |
+          sed 's|^SF:|SF:frontend/|' frontend/coverage/lcov.info > lcov.repo.info
+          pipx run diff-cover==10.6.0 lcov.repo.info --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
+          { echo "## Frontend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-frontend
+          path: |
+            frontend/test-results/
+            frontend/coverage/lcov.info
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: monkey-frontend
+          path: frontend/build/monkey/
+          if-no-files-found: ignore
+
+  widgetbook:
+    name: Widgetbook
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/widgetbook
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Backend Environment
-        run: |
-          cd backend
-          cp sample.env .env
-
-      - name: Build and Run Backend Tests
-        run: |
-          docker compose up -d --wait firestore
-          docker compose build backend
-          docker compose run --rm backend python manage.py test
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
         with:
-          channel: 'stable'
+          flutter-version-file: .fvmrc
           cache: true
 
-      - name: Install Frontend Dependencies
-        run: |
-          cd frontend
-          flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Run Frontend Tests
+      - name: Verify generated catalog is current
         run: |
-          cd frontend
-          flutter test
-
-      - name: Verify Widgetbook Catalog
-        run: |
-          cd frontend/widgetbook
-          flutter pub get
           dart run build_runner build --force-jit
           git diff --exit-code -- lib/main.directories.g.dart || { echo "::error::main.directories.g.dart is stale; run 'dart run build_runner build' in frontend/widgetbook and commit the result."; exit 1; }
-          flutter analyze
-          flutter test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        # The goldens run in their own job.
+        run: |
+          mkdir -p test-results
+          flutter test -x quarantine -x golden --file-reporter json:test-results/flutter.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-widgetbook
+          path: frontend/widgetbook/test-results/
+          if-no-files-found: ignore
+
+  # Visual regression: every Widgetbook use case compared against test/goldens/. Font rasterization
+  # changes between OS images and Flutter engine versions, so the goldens are only valid for the
+  # runner image and the Flutter version in .fvmrc, which generated them. Bump them together, then
+  # regenerate (see "Visual regression" in TESTING.md). On a mismatch, the job uploads the failure
+  # images and a regenerated set, which `make goldens-pull` fetches for review.
+  goldens:
+    name: Goldens
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend/widgetbook
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Compare
+        id: compare
+        run: |
+          mkdir -p test-results
+          flutter test --tags golden --file-reporter json:test-results/flutter.json
+
+      - name: Regenerate
+        id: regenerate
+        if: failure() && steps.compare.outcome == 'failure'
+        # Still fails on a test failure that isn't a golden mismatch (a new overflow, say), but
+        # writes every golden first.
+        continue-on-error: true
+        run: |
+          rm -rf test/goldens
+          flutter test --tags golden --update-goldens
+
+      - name: Summary
+        if: failure() && steps.compare.outcome == 'failure'
+        run: |
+          changed=$(git status --porcelain -- test/goldens | wc -l)
+          {
+            echo "## Goldens"
+            echo
+            echo "$changed golden file(s) differ from the committed set (added, changed or deleted)."
+            echo
+            echo "- The **golden-failures** artifact has, per mismatch, the expected (\`_masterImage\`) and"
+            echo "  rendered (\`_testImage\`) images, and the differing pixels (\`_isolatedDiff\`, \`_maskedDiff\`)."
+            echo "- If the change is intended, run \`make goldens-pull\` and commit the result. It replaces"
+            echo "  \`frontend/widgetbook/test/goldens/\` with the **goldens-updated** artifact."
+            if [ "${{ steps.regenerate.outcome }}" = failure ]; then
+              echo
+              echo "Regenerating also failed, so something other than a golden mismatch is wrong; see the"
+              echo "Regenerate step's log."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.compare.outcome == 'failure'
+        with:
+          name: golden-failures
+          path: frontend/widgetbook/test/failures/
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: failure() && steps.compare.outcome == 'failure'
+        with:
+          name: goldens-updated
+          path: frontend/widgetbook/test/goldens/
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-goldens
+          path: frontend/widgetbook/test-results/
+          if-no-files-found: ignore
+
+  # The Flutter app in headless Chrome against the production backend image, the Firestore
+  # emulator and a stub for every external service (docker-compose.e2e.yml). See e2e/README.md.
+  e2e:
+    name: E2E (${{ matrix.layout }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: desktop
+            size: 1600x1024
+          - layout: phone
+            size: 390x844
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the E2E stack
+        id: stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Run the journeys
+        env:
+          E2E_BROWSER_SIZE: ${{ matrix.size }}
+        # The runner image ships Chrome with a matching chromedriver in $CHROMEWEBDRIVER.
+        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" e2e/run-web.sh
+
+      - name: Smoke test
+        # The post-deploy smoke test (smoke/), against the stack as if it were a deploy, so a change
+        # that would break it fails here first. After the journeys, since it saves a place. Once is
+        # enough: the layout doesn't matter to it.
+        if: matrix.layout == 'desktop' && !cancelled() && steps.stack.outcome == 'success'
+        env:
+          SMOKE_USERNAME: smoke
+          SMOKE_PASSWORD: smoke-password
+        run: |
+          curl -fsS -o /dev/null -X POST http://localhost:18000/api/auth/register -H 'Content-Type: application/json' \
+            -d "{\"username\": \"$SMOKE_USERNAME\", \"password\": \"$SMOKE_PASSWORD\"}"
+          python3 smoke/smoke.py http://localhost:18000
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-${{ matrix.layout }}
+          path: |
+            frontend/build/e2e-screenshots/
+            frontend/build/chromedriver.log
+            e2e-stack.log
+          if-no-files-found: ignore
+
+  # docker/firestore-emulator/firestore.rules denies every direct client read and write; only the
+  # backend, which bypasses the rules, may reach Firestore. See "Infrastructure" in TESTING.md.
+  firestore-rules:
+    name: Firestore rules
+    needs: changes
+    if: needs.changes.outputs.rules == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docker/firestore-emulator/rules-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: docker/firestore-emulator/rules-test/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Test
+        run: npm test
+
+  # infra/: formatting, validity, tflint, and Trivy's misconfiguration checks (tfsec's successor). See
+  # "Infrastructure" in TESTING.md.
+  terraform:
+    name: Terraform
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e  # v4.0.1
+        with:
+          terraform_version: '1.16.5'
+          terraform_wrapper: false
+
+      - name: Format
+        run: terraform fmt -check -diff -recursive
+
+      - name: Validate
+        # No backend: CI never reads or writes state.
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337  # v6.3.2
+        with:
+          tflint_version: 'v0.64.0'
+
+      - name: Lint (tflint)
+        run: |
+          tflint --init
+          tflint --format compact
+
+      - name: Misconfigurations (Trivy)
+        # Fails on a HIGH or CRITICAL finding, e.g. a public bucket or an open firewall rule.
+        working-directory: .
+        run: >
+          docker run --rm -v "$PWD/infra:/infra:ro"
+          aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+          config --quiet --exit-code 1 --severity HIGH,CRITICAL /infra
+
+  # Released app builds keep calling the API after a deploy, so a PR may not break the contract
+  # (contracts/openapi.json) that main's build relies on. See contracts/README.md.
+  api-breaking-changes:
+    name: API breaking changes
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OASDIFF: docker run --rm -v ${{ github.workspace }}:/repo -w /repo tufin/oasdiff:v1.33.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get the base branch's contract
+        id: base
+        run: |
+          if git show "origin/${{ github.base_ref }}:contracts/openapi.json" > base-openapi.json 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${{ github.base_ref }} has no contracts/openapi.json yet; nothing to compare against."
+          fi
+
+      - name: Changelog
+        if: steps.base.outputs.exists == 'true'
+        run: |
+          { echo "## API changes"; echo; $OASDIFF changelog base-openapi.json contracts/openapi.json -f markdown; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on breaking changes
+        if: steps.base.outputs.exists == 'true'
+        run: >
+          $OASDIFF breaking base-openapi.json contracts/openapi.json
+          --fail-on ERR --format githubactions
+          --err-ignore contracts/breaking-changes-ignore.txt
+
+  # The backend as docker-compose.prod.yml runs it: boots, answers /health, refuses a broken .env,
+  # and has no fixable HIGH/CRITICAL CVE (production-image.yml).
+  production-image:
+    name: Production image
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    uses: ./.github/workflows/production-image.yml
+
+  # Known vulnerabilities in the dependencies, when they change. nightly.yml runs the
+  # same audit every day, for advisories published since.
+  dependency-audit:
+    name: Dependency audit
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    uses: ./.github/workflows/dependency-audit.yml
+
+  # Branch protection requires a check named "ci". It passes when every job above passed or was
+  # skipped because its paths didn't change.
+  ci:
+    name: ci
+    needs: [changes, backend, frontend, widgetbook, goldens, e2e, api-breaking-changes, firestore-rules, terraform, production-image, dependency-audit]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null

@@ -52,7 +52,7 @@ graph TD
 
 Before you begin, ensure you have the following installed:
 *   [Docker Desktop](https://www.docker.com/products/docker-desktop)
-*   [Flutter SDK](https://docs.flutter.dev/get-started/install)
+*   [FVM](https://fvm.app/documentation/getting-started/installation) (`brew install fvm`), which installs the Flutter version pinned in `.fvmrc`
 *   [Make](https://www.gnu.org/software/make/) (Standard on macOS/Linux)
 
 ---
@@ -87,24 +87,27 @@ Emulator UI at <http://localhost:4000/firestore>. See [`docker/firestore-emulato
 
 **Run Tests:**
 ```bash
-make test
+make test-backend   # backend only
+make check          # every lint and test suite, as CI runs them
 ```
-Tests use a separate emulator project, so they never touch your local data.
+Tests use a separate emulator project, so they never touch your local data. See [`TESTING.md`](TESTING.md) for every suite, coverage minimums, and the CI setup.
 
 ### 4. Run the Frontend (Flutter)
-Open a new terminal tab and navigate to the frontend directory:
+Open a new terminal tab, install the pinned Flutter SDK, and navigate to the frontend directory:
 ```bash
+fvm install
 cd frontend
-flutter pub get
-flutter run
+fvm flutter pub get
+fvm flutter run
 ```
+The `make` targets use `fvm flutter` too when FVM is installed, and VS Code uses the pinned SDK through `.vscode/settings.json`.
 
 ### 5. Browse the Component Catalog (Widgetbook)
 Every component and screen has [Widgetbook](https://www.widgetbook.io/) use cases backed by mock data, so no backend is needed:
 ```bash
 cd frontend/widgetbook
-flutter pub get
-flutter run -d chrome
+fvm flutter pub get
+fvm flutter run -d chrome
 ```
 See [`frontend/widgetbook/README.md`](frontend/widgetbook/README.md) for adding use cases.
 
@@ -152,7 +155,8 @@ Use these commands from the root directory to manage the project:
 | `make build` | Rebuild the containers (run after adding new uv packages) |
 | `make logs` | View backend logs in follow mode |
 | `make shell` | Access the backend container's shell (`bash`) |
-| `make test` | Run the backend tests against the Firestore emulator |
+| `make test` | Run the backend, frontend, and Widgetbook test suites (see [`TESTING.md`](TESTING.md)) |
+| `make check` | Run every lint and test suite, as CI does |
 | `make firestore-reset` | Stop everything and wipe local Firestore emulator data |
 
 ---

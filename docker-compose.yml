@@ -16,10 +16,19 @@ services:
 
   # The Django Backend
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend:/code
+      # The API contract (contracts/openapi.json), which the backend's contract tests check and update
+      - ./contracts:/contracts
+      # The production compose file, whose settings and entrypoint backend/tests/deploy/ checks
+      - ./docker-compose.prod.yml:/docker-compose.prod.yml:ro
+      # The post-deploy smoke test, which backend/tests/deploy/ tests and ruff checks
+      - ./smoke:/smoke
     ports:
       - "8001:8000"
     depends_on:
@@ -27,6 +36,8 @@ services:
         condition: service_healthy
     environment:
       - DEBUG=1
+      # The app's Auth0 sign-in dialog makes unsigned tokens, which only mock mode accepts. Never in production.
+      - AUTH0_MOCK=1
       - GOOGLE_CLOUD_PROJECT=demo-is-it-open
       - FIRESTORE_EMULATOR_HOST=firestore:8080
 

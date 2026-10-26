@@ -4,20 +4,38 @@ import 'calendar_data_event.dart';
 import 'calendar_data_state.dart';
 import '../../services/api_service.dart';
 import '../../services/ical_parser_service.dart';
+import '../../utils/calendar_dates.dart';
 import 'package:calendar_view/calendar_view.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'dart:convert' show jsonEncode, jsonDecode;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, debugPrint, visibleForTesting;
 import 'dart:io' show Platform;
 
 class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
   final ApiService apiService;
   final IcalParserService icalParserService;
-  final DeviceCalendarPlugin _deviceCalendarPlugin = DeviceCalendarPlugin();
+  final DeviceCalendarPlugin _deviceCalendarPlugin;
 
-  CalendarDataBloc({required this.apiService, required this.icalParserService})
-    : super(const CalendarDataState()) {
+  // Device calendars exist only on Android and iOS.
+  final bool _supportsDeviceCalendar;
+
+  /// Whether this platform has device calendars to sync with.
+  bool get supportsDeviceCalendar => _supportsDeviceCalendar;
+
+  /// [deviceCalendarPlugin] and [supportsDeviceCalendar] default to the real
+  /// plugin and the current platform; tests replace them.
+  CalendarDataBloc({
+    required this.apiService,
+    required this.icalParserService,
+    @visibleForTesting DeviceCalendarPlugin? deviceCalendarPlugin,
+    @visibleForTesting bool? supportsDeviceCalendar,
+  }) : _deviceCalendarPlugin = deviceCalendarPlugin ?? DeviceCalendarPlugin(),
+       _supportsDeviceCalendar =
+           supportsDeviceCalendar ??
+           (!kIsWeb && (Platform.isAndroid || Platform.isIOS)),
+       super(const CalendarDataState()) {
     on<LoadSavedPlaces>(_onLoadSavedPlaces);
     on<TogglePlaceFilter>(_onTogglePlaceFilter);
     on<InitDeviceCalendar>(_onInitDeviceCalendar);
@@ -79,7 +97,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
     InitDeviceCalendar event,
     Emitter<CalendarDataState> emit,
   ) async {
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
+    if (!_supportsDeviceCalendar) return;
 
     try {
       var permissionsGranted = await _deviceCalendarPlugin.hasPermissions();
@@ -174,6 +192,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
                 CalendarEventData(
                   title: event.title ?? 'No Title',
                   date: event.start!,
+                  endDate: lastDayOfTimedEvent(event.start!, event.end!),
                   startTime: event.start!,
                   endTime: event.end!,
                   description: event.description,
@@ -248,6 +267,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
           return CalendarEventData(
             title: e['title'],
             date: DateTime.parse(e['date']),
+            endDate: e['endDate'] != null ? DateTime.parse(e['endDate']) : null,
             startTime: e['startTime'] != null
                 ? DateTime.parse(e['startTime'])
                 : null,
@@ -270,6 +290,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
         return {
           'title': e.title,
           'date': e.date.toIso8601String(),
+          'endDate': e.endDate.toIso8601String(),
           'startTime': e.startTime?.toIso8601String(),
           'endTime': e.endTime?.toIso8601String(),
           'description': e.description,

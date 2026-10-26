@@ -1,0 +1,13 @@
+{
+  "api_base_url_web": "http://127.0.0.1:18000/api",
+  "api_base_url_android": "http://127.0.0.1:18000/api",
+  "api_base_url_ios": "http://127.0.0.1:18000/api",
+  "api_base_url_macos": "http://127.0.0.1:18000/api",
+  "api_base_url_desktop": "http://127.0.0.1:18000/api",
+  "map_tile_url": "http://127.0.0.1:18090/tiles/{z}/{x}/{y}.png",
+  "map_tile_url_dark": "http://127.0.0.1:18090/tiles/{z}/{x}/{y}.png",
+  "auth0_domain": "auth0.invalid",
+  "auth0_client_id": "e2e",
+  "auth0_audience": "https://is-it-open.invalid/api",
+  "api_receive_timeout_seconds": 20
+}

@@ -1,0 +1,340 @@
+name: Nightly
+
+# Slow or non-blocking checks: quarantined (known-flaky) tests, long property-test, API fuzzing and
+# monkey (random UI input) runs, the live TomTom contract check, the E2E journeys on mobile,
+# mutation testing, the dependency audit, a scan of the production image, and a DAST scan of the API.
+# Results land in each run's summary and artifacts; nothing here blocks a merge.
+on:
+  schedule:
+    - cron: '0 7 * * *'  # 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests, to replay a failed night (default random)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  quarantine-backend:
+    name: Quarantined backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Test
+        run: |
+          # Exit code 5 means no test is quarantined.
+          uv run pytest -p no:cacheprovider -m quarantine --junitxml=test-results/junit.xml || [ $? -eq 5 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  property-backend:
+    name: Backend property tests (many examples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: nightly  # random examples, far more than the per-PR run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Test
+        # A failure prints @reproduce_failure(...) for the falsifying example; add it to the test to replay it.
+        run: uv run pytest -p no:cacheprovider tests/property --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-property
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  api-fuzz:
+    name: API contract fuzzing (many examples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+      HYPOTHESIS_PROFILE: nightly  # random requests, unlike the fixed set each PR sends
+      SCHEMATHESIS_MAX_EXAMPLES: '1000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Test
+        # A failure prints a curl command that reproduces it.
+        run: uv run pytest -p no:cacheprovider tests/contracts/test_provider.py --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-api-fuzz
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  tomtom-contract:
+    name: TomTom live contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      SECRET_KEY: ci-only-not-secret
+      TOMTOM_LIVE_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Test
+        # Checks TomTom's real responses still have the shape in contracts/tomtom/ that the client
+        # and the recorded fixtures assume. A failure means TomTom changed its API (or the key
+        # stopped working); re-record the fixtures as contracts/README.md describes.
+        run: |
+          if [ -z "$TOMTOM_LIVE_API_KEY" ]; then
+            echo "::warning::Add a TOMTOM_API_KEY repository secret to check the live TomTom API."
+            exit 0
+          fi
+          uv run pytest -p no:cacheprovider tests/contracts/test_tomtom_contract.py -k live --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-backend-tomtom
+          path: backend/test-results/
+          if-no-files-found: ignore
+
+  quarantine-frontend:
+    name: Quarantined frontend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+      - run: flutter pub get
+      - name: Test
+        run: |
+          mkdir -p test-results
+          # Exit code 79 means no test is quarantined.
+          flutter test -t quarantine --file-reporter json:test-results/flutter.json || [ $? -eq 79 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-frontend
+          path: frontend/test-results/
+          if-no-files-found: ignore
+
+  # The whole app under random input (test/monkey/), for far longer than the per-PR run and with a
+  # new seed each night. See "Monkey testing" in TESTING.md.
+  monkey-frontend:
+    name: Frontend monkey test (random seed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      SEED: ${{ inputs.monkey_seed }}
+      MONKEY_STEPS: '18000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+      - run: flutter pub get
+      - name: Pick a seed
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey seed: $SEED"
+      - name: Monkey test
+        run: >
+          flutter test --tags monkey -x quarantine -r expanded
+          --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Frontend monkey test"
+            echo
+            echo "Seed \`$SEED\`, $MONKEY_STEPS steps per scenario."
+            if [ "${{ job.status }}" != "success" ]; then
+              echo
+              echo "To replay a failure locally (add \`--plain-name \"<scenario>\"\` for one scenario):"
+              echo
+              echo '```sh'
+              echo "cd frontend && flutter test test/monkey/monkey_test.dart --dart-define=SEED=$SEED --dart-define=MONKEY_STEPS=$MONKEY_STEPS"
+              echo '```'
+              echo
+              echo "Or rerun this workflow with \`monkey_seed: $SEED\`. Each scenario's action log, and a"
+              echo "screenshot of the failure, are in the **monkey-nightly** artifact."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: monkey-nightly
+          path: frontend/build/monkey/
+          if-no-files-found: ignore
+
+  # The E2E journeys, then the monkey tests, on an iOS simulator and an Android emulator (see
+  # e2e/README.md).
+  e2e-mobile:
+    name: E2E on mobile
+    uses: ./.github/workflows/e2e-mobile.yml
+    with:
+      monkey_seed: ${{ inputs.monkey_seed }}
+
+  # Advisories published since the lockfiles last changed (ci.yml runs the audit when they do).
+  dependency-audit:
+    name: Dependency audit
+    uses: ./.github/workflows/dependency-audit.yml
+
+  # Trivy's scan of the production image, for CVEs published since it last changed (production-image.yml).
+  production-image:
+    name: Production image
+    uses: ./.github/workflows/production-image.yml
+
+  # OWASP ZAP's API scan of the E2E stack (dast.yml).
+  dast:
+    name: DAST
+    uses: ./.github/workflows/dast.yml
+
+  # The API load test (perf.yml).
+  performance:
+    name: Performance
+    uses: ./.github/workflows/perf.yml
+
+  mutation-backend:
+    name: Backend mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      UV_PYTHON: '3.11'
+      FIRESTORE_EMULATOR_HOST: localhost:8080
+      GOOGLE_CLOUD_PROJECT: demo-is-it-open
+      SECRET_KEY: ci-only-not-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - name: Start Firestore emulator
+        working-directory: .
+        run: docker compose up -d --wait firestore
+      - name: Run mutmut
+        run: uv run mutmut run --max-children 4
+      - name: Summary
+        if: always()
+        run: |
+          uv run mutmut export-cicd-stats
+          {
+            echo "## Backend mutation testing"
+            echo
+            echo "Surviving mutants are code changes no test noticed. Inspect one with \`uv run mutmut show <name>\`."
+            echo
+            echo '```json'
+            cat mutants/mutmut-cicd-stats.json
+            echo '```'
+            echo
+            echo '<details><summary>Surviving mutants</summary>'
+            echo
+            echo '```'
+            uv run mutmut results 2>/dev/null | grep -v ': killed' || true
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-backend
+          path: backend/mutants/mutmut-cicd-stats.json
+          if-no-files-found: ignore
+
+  mutation-frontend:
+    name: Frontend mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+      - run: flutter pub get
+      - name: Collect coverage
+        # Lets mutation_test skip lines no test executes (they're reported as uncovered instead).
+        run: flutter test --coverage
+      - name: Run mutation_test
+        run: |
+          dart pub global activate mutation_test 1.8.0
+          dart pub global run mutation_test --exclude-strings -c coverage/lcov.info -f md -o mutation-test-report mutation_test.xml
+      - name: Summary
+        if: always()
+        run: |
+          { echo "## Frontend mutation testing"; echo; cat mutation-test-report/*.md 2>/dev/null || echo "No report produced."; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-frontend
+          path: frontend/mutation-test-report/
+          if-no-files-found: ignore

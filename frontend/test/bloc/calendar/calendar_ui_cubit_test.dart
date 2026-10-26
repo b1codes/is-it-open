@@ -82,5 +82,20 @@ void main() {
         ),
       ],
     );
+
+    blocTest<CalendarUiCubit, CalendarUiState>(
+      'toggles the sidebar, business hours and personal events',
+      build: () => cubit,
+      act: (cubit) => cubit
+        ..toggleSidebar()
+        ..toggleBusinessHours()
+        ..togglePersonalEvents()
+        ..toggleSidebar(),
+      verify: (cubit) {
+        expect(cubit.state.isSidebarCollapsed, isFalse);
+        expect(cubit.state.showBusinessHours, isFalse);
+        expect(cubit.state.showPersonalEvents, isFalse);
+      },
+    );
   });
 }

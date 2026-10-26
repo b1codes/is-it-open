@@ -39,6 +39,7 @@ Widget buildSavedPlaceRowUseCase(BuildContext context) {
     child: Builder(
       builder: (context) => SavedPlaceRow(
         savedPlace: savedPlace,
+        colorIndex: sampleSavedPlaces.indexOf(savedPlace),
         status: status,
         isOnToday: isOnToday,
         showDivider: showDivider,
@@ -60,6 +61,7 @@ Widget buildSavedPlaceRowListUseCase(BuildContext context) {
         for (var i = 0; i < sampleSavedPlaces.length; i++)
           SavedPlaceRow(
             savedPlace: sampleSavedPlaces[i],
+            colorIndex: i,
             status: statuses[i % statuses.length],
             isOnToday: i.isEven,
             showDivider: i < sampleSavedPlaces.length - 1,
@@ -86,7 +88,7 @@ Widget buildSavedPlaceTileUseCase(BuildContext context) {
   );
   final height = context.knobs.double.slider(
     label: 'Cell height',
-    initialValue: 200,
+    initialValue: SavedPlaceTile.gridExtent(context),
     min: 160,
     max: 320,
   );
@@ -98,6 +100,7 @@ Widget buildSavedPlaceTileUseCase(BuildContext context) {
         child: Builder(
           builder: (context) => SavedPlaceTile(
             savedPlace: savedPlace,
+            colorIndex: sampleSavedPlaces.indexOf(savedPlace),
             status: status,
             isOnToday: isOnToday,
             onTap: () => logAction(context, 'onTap'),
@@ -116,15 +119,16 @@ Widget buildSavedPlaceTileGridUseCase(BuildContext context) {
   return Scaffold(
     body: GridView.builder(
       padding: const EdgeInsets.all(PlacesSpacing.lg),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 220,
-        mainAxisExtent: 200,
+        mainAxisExtent: SavedPlaceTile.gridExtent(context),
         crossAxisSpacing: PlacesSpacing.md,
         mainAxisSpacing: PlacesSpacing.md,
       ),
       itemCount: sampleSavedPlaces.length,
       itemBuilder: (context, i) => SavedPlaceTile(
         savedPlace: sampleSavedPlaces[i],
+        colorIndex: i,
         status: statuses[i % statuses.length],
         isOnToday: i.isEven,
         onTap: () {},

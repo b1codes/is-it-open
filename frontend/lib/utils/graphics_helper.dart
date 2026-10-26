@@ -40,11 +40,16 @@ class GraphicsHelper {
     'work': Icons.work,
   };
 
-  static Widget buildProfileGraphic(SavedPlace savedPlace, {double size = 40}) {
-    final currentColorHex =
-        savedPlace.color ?? Colors.blue.toARGB32().toRadixString(16);
-    final currentColor = Color(
-      int.parse(currentColorHex, radix: 16),
+  /// [savedPlace]'s icon on an opaque circle of its display color, the one
+  /// [colorForSavedPlace] gives it for [index] on the map and calendar.
+  static Widget buildProfileGraphic(
+    SavedPlace savedPlace,
+    int index, {
+    double size = 40,
+  }) {
+    final currentColor = colorForSavedPlace(
+      savedPlace,
+      index,
     ).withValues(alpha: 1.0);
     final currentIconName = savedPlace.icon ?? 'star';
 

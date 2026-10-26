@@ -16,3 +16,7 @@ updates:
     directory: "/docker/firestore-emulator"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/docker/firestore-emulator/rules-test"
+    schedule:
+      interval: "weekly"

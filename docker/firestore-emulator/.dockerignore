@@ -1,0 +1,2 @@
+# The rules tests run on the host or in CI, not in the image.
+rules-test/

@@ -1,8 +1,9 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:timezone/timezone.dart' as tz;
 import '../../utils/places_theme.dart';
 import '../../utils/availability_calculator.dart';
+import '../../utils/calendar_dates.dart';
 
 class PlannerView extends StatelessWidget {
   final DateTime baseDate;
@@ -48,12 +49,11 @@ class PlannerView extends StatelessWidget {
   }
 
   bool _isTodayVisible() {
-    final now = tz.TZDateTime.now(tz.local);
-    final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
+    final now = clock.now();
     for (int i = 0; i < dayCount; i++) {
-      final date = baseDate.add(Duration(days: i));
-      if (tz.TZDateTime(tz.local, date.year, date.month, date.day) == today)
+      if (DateUtils.isSameDay(addCalendarDays(baseDate, i), now)) {
         return true;
+      }
     }
     return false;
   }
@@ -70,6 +70,7 @@ class PlannerView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.chevron_left),
             color: theme.ink,
+            tooltip: 'Previous',
             onPressed: onNavigateLeft,
           ),
           Expanded(
@@ -82,6 +83,7 @@ class PlannerView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.chevron_right),
             color: theme.ink,
+            tooltip: 'Next',
             onPressed: onNavigateRight,
           ),
           if (!isTodayVisible)
@@ -102,7 +104,7 @@ class PlannerView extends StatelessWidget {
 
   String _getHeaderText() {
     final start = baseDate;
-    final end = baseDate.add(Duration(days: dayCount - 1));
+    final end = addCalendarDays(baseDate, dayCount - 1);
     if (dayCount == 1) {
       return DateFormat('EEEE, MMM d').format(start);
     }
@@ -148,7 +150,7 @@ class _PlannerTimeline extends StatelessWidget {
           children: [
             _buildTimeLabels(theme),
             ...List.generate(dayCount, (index) {
-              final date = baseDate.add(Duration(days: index));
+              final date = addCalendarDays(baseDate, index);
               return Expanded(
                 child: _DayColumn(
                   date: date,
@@ -176,7 +178,7 @@ class _PlannerTimeline extends StatelessWidget {
       child: Column(
         children: List.generate(endHour - startHour + 1, (index) {
           final hour = startHour + index;
-          final time = tz.TZDateTime(tz.local, 2024, 1, 1, hour);
+          final time = DateTime(2024, 1, 1, hour);
           return SizedBox(
             height: hourHeight,
             child: Text(
@@ -206,7 +208,7 @@ class _DayColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.places;
-    final isToday = DateUtils.isSameDay(date, tz.TZDateTime.now(tz.local));
+    final isToday = DateUtils.isSameDay(date, clock.now());
 
     return Column(
       children: [
@@ -311,11 +313,15 @@ class _DayColumn extends StatelessWidget {
                         color: theme.anchor,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        '${window.placeCount} places open',
-                        style: PlacesType.label(
-                          theme.anchor,
-                        ).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                      Flexible(
+                        child: Text(
+                          window.label,
+                          style: PlacesType.label(
+                            theme.ink,
+                          ).copyWith(fontSize: 11, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -368,10 +374,11 @@ class _DayColumn extends StatelessWidget {
   }
 
   Widget _buildNowIndicator(PlacesTheme theme) {
-    final now = tz.TZDateTime.now(tz.local);
+    final now = clock.now();
     if (now.hour < _PlannerTimeline.startHour ||
-        now.hour > _PlannerTimeline.endHour)
+        now.hour > _PlannerTimeline.endHour) {
       return const SizedBox.shrink();
+    }
 
     return Positioned(
       top: _getTopOffset(now),

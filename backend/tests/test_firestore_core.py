@@ -181,15 +181,14 @@ class DocIdTest(FirestoreTestCase):
         keys = [".", "..", "%2E", "%2E%2E", "__x__", "%5F_x__", "/", "%2F", "a b", "a%20b", "%sha256:x"]
         encoded = [doc_id(k) for k in keys]
         self.assertEqual(len(set(encoded)), len(keys))
-        for key, value in zip(keys, encoded):
+        for key, value in zip(keys, encoded, strict=True):
             with self.subTest(key=key):
                 self.assertEqual(unquote(value), key)
 
     def test_unstorable_keys_raise(self):
         for key in ("", None, 123, "\ud800"):
-            with self.subTest(key=key):
-                with self.assertRaises(InvalidDocumentKey):
-                    doc_id(key)
+            with self.subTest(key=key), self.assertRaises(InvalidDocumentKey):
+                doc_id(key)
 
     def test_edge_case_ids_are_accepted_by_firestore(self):
         keys = [".", "..", "/", "__x__", "____", "a" * 1501, "/" * 600, "__" + "x" * 2000 + "__"]
@@ -220,9 +219,9 @@ class InvalidKeyApiTest(FirestoreTestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["username"], "__admin__")
 
-    def test_register_with_unstorable_username_is_400(self):
+    def test_register_with_empty_username_is_422(self):
         response = self._post("/api/auth/register", {"username": "", "password": "pw"})
-        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.status_code, 422, response.content)
 
     def test_register_with_overlong_username(self):
         username = "u" * 2000
@@ -269,7 +268,7 @@ class InvalidKeyApiTest(FirestoreTestCase):
 
     def test_register_rejects_auth0_style_usernames(self):
         response = self._post("/api/auth/register", {"username": "google-oauth2|123", "password": "pw"})
-        self.assertEqual(response.status_code, 400, response.content)
+        self.assertEqual(response.status_code, 422, response.content)
         self.assertIsNone(repository.get_user("google-oauth2|123"))
 
 
@@ -283,9 +282,7 @@ class Auth0ReadPathTest(FirestoreTestCase):
         return jwt.encode({"sub": sub, "email": "a@example.com"}, "secret", algorithm="HS256")
 
     def _patch_transactions(self):
-        return patch.object(
-            self.client_class, "transaction", autospec=True, side_effect=self.client_class.transaction
-        )
+        return patch.object(self.client_class, "transaction", autospec=True, side_effect=self.client_class.transaction)
 
     def test_existing_user_does_not_open_a_transaction(self):
         existing = repository.create_user("auth0|existing", email="old@example.com")
@@ -296,13 +293,14 @@ class Auth0ReadPathTest(FirestoreTestCase):
         self.assertEqual(user, existing)
         transaction.assert_not_called()
 
-    def test_new_user_is_created_in_a_transaction(self):
-        with self.settings(AUTH0_MOCK=True), self._patch_transactions() as transaction:
+    def test_new_user_is_created_with_a_create_only_write(self):
+        create = patch.object(DocumentReference, "create", autospec=True, side_effect=DocumentReference.create)
+        with self.settings(AUTH0_MOCK=True), create as created:
             user = self.auth.authenticate(None, self._token("auth0|new"))
 
         self.assertEqual(user.username, "auth0|new")
         self.assertEqual(user.email, "a@example.com")
-        self.assertTrue(transaction.called)
+        created.assert_called_once()
         self.assertEqual(repository.get_user("auth0|new"), user)
 
     def test_reserved_auth0_sub(self):

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,7 +20,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+const _minSheetContentHeight = 240.0;
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 2; // Default to Map
   final MapController _mapController = MapController();
   final DraggableScrollableController _sheetController =
@@ -27,10 +32,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _sheetAnimation = AnimationController(vsync: this)
+      ..addListener(_applySheetAnimation);
     _sheetController.addListener(() {
       final currentSize = _sheetController.size;
       // If user drags sheet down, sync index to Map
-      if (currentSize <= 0.12 && _selectedIndex != 2) {
+      if (_sheetTouched && currentSize <= 0.12 && _selectedIndex != 2) {
         setState(() {
           _selectedIndex = 2;
         });
@@ -40,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _sheetAnimation.dispose();
     _sheetController.dispose();
     super.dispose();
   }
@@ -48,21 +56,41 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
     });
-
-    if (index == 2) {
-      _sheetController.animateTo(
-        0.08,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutQuart,
-      );
-    } else {
-      _sheetController.animateTo(
-        0.5,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutQuart,
-      );
-    }
+    _animateSheet(index == 2 ? 0.08 : 0.5);
   }
+
+  // Moves the phone sheet by setting its size every frame. The sheet
+  // controller's own animateTo is tied to the content's scroll position, so
+  // swapping that content (a tab change, a list finishing loading) cancelled
+  // it part-way and left the sheet collapsed.
+  late final AnimationController _sheetAnimation;
+  double _sheetFrom = 0.08;
+  double _sheetTo = 0.08;
+
+  void _applySheetAnimation() {
+    if (!_sheetController.isAttached) return;
+    final t = Curves.easeOutQuart.transform(_sheetAnimation.value);
+    _sheetController.jumpTo(_sheetFrom + (_sheetTo - _sheetFrom) * t);
+  }
+
+  // Only the phone layout has a sheet; on desktop there is nothing to move.
+  // With reduced motion on, the sheet jumps straight to its new size.
+  void _animateSheet(double size) {
+    _sheetTouched = false;
+    if (!_sheetController.isAttached) return;
+    _sheetFrom = _sheetController.size;
+    _sheetTo = size;
+    _sheetAnimation.duration = PlacesMotion.of(
+      context,
+      const Duration(milliseconds: 300),
+    );
+    _sheetAnimation.forward(from: 0);
+  }
+
+  // Whether the user has touched the sheet since the last tab change. Only a
+  // user drag down to the peek height means "back to the map"; the sheet
+  // also passes through that height when a tab opens it.
+  bool _sheetTouched = false;
 
   void _handlePlaceTapped(SavedPlace sp) {
     final lat = sp.place.location.latitude;
@@ -75,11 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedIndex == 2) {
       _onItemTapped(0); // Switch to My Places list
     } else {
-      _sheetController.animateTo(
-        0.4,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutQuart,
-      );
+      _animateSheet(0.4);
     }
   }
 
@@ -97,47 +121,67 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case 2:
         final theme = context.places;
-        return GestureDetector(
-          onTap: () => _onItemTapped(3), // Tap to open search
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.search_rounded, color: theme.inkMuted),
-                const SizedBox(width: 12),
-                Text(
-                  'Search or plan route...',
-                  style: PlacesType.bodySmall(theme.inkMuted),
+        // The sheet's controller only attaches once its scroll controller
+        // drives a scrollable, so the peek bar sits in a ListView too.
+        // Without it, dragging the sheet did nothing and tapping a tab threw.
+        return ListView(
+          controller: scrollController,
+          padding: EdgeInsets.zero,
+          children: [
+            GestureDetector(
+              onTap: () => _onItemTapped(3), // Tap to open search
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.anchor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(PlacesRadius.sm),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.route_rounded, color: theme.anchor, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Route',
-                        style: PlacesType.label(
-                          theme.anchor,
-                        ).copyWith(fontWeight: FontWeight.bold),
+                child: Row(
+                  children: [
+                    Icon(Icons.search_rounded, color: theme.inkMuted),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Search or plan route...',
+                        style: PlacesType.bodySmall(theme.inkMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      // Outlined: an anchor tint under the anchor label,
+                      // on the translucent sheet, was under 4.5:1.
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: theme.anchor.withValues(alpha: 0.5),
+                        ),
+                        borderRadius: BorderRadius.circular(PlacesRadius.sm),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.route_rounded,
+                            color: theme.anchor,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Route',
+                            style: PlacesType.label(
+                              theme.anchor,
+                            ).copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         );
       case 3:
         return SearchScreen(embedded: true, scrollController: scrollController);
@@ -183,30 +227,47 @@ class _HomeScreenState extends State<HomeScreen> {
                     snap: true,
                     snapSizes: const [0.08, 0.4, 0.9],
                     builder: (context, scrollController) {
-                      return RefractiveGlass(
-                        borderRadius: 16,
-                        opacity: isDark ? 0.08 : 0.65,
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 8),
-                            Center(
-                              child: Container(
-                                width: 36,
-                                height: 5,
-                                decoration: BoxDecoration(
-                                  color: theme.ashSoft,
-                                  borderRadius: BorderRadius.circular(2.5),
+                      return Listener(
+                        onPointerDown: (_) {
+                          _sheetTouched = true;
+                          _sheetAnimation.stop(); // the user takes over
+                        },
+                        child: RefractiveGlass(
+                          borderRadius: 16,
+                          opacity: isDark ? 0.08 : 0.65,
+                          child: Column(
+                            children: [
+                              _SheetHandle(
+                                // The calendar scrolls its own views, so the
+                                // handle carries the sheet's controller there.
+                                scrollController: _selectedIndex == 1
+                                    ? scrollController
+                                    : null,
+                              ),
+                              Expanded(
+                                // While the sheet opens from its peek
+                                // height, lay content out at a usable
+                                // height and clip it rather than letting
+                                // every tab overflow mid-animation.
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) => ClipRect(
+                                    child: OverflowBox(
+                                      alignment: Alignment.topCenter,
+                                      minHeight: 0,
+                                      maxHeight: math.max(
+                                        constraints.maxHeight,
+                                        _minSheetContentHeight,
+                                      ),
+                                      child: _buildSheetContent(
+                                        _selectedIndex,
+                                        scrollController,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Expanded(
-                              child: _buildSheetContent(
-                                _selectedIndex,
-                                scrollController,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -294,6 +355,43 @@ class _HomeScreenState extends State<HomeScreen> {
               : null,
         );
       },
+    );
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle({this.scrollController});
+
+  /// When set, the handle is a scrollable on the sheet's controller, so the
+  /// sheet attaches and can be dragged by it even if the content below
+  /// doesn't scroll with the sheet.
+  final ScrollController? scrollController;
+
+  @override
+  Widget build(BuildContext context) {
+    final handle = Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Center(
+        child: Container(
+          width: 36,
+          height: 5,
+          decoration: BoxDecoration(
+            color: context.places.ashSoft,
+            borderRadius: BorderRadius.circular(2.5),
+          ),
+        ),
+      ),
+    );
+    final controller = scrollController;
+    if (controller == null) return handle;
+    return SizedBox(
+      height: 24,
+      child: ListView(
+        controller: controller,
+        padding: EdgeInsets.zero,
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [handle],
+      ),
     );
   }
 }

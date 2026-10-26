@@ -1,0 +1,2231 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Is It Open? API",
+    "version": "1.0.0",
+    "description": "Backend for the Is It Open? app: accounts, places and bookmarks, and calendar import."
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "operationId": "apps_users_api_login",
+        "summary": "Login",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "apps_users_api_register",
+        "summary": "Register",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterInput"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "apps_users_api_me",
+        "summary": "Me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "apps_users_api_update_me",
+        "summary": "Update Me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/search": {
+      "get": {
+        "operationId": "apps_places_api_search_places",
+        "summary": "Search Places",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "title": "Query",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceCreateSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/": {
+      "post": {
+        "operationId": "apps_places_api_create_place",
+        "summary": "Create Place",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceCreateSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmark": {
+      "post": {
+        "operationId": "apps_places_api_bookmark_place",
+        "summary": "Bookmark Place",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePlaceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks": {
+      "get": {
+        "operationId": "apps_places_api_get_bookmarks",
+        "summary": "Get Bookmarks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SavedPlaceSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks/{tomtom_id}": {
+      "delete": {
+        "operationId": "apps_places_api_delete_bookmark",
+        "summary": "Delete Bookmark",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks/{tomtom_id}/pin": {
+      "patch": {
+        "operationId": "apps_places_api_toggle_pin",
+        "summary": "Toggle Pin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TogglePinInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks/{tomtom_id}/check-it-out": {
+      "patch": {
+        "operationId": "apps_places_api_toggle_check_it_out",
+        "summary": "Toggle Check It Out",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleCheckItOutInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks/{tomtom_id}/graphic": {
+      "patch": {
+        "operationId": "apps_places_api_update_graphic",
+        "summary": "Update Graphic",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGraphicInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/bookmarks/{tomtom_id}/visit-length": {
+      "patch": {
+        "operationId": "apps_places_api_update_visit_length",
+        "summary": "Update Visit Length",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVisitLengthInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/nearby": {
+      "get": {
+        "operationId": "apps_places_api_get_nearby_places",
+        "summary": "Get Nearby Places",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lng",
+              "type": "number"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "radius_km",
+            "schema": {
+              "default": 5.0,
+              "exclusiveMinimum": 0,
+              "maximum": 50.0,
+              "title": "Radius Km",
+              "type": "number"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/suggestions": {
+      "get": {
+        "operationId": "apps_places_api_get_suggestions",
+        "summary": "Get Suggestions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lng"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceCreateSchema"
+                  },
+                  "title": "Response",
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/places/{tomtom_id}": {
+      "get": {
+        "operationId": "apps_places_api_get_place_details",
+        "summary": "Get Place Details",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tomtom_id",
+            "schema": {
+              "title": "Tomtom Id",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    },
+    "/api/calendar/proxy": {
+      "get": {
+        "operationId": "apps_calendar_api_proxy_ical",
+        "summary": "Proxy Ical",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "url",
+            "schema": {
+              "pattern": "^\\s*([Hh][Tt][Tt][Pp][Ss]?|[Ww][Ee][Bb][Cc][Aa][Ll][Ss]?)://",
+              "title": "Url",
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The calendar at `url`, unchanged",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "GlobalAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthOutput": {
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "home_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Home Address"
+          },
+          "home_street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Home Street"
+          },
+          "home_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Home City"
+          },
+          "home_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Home State"
+          },
+          "home_zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Home Zip"
+          },
+          "home_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Lat"
+          },
+          "home_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Lng"
+          },
+          "work_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Work Address"
+          },
+          "work_street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Work Street"
+          },
+          "work_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Work City"
+          },
+          "work_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Work State"
+          },
+          "work_zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Work Zip"
+          },
+          "work_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Lat"
+          },
+          "work_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Lng"
+          },
+          "use_current_location": {
+            "default": false,
+            "title": "Use Current Location",
+            "type": "boolean"
+          },
+          "calendar_subscription_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "title": "Calendar Subscription Url"
+          }
+        },
+        "required": [
+          "token",
+          "username",
+          "id"
+        ],
+        "title": "AuthOutput",
+        "type": "object"
+      },
+      "ErrorSchema": {
+        "description": "Body of an `HttpError` (400, 404) and of a failed authentication (401).",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorSchema",
+        "type": "object"
+      },
+      "LoginInput": {
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginInput",
+        "type": "object"
+      },
+      "RegisterInput": {
+        "properties": {
+          "username": {
+            "minLength": 1,
+            "pattern": "^[^\\|]+$",
+            "title": "Username",
+            "type": "string"
+          },
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "RegisterInput",
+        "type": "object"
+      },
+      "ProfileUpdateInput": {
+        "properties": {
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "home_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Address"
+          },
+          "home_street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Street"
+          },
+          "home_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home City"
+          },
+          "home_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home State"
+          },
+          "home_zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Zip"
+          },
+          "home_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Lat"
+          },
+          "home_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Lng"
+          },
+          "work_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Address"
+          },
+          "work_street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Street"
+          },
+          "work_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work City"
+          },
+          "work_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work State"
+          },
+          "work_zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Zip"
+          },
+          "work_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Lat"
+          },
+          "work_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Lng"
+          },
+          "use_current_location": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Current Location"
+          },
+          "calendar_subscription_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calendar Subscription Url"
+          }
+        },
+        "title": "ProfileUpdateInput",
+        "type": "object"
+      },
+      "BusinessHoursSchema": {
+        "properties": {
+          "day_of_week": {
+            "description": "0 is Monday",
+            "maximum": 6,
+            "minimum": 0,
+            "title": "Day Of Week",
+            "type": "integer"
+          },
+          "open_time": {
+            "examples": [
+              "09:00"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+            "title": "Open Time",
+            "type": "string"
+          },
+          "close_time": {
+            "examples": [
+              "17:30"
+            ],
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+            "title": "Close Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day_of_week",
+          "open_time",
+          "close_time"
+        ],
+        "title": "BusinessHoursSchema",
+        "type": "object"
+      },
+      "LocationSchema": {
+        "properties": {
+          "lat": {
+            "maximum": 90,
+            "minimum": -90,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "maximum": 180,
+            "minimum": -180,
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "LocationSchema",
+        "type": "object"
+      },
+      "PlaceCreateSchema": {
+        "properties": {
+          "tomtom_id": {
+            "minLength": 1,
+            "title": "Tomtom Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationSchema"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "categories": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "hours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/BusinessHoursSchema"
+            },
+            "title": "Hours",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tomtom_id",
+          "name",
+          "address",
+          "location"
+        ],
+        "title": "PlaceCreateSchema",
+        "type": "object"
+      },
+      "PlaceSchema": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "tomtom_id": {
+            "title": "Tomtom Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationSchema"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "categories": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "hours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/BusinessHoursSchema"
+            },
+            "title": "Hours",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "tomtom_id",
+          "name",
+          "address",
+          "location"
+        ],
+        "title": "PlaceSchema",
+        "type": "object"
+      },
+      "SavedPlaceSchema": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "place": {
+            "$ref": "#/components/schemas/PlaceSchema"
+          },
+          "custom_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Name"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "is_pinned": {
+            "title": "Is Pinned",
+            "type": "boolean"
+          },
+          "is_check_it_out": {
+            "default": false,
+            "title": "Is Check It Out",
+            "type": "boolean"
+          },
+          "average_visit_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Visit Length"
+          }
+        },
+        "required": [
+          "id",
+          "place",
+          "is_pinned"
+        ],
+        "title": "SavedPlaceSchema",
+        "type": "object"
+      },
+      "SavePlaceInput": {
+        "properties": {
+          "tomtom_id": {
+            "title": "Tomtom Id",
+            "type": "string"
+          },
+          "custom_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Name"
+          }
+        },
+        "required": [
+          "tomtom_id"
+        ],
+        "title": "SavePlaceInput",
+        "type": "object"
+      },
+      "TogglePinInput": {
+        "properties": {
+          "is_pinned": {
+            "title": "Is Pinned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_pinned"
+        ],
+        "title": "TogglePinInput",
+        "type": "object"
+      },
+      "ToggleCheckItOutInput": {
+        "properties": {
+          "is_check_it_out": {
+            "title": "Is Check It Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_check_it_out"
+        ],
+        "title": "ToggleCheckItOutInput",
+        "type": "object"
+      },
+      "UpdateGraphicInput": {
+        "properties": {
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "custom_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Name"
+          }
+        },
+        "title": "UpdateGraphicInput",
+        "type": "object"
+      },
+      "UpdateVisitLengthInput": {
+        "properties": {
+          "visit_length": {
+            "anyOf": [
+              {
+                "maximum": 1440,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Minutes; null clears it",
+            "title": "Visit Length"
+          }
+        },
+        "title": "UpdateVisitLengthInput",
+        "type": "object"
+      },
+      "ValidationErrorItem": {
+        "properties": {
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Loc",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Msg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "loc",
+          "msg"
+        ],
+        "title": "ValidationErrorItem",
+        "type": "object"
+      },
+      "ValidationErrorSchema": {
+        "description": "Body of a 422: the request didn't match the operation's parameters or body schema.",
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorItem"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ValidationErrorSchema",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "GlobalAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": []
+}

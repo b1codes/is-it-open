@@ -22,6 +22,14 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSignUp = false;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
   String _generateMockJwt({
     required String sub,
     required String email,
@@ -41,8 +49,8 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
       "email_verified": true,
       "name": name,
       "nickname": name.toLowerCase().replaceAll(' ', ''),
-      if (givenName != null) "given_name": givenName,
-      if (familyName != null) "family_name": familyName,
+      "given_name": ?givenName,
+      "family_name": ?familyName,
     };
 
     final headerBase64 = base64Url
@@ -97,8 +105,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
     Navigator.of(context).pop(token);
   }
 
+  // Auth0's hosted login page is light whatever the app's theme, so the
+  // dialog's text and fields use the light theme too; with the dark one,
+  // its cream text sat on the light card.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Theme(
+    data: AppTheme.lightTheme,
+    child: Builder(builder: _buildCard),
+  );
+
+  Widget _buildCard(BuildContext context) {
     final theme = Theme.of(context);
 
     return BackdropFilter(
@@ -239,9 +255,16 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // Keyed: the name field comes and goes above the
+                      // others, and without keys each field's state (focus,
+                      // scroll, text toolbar) moved to the field below or
+                      // above it. A toolbar left on a field whose text was
+                      // swapped out also failed a Flutter debug assertion
+                      // (https://github.com/b1codes/is-it-open/issues/61).
                       children: [
                         if (_isSignUp) ...[
                           TextFormField(
+                            key: const ValueKey('name'),
                             controller: _nameController,
                             decoration: const InputDecoration(
                               labelText: 'Full Name',
@@ -259,6 +282,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                           const SizedBox(height: 12),
                         ],
                         TextFormField(
+                          key: const ValueKey('email'),
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: const InputDecoration(
@@ -279,6 +303,7 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          key: const ValueKey('password'),
                           controller: _passwordController,
                           obscureText: true,
                           decoration: const InputDecoration(
@@ -325,8 +350,9 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
                   const SizedBox(height: 20),
 
                   // Toggle Signup/Login
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         _isSignUp
@@ -389,9 +415,12 @@ class _Auth0UniversalLoginDialogState extends State<Auth0UniversalLoginDialog> {
         children: [
           Icon(icon, size: 20, color: AppColors.inkWarm),
           const SizedBox(width: 12),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

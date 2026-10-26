@@ -1,23 +1,59 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart'; // For debugPrint
+import 'package:flutter/foundation.dart';
 import '../core/env_config.dart';
 import '../models/place.dart';
 import '../models/user.dart';
 import '../models/saved_place.dart';
 
+/// A failed API call. [toString] reads like the plain `Exception` this used
+/// to be ("Exception: Failed to login: ..."), since screens show it as is.
+class ApiException implements Exception {
+  ApiException(this.message, {this.statusCode});
+
+  /// Wraps [e] as `[action]: detail`. The detail is the response body when
+  /// there is one and [includeBody] is set, otherwise Dio's message.
+  factory ApiException.from(
+    String action,
+    DioException e, {
+    bool includeBody = true,
+  }) {
+    final detail = includeBody ? (e.response?.data ?? e.message) : e.message;
+    return ApiException('$action: $detail', statusCode: e.response?.statusCode);
+  }
+
+  final String message;
+
+  /// The HTTP status, or null when no response arrived (offline, timeout).
+  final int? statusCode;
+
+  /// The server rejected the credentials: the token expired or was revoked.
+  bool get isUnauthorized => statusCode == 401;
+
+  @override
+  String toString() => 'Exception: $message';
+}
+
 class ApiService {
   late final Dio _dio;
   String? _authToken;
 
-  ApiService() {
+  /// [httpClientAdapter] replaces Dio's transport, so tests can serve
+  /// canned responses while the real interceptors and error mapping run.
+  /// [baseUrl] replaces the configured one (the E2E journeys point it at a
+  /// port with no backend).
+  ApiService({
+    @visibleForTesting HttpClientAdapter? httpClientAdapter,
+    @visibleForTesting String? baseUrl,
+  }) {
     _dio = Dio(
       BaseOptions(
-        baseUrl: EnvConfig.apiBaseUrl,
+        baseUrl: baseUrl ?? EnvConfig.apiBaseUrl,
         connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 3),
+        receiveTimeout: EnvConfig.apiReceiveTimeout,
         headers: {'Content-Type': 'application/json'},
       ),
     );
+    if (httpClientAdapter != null) _dio.httpClientAdapter = httpClientAdapter;
 
     // Add interceptors for logging and auth
     _dio.interceptors.add(
@@ -52,7 +88,7 @@ class ApiService {
       );
       return User.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception('Failed to login: ${e.response?.data ?? e.message}');
+      throw ApiException.from('Failed to login', e);
     }
   }
 
@@ -68,7 +104,7 @@ class ApiService {
       );
       return User.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception('Failed to register: ${e.response?.data ?? e.message}');
+      throw ApiException.from('Failed to register', e);
     }
   }
 
@@ -81,7 +117,7 @@ class ApiService {
       final List<dynamic> data = response.data;
       return data.map((json) => Place.fromJson(json)).toList();
     } on DioException catch (e) {
-      throw Exception('Failed to search places: ${e.message}');
+      throw ApiException.from('Failed to search places', e, includeBody: false);
     }
   }
 
@@ -98,7 +134,11 @@ class ApiService {
       final List<dynamic> data = response.data;
       return data.map((json) => Place.fromJson(json)).toList();
     } on DioException catch (e) {
-      throw Exception('Failed to get suggestions: ${e.message}');
+      throw ApiException.from(
+        'Failed to get suggestions',
+        e,
+        includeBody: false,
+      );
     }
   }
 
@@ -115,7 +155,11 @@ class ApiService {
       final List<dynamic> data = response.data;
       return data.map((json) => Place.fromJson(json)).toList();
     } on DioException catch (e) {
-      throw Exception('Failed to get nearby places: ${e.message}');
+      throw ApiException.from(
+        'Failed to get nearby places',
+        e,
+        includeBody: false,
+      );
     }
   }
 
@@ -124,7 +168,7 @@ class ApiService {
       final response = await _dio.post('/places/', data: place.toJson());
       return Place.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception('Failed to save place: ${e.message}');
+      throw ApiException.from('Failed to save place', e, includeBody: false);
     }
   }
 
@@ -136,9 +180,7 @@ class ApiService {
       }
       await _dio.post('/places/bookmark', data: data);
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to bookmark place: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to bookmark place', e);
     }
   }
 
@@ -146,9 +188,7 @@ class ApiService {
     try {
       await _dio.delete('/places/bookmarks/$tomtomId');
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to delete bookmark: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to delete bookmark', e);
     }
   }
 
@@ -158,9 +198,7 @@ class ApiService {
       final List<dynamic> data = response.data;
       return data.map((json) => SavedPlace.fromJson(json)).toList();
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to get bookmarks: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to get bookmarks', e);
     }
   }
 
@@ -169,20 +207,23 @@ class ApiService {
       final response = await _dio.get('/auth/me');
       return User.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to get profile: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to get profile', e);
     }
   }
 
-  Future<User> updateProfile(User user) async {
+  /// Saves every field of [user]. For a screen that edits the whole profile;
+  /// to change a few fields, use [updateProfileFields].
+  Future<User> updateProfile(User user) => updateProfileFields(user.toJson());
+
+  /// Changes only [fields], keyed as `PUT /auth/me` takes them (e.g.
+  /// `{'calendar_subscription_url': url}`). The server keeps every field left
+  /// out, so a profile cached before another device's edit doesn't undo it.
+  Future<User> updateProfileFields(Map<String, dynamic> fields) async {
     try {
-      final response = await _dio.put('/auth/me', data: user.toJson());
+      final response = await _dio.put('/auth/me', data: fields);
       return User.fromJson(response.data);
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to update profile: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to update profile', e);
     }
   }
 
@@ -193,9 +234,7 @@ class ApiService {
         data: {'is_pinned': isPinned},
       );
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to toggle pin for place: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to toggle pin for place', e);
     }
   }
 
@@ -206,9 +245,7 @@ class ApiService {
         data: {'is_check_it_out': isCheckItOut},
       );
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to toggle check-it-out for place: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to toggle check-it-out for place', e);
     }
   }
 
@@ -226,9 +263,7 @@ class ApiService {
 
       await _dio.patch('/places/bookmarks/$tomtomId/graphic', data: data);
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to update graphic: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to update graphic', e);
     }
   }
 
@@ -239,9 +274,7 @@ class ApiService {
         data: {'visit_length': visitLength},
       );
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to update visit length: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to update visit length', e);
     }
   }
 
@@ -253,9 +286,7 @@ class ApiService {
       );
       return response.data.toString();
     } on DioException catch (e) {
-      throw Exception(
-        'Failed to fetch remote calendar: ${e.response?.data ?? e.message}',
-      );
+      throw ApiException.from('Failed to fetch remote calendar', e);
     }
   }
 }

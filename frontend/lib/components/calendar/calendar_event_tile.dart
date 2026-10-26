@@ -3,6 +3,14 @@ import 'package:calendar_view/calendar_view.dart';
 import 'dart:math' as math;
 import '../../utils/places_theme.dart';
 
+/// What a block in the week view is, carried in [CalendarEventData.event],
+/// so tiles style it by what it is rather than by its color.
+enum CalendarBlockKind { personal, openWindow }
+
+extension on CalendarEventData<dynamic> {
+  bool get isPersonal => event == CalendarBlockKind.personal;
+}
+
 class CalendarEventTileWidget extends StatelessWidget {
   final DateTime date;
   final List<CalendarEventData<dynamic>> events;
@@ -24,14 +32,10 @@ class CalendarEventTileWidget extends StatelessWidget {
     if (events.isEmpty) return const SizedBox.shrink();
     final event = events[0];
 
-    // Heuristic: Business blocks are distinct from personal events based on the color assignment in the controller.
-    // Personal events are assigned theme.inkMuted (set in CalendarScreen).
-    final theme = context.places;
-    final isPersonalEvent = event.color == theme.inkMuted;
-    final isBusinessBlock = !isPersonalEvent;
+    final isBusinessBlock = !event.isPersonal;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: PlacesMotion.of(context, const Duration(milliseconds: 300)),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
         color: isBusinessBlock
@@ -54,10 +58,11 @@ class CalendarEventTileWidget extends StatelessWidget {
   Widget _buildBusinessBlock(BuildContext context, CalendarEventData event) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      // In ink rather than the block's color, which is 15% opaque.
       child: Text(
         event.title,
         style: PlacesType.label(
-          event.color,
+          context.places.ink,
         ).copyWith(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -66,12 +71,20 @@ class CalendarEventTileWidget extends StatelessWidget {
   }
 
   Widget _buildPersonalBlock(BuildContext context, CalendarEventData event) {
+    // White on a dark block; on a light one (dark mode's inkMuted), white
+    // would be under 3:1.
+    final textColor = PlacesTheme.onColor(
+      Color.alphaBlend(
+        event.color.withValues(alpha: 0.9),
+        context.places.paper,
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       child: Text(
         event.title,
         style: PlacesType.label(
-          Colors.white,
+          textColor,
         ).copyWith(fontSize: 11, fontWeight: FontWeight.w500, letterSpacing: 0),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -100,8 +113,7 @@ class FullDayEventWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: events.map((event) {
-          final isPersonalEvent = event.color == theme.inkMuted;
-          final isBusinessBlock = !isPersonalEvent;
+          final isBusinessBlock = !event.isPersonal;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -140,9 +152,18 @@ class FullDayEventWidget extends StatelessWidget {
                         ),
                         child: Text(
                           event.title,
+                          // Not the 60%-opaque event color the block is
+                          // tinted with, which was under 3:1.
                           style:
                               PlacesType.label(
-                                isBusinessBlock ? event.color : Colors.white,
+                                isBusinessBlock
+                                    ? theme.ink
+                                    : PlacesTheme.onColor(
+                                        Color.alphaBlend(
+                                          event.color.withValues(alpha: 0.9),
+                                          theme.paper,
+                                        ),
+                                      ),
                               ).copyWith(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -192,17 +213,29 @@ class StackEventArranger<T extends Object?> extends EventArranger<T> {
         return 0;
       });
 
+    final day = DateTime(
+      calendarViewDate.year,
+      calendarViewDate.month,
+      calendarViewDate.day,
+    );
+    final nextDay = DateTime(day.year, day.month, day.day + 1);
+
     for (final event in sortedEvents) {
       final startTime = event.startTime ?? event.date;
       final endTime = event.endTime ?? event.date;
 
+      // An event spanning midnight is drawn on each of its days: from the
+      // top of the days after its first, to the bottom of those before its
+      // last.
       final startOffset = (startTime.hour - startHour) * 60 + startTime.minute;
-      final top = math.max(0.0, startOffset * heightPerMinute);
+      final top = startTime.isBefore(day)
+          ? 0.0
+          : math.max(0.0, startOffset * heightPerMinute);
 
       var endOffset = (endTime.hour - startHour) * 60 + endTime.minute;
       var bottom = height - (endOffset * heightPerMinute);
 
-      if (endTime.day != startTime.day || bottom > (height - top)) {
+      if (!endTime.isBefore(nextDay) || bottom > (height - top)) {
         bottom = 0.0;
       }
 

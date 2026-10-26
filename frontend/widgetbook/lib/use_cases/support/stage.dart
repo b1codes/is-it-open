@@ -11,6 +11,9 @@ class ComponentStage extends StatelessWidget {
     this.padding = const EdgeInsets.all(24),
   });
 
+  /// Marks the staged component, so the golden tests can crop to it.
+  static const subjectKey = ValueKey('ComponentStage.subject');
+
   final Widget child;
   final double maxWidth;
 
@@ -29,6 +32,7 @@ class ComponentStage extends StatelessWidget {
             child: SingleChildScrollView(
               padding: padding,
               child: ConstrainedBox(
+                key: subjectKey,
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: child,
               ),

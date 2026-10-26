@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:frontend/models/place.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/models/user.dart';
@@ -141,6 +142,10 @@ class FakeApiService extends ApiService {
   Future<User> updateProfile(User user) => _respond(() => _user = user);
 
   @override
+  Future<User> updateProfileFields(Map<String, dynamic> fields) =>
+      _respond(() => _user = User.fromJson({..._user.toJson(), ...fields}));
+
+  @override
   Future<void> togglePinPlace(String tomtomId, bool isPinned) =>
       _respond(() => _replace(tomtomId, (sp) => _copy(sp, isPinned: isPinned)));
 
@@ -179,7 +184,7 @@ class FakeApiService extends ApiService {
 
   @override
   Future<String> getCalendarFromUrl(String url) =>
-      _respond(() => sampleIcs(DateTime.now()));
+      _respond(() => sampleIcs(clock.now()));
 
   /// Marks a nullable [_copy] argument as "leave unchanged", so an explicit
   /// null can clear the field (e.g. `updateVisitLength(id, null)`).

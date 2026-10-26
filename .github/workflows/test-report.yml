@@ -1,0 +1,60 @@
+name: Test Report
+
+# Publishes CI test results as check runs on the commit/PR. It runs as a separate workflow
+# because pull requests from forks and Dependabot get a read-only token in CI itself.
+on:
+  workflow_run:
+    workflows: [ CI, Nightly ]
+    types: [ completed ]
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Backend tests
+        # A job skipped by its path filter uploads no artifact; that isn't a failure here.
+        continue-on-error: true
+        uses: dorny/test-reporter@df6247429542221bc30d46a036ee47af1102c451  # v2.7.0
+        with:
+          artifact: test-results-backend
+          name: Backend tests
+          # CI's artifact holds test-results/junit.xml (it also uploads coverage.xml), Nightly's
+          # holds junit.xml at its root, so match the file by name at any depth.
+          path: '**/junit.xml'
+          reporter: java-junit
+          fail-on-empty: false
+
+      - name: Frontend tests
+        continue-on-error: true
+        uses: dorny/test-reporter@df6247429542221bc30d46a036ee47af1102c451  # v2.7.0
+        with:
+          artifact: test-results-frontend
+          name: Frontend tests
+          path: '**/flutter.json'
+          reporter: flutter-json
+          fail-on-empty: false
+
+      - name: Widgetbook tests
+        continue-on-error: true
+        uses: dorny/test-reporter@df6247429542221bc30d46a036ee47af1102c451  # v2.7.0
+        with:
+          artifact: test-results-widgetbook
+          name: Widgetbook tests
+          path: '*.json'
+          reporter: flutter-json
+          fail-on-empty: false
+
+      - name: Golden tests
+        continue-on-error: true
+        uses: dorny/test-reporter@df6247429542221bc30d46a036ee47af1102c451  # v2.7.0
+        with:
+          artifact: test-results-goldens
+          name: Golden tests
+          path: '*.json'
+          reporter: flutter-json
+          fail-on-empty: false

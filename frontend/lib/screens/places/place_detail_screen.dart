@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -11,6 +12,7 @@ import '../../models/saved_place.dart';
 import '../../services/api_service.dart';
 import '../../utils/graphics_helper.dart';
 import '../../utils/place_status.dart';
+import '../../utils/navigation.dart';
 import '../../utils/places_theme.dart';
 import 'plan_visit_screen.dart';
 
@@ -25,6 +27,8 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   SavedPlace? _saved;
+  // _saved's position in the saved places, which picks its fallback color.
+  int _savedIndex = 0;
   bool _loadingSaved = true;
 
   bool get _isCustomPlace => widget.place.tomtomId.startsWith('custom_');
@@ -38,13 +42,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _hydrateSaved() async {
     try {
       final bookmarks = await context.read<ApiService>().getBookmarks();
-      final match = bookmarks.cast<SavedPlace?>().firstWhere(
-        (b) => b?.place.tomtomId == widget.place.tomtomId,
-        orElse: () => null,
+      final index = bookmarks.indexWhere(
+        (b) => b.place.tomtomId == widget.place.tomtomId,
       );
       if (mounted) {
         setState(() {
-          _saved = match;
+          _saved = index < 0 ? null : bookmarks[index];
+          _savedIndex = index < 0 ? 0 : index;
           _loadingSaved = false;
         });
       }
@@ -66,6 +70,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       await today.add(widget.place.tomtomId);
       await _hydrateSaved();
     } catch (e) {
+      // The user may have gone back while it was saving.
+      if (!mounted) return;
       scaffold.showSnackBar(SnackBar(content: Text("Couldn't add to today.")));
       setState(() => _loadingSaved = false);
     }
@@ -79,10 +85,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     final api = context.read<ApiService>();
     final today = context.read<TodayRouteCubit>();
     final nav = Navigator.of(context);
+    final route = ModalRoute.of(context);
     try {
       await api.deleteBookmark(widget.place.tomtomId);
       await today.remove(widget.place.tomtomId);
-      if (mounted) nav.pop();
+      closeRoute(nav, route);
     } catch (_) {}
   }
 
@@ -90,7 +97,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Widget build(BuildContext context) {
     final theme = context.places;
     final use24h = context.watch<PreferencesCubit>().state.use24HourFormat;
-    final now = DateTime.now();
+    final now = clock.now();
     final status = PlaceStatusCalculator.compute(
       widget.place,
       now: now,
@@ -107,12 +114,14 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         foregroundColor: theme.ink,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (_saved != null)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_horiz_rounded, color: theme.inkMuted),
+              tooltip: 'More options',
               color: theme.paperRaised,
               onSelected: (v) {
                 if (v == 'remove') _removeFromSaved();
@@ -137,7 +146,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           ),
           children: [
             const SizedBox(height: PlacesSpacing.sm),
-            _Hero(place: widget.place, savedPlace: _saved, status: status),
+            _Hero(
+              place: widget.place,
+              savedPlace: _saved,
+              savedIndex: _savedIndex,
+              status: status,
+            ),
             const SizedBox(height: PlacesSpacing.lg),
             _AddressBlock(place: widget.place),
             if (widget.place.hours.isNotEmpty) ...[
@@ -219,11 +233,13 @@ class _Hero extends StatelessWidget {
   const _Hero({
     required this.place,
     required this.savedPlace,
+    required this.savedIndex,
     required this.status,
   });
 
   final Place place;
   final SavedPlace? savedPlace;
+  final int savedIndex;
   final PlaceStatus status;
 
   @override
@@ -236,7 +252,11 @@ class _Hero extends StatelessWidget {
         if (savedPlace != null)
           Padding(
             padding: const EdgeInsets.only(bottom: PlacesSpacing.md),
-            child: GraphicsHelper.buildProfileGraphic(savedPlace!, size: 40),
+            child: GraphicsHelper.buildProfileGraphic(
+              savedPlace!,
+              savedIndex,
+              size: 40,
+            ),
           ),
         Text(name, style: PlacesType.display(theme.ink)),
         if (place.categories.isNotEmpty) ...[
@@ -357,8 +377,9 @@ class _HoursRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Wide enough for the dot plus the widest bold label ("Wed").
           SizedBox(
-            width: 44,
+            width: 52,
             child: Row(
               children: [
                 if (isToday)
@@ -373,12 +394,19 @@ class _HoursRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                Text(
-                  label,
-                  style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
-                      .copyWith(
-                        fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                // Clips rather than overflowing at large text scales.
+                Flexible(
+                  child: Text(
+                    label,
+                    softWrap: false,
+                    overflow: TextOverflow.clip,
+                    style: PlacesType.body(isToday ? theme.ink : theme.inkMuted)
+                        .copyWith(
+                          fontWeight: isToday
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                  ),
                 ),
               ],
             ),
@@ -630,9 +658,16 @@ class _CustomPlaceAffordancesState extends State<_CustomPlaceAffordances> {
         widget.saved.place.tomtomId,
         widget.saved.icon,
         widget.saved.color,
-        customName: _label.text.trim().isEmpty ? null : _label.text.trim(),
+        // An empty name clears the label; null would leave it unchanged.
+        customName: _label.text.trim(),
       );
       widget.onChanged();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save the label.")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -720,39 +755,48 @@ class _StickyCTA extends StatelessWidget {
         child: InkWell(
           onTap: loading ? null : (isOnToday ? onRemove : onAdd),
           borderRadius: BorderRadius.circular(PlacesRadius.md),
-          child: SizedBox(
-            height: 56,
-            child: Center(
-              child: loading
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(fg),
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isOnToday ? Icons.check_rounded : Icons.add_rounded,
-                          color: fg,
+          // At least 56 high, and taller when large text on a small phone
+          // wraps the label.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: PlacesSpacing.sm),
+              child: Center(
+                heightFactor: 1,
+                child: loading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(fg),
                         ),
-                        const SizedBox(width: PlacesSpacing.sm),
-                        Text(
-                          isOnToday
-                              ? "On today's route"
-                              : "Add to today's route",
-                          style: TextStyle(
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isOnToday ? Icons.check_rounded : Icons.add_rounded,
                             color: fg,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: PlacesSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              isOnToday
+                                  ? "On today's route"
+                                  : "Add to today's route",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: fg,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),

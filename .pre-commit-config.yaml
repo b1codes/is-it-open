@@ -1,0 +1,24 @@
+# Optional local hooks: `uvx pre-commit install` (see TESTING.md).
+# They use the repo's own pinned tools (backend uv env, the Flutter SDK in .fvmrc via fvm when it's
+# installed), so results match CI.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        entry: uv run --project backend ruff check --fix --config backend/pyproject.toml
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff format (backend)
+        entry: uv run --project backend ruff format --config backend/pyproject.toml
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: dart-format
+        name: dart format (frontend)
+        entry: sh -c 'if command -v fvm > /dev/null 2>&1; then exec fvm dart format "$@"; else exec dart format "$@"; fi' --
+        language: system
+        types: [dart]
+        files: ^frontend/(lib|test|tool|integration_test|test_driver)/

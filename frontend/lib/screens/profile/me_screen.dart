@@ -5,6 +5,7 @@ import '../../models/user.dart';
 import '../../components/shared/address_input_accordion.dart';
 import '../../components/shared/glass_card.dart';
 import '../../screens/profile/settings_screen.dart';
+import '../../utils/places_theme.dart';
 
 class MeScreen extends StatefulWidget {
   final bool embedded;
@@ -75,14 +76,18 @@ class _MeScreenState extends State<MeScreen> {
     _isInitialized = true;
   }
 
+  // Whole characters (`characters`), not UTF-16 code units: a name that
+  // starts with an emoji would otherwise give half of it, which can't be
+  // laid out.
   String _getInitials(User user) {
+    String initial(String s) => s.characters.first.toUpperCase();
     if (user.firstName != null &&
         user.lastName != null &&
         user.firstName!.isNotEmpty &&
         user.lastName!.isNotEmpty) {
-      return '${user.firstName![0]}${user.lastName![0]}'.toUpperCase();
+      return '${initial(user.firstName!)}${initial(user.lastName!)}';
     }
-    return user.username.substring(0, 1).toUpperCase();
+    return initial(user.username);
   }
 
   @override
@@ -104,31 +109,36 @@ class _MeScreenState extends State<MeScreen> {
 
   void _saveProfile(User currentUser) {
     if (_formKey.currentState!.validate()) {
-      final updatedUser = User(
-        id: currentUser.id,
-        username: currentUser.username,
-        email: currentUser.email,
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        homeAddress: _homeAddressController.text.trim(),
-        homeStreet: _homeStreetController.text.trim(),
-        homeCity: _homeCityController.text.trim(),
-        homeState: _homeStateController.text.trim(),
-        homeZip: _homeZipController.text.trim(),
-        homeLat: currentUser.homeLat,
-        homeLng: currentUser.homeLng,
-        workAddress: _workAddressController.text.trim(),
-        workStreet: _workStreetController.text.trim(),
-        workCity: _workCityController.text.trim(),
-        workState: _workStateController.text.trim(),
-        workZip: _workZipController.text.trim(),
-        workLat: currentUser.workLat,
-        workLng: currentUser.workLng,
-        useCurrentLocation: currentUser.useCurrentLocation,
-      );
+      // Send only the fields edited here: the server keeps every field left
+      // out, so a profile cached before another device's edit (say, turning
+      // on "Use Current Location") doesn't undo it. Coordinates are never
+      // sent: an edited address is geocoded afresh, and an unchanged one
+      // keeps the server's.
+      final saved = currentUser.toJson();
+      final fields = <String, dynamic>{};
+      for (final MapEntry(key: name, value: controller) in {
+        'first_name': _firstNameController,
+        'last_name': _lastNameController,
+        'home_address': _homeAddressController,
+        'home_street': _homeStreetController,
+        'home_city': _homeCityController,
+        'home_state': _homeStateController,
+        'home_zip': _homeZipController,
+        'work_address': _workAddressController,
+        'work_street': _workStreetController,
+        'work_city': _workCityController,
+        'work_state': _workStateController,
+        'work_zip': _workZipController,
+      }.entries) {
+        final text = controller.text.trim();
+        // '' and null are the same "not set".
+        if (text != ((saved[name] as String?) ?? '').trim()) {
+          fields[name] = text;
+        }
+      }
 
       context.read<AuthBloc>().add(
-        ProfileUpdateRequested(updatedUser: updatedUser),
+        ProfileFieldsUpdateRequested(fields: fields),
       );
 
       ScaffoldMessenger.of(
@@ -189,9 +199,11 @@ class _MeScreenState extends State<MeScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 40,
+                                // Solid: primary initials on a 20% primary
+                                // tint over the glass were under 3:1.
                                 backgroundColor: Theme.of(
                                   context,
-                                ).colorScheme.primary.withValues(alpha: 0.2),
+                                ).colorScheme.primary,
                                 child: Text(
                                   _getInitials(user),
                                   style: Theme.of(context)
@@ -200,7 +212,7 @@ class _MeScreenState extends State<MeScreen> {
                                       ?.copyWith(
                                         color: Theme.of(
                                           context,
-                                        ).colorScheme.primary,
+                                        ).colorScheme.onPrimary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                 ),
@@ -226,7 +238,9 @@ class _MeScreenState extends State<MeScreen> {
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
-                                            ?.copyWith(color: Colors.grey[600]),
+                                            ?.copyWith(
+                                              color: context.places.ink,
+                                            ),
                                       ),
                                     ],
                                   ],
@@ -325,7 +339,7 @@ class _MeScreenState extends State<MeScreen> {
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton(
-                            onPressed: state is AuthLoading
+                            onPressed: state is ProfileUpdating
                                 ? null
                                 : () => _saveProfile(user),
                             style: ElevatedButton.styleFrom(
@@ -334,7 +348,7 @@ class _MeScreenState extends State<MeScreen> {
                               ),
                               elevation: 2,
                             ),
-                            child: state is AuthLoading
+                            child: state is ProfileUpdating
                                 ? const SizedBox(
                                     width: 24,
                                     height: 24,
@@ -399,6 +413,7 @@ class _MeScreenState extends State<MeScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
                   onPressed: () {
                     Navigator.push(
                       context,

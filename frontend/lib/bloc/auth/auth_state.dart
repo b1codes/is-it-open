@@ -21,6 +21,13 @@ class AuthAuthenticated extends AuthState {
   List<Object?> get props => [user];
 }
 
+/// A profile save is in flight. Still signed in as [user] (the profile from
+/// before the save), so listeners that compare the previous and current
+/// state don't mistake the save for a sign-in or a sign-out.
+class ProfileUpdating extends AuthAuthenticated {
+  const ProfileUpdating({required super.user});
+}
+
 class ProfileUpdateSuccess extends AuthAuthenticated {
   const ProfileUpdateSuccess({required super.user});
 }
@@ -35,6 +42,11 @@ class ProfileUpdateFailure extends AuthAuthenticated {
 }
 
 class AuthUnauthenticated extends AuthState {}
+
+/// The stored session's token was rejected at startup, so the user is
+/// signed out without having been [AuthAuthenticated] first. Listeners that
+/// clean up after a sign-out need this to tell it from a fresh launch.
+class AuthSessionExpired extends AuthUnauthenticated {}
 
 class AuthFailure extends AuthState {
   final String error;

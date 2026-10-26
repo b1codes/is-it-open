@@ -26,6 +26,9 @@ class PlaceStatus {
 class PlaceStatusCalculator {
   static const closingSoonThreshold = Duration(minutes: 60);
 
+  static const _day = 24 * 60;
+  static const _week = 7 * _day;
+
   // Backend uses Python/Django weekday convention: Mon=0..Sun=6. Flutter's
   // DateTime.weekday is Mon=1..Sun=7. One-line conversion isolates the
   // assumption if it turns out the backend ships ISO instead.
@@ -40,60 +43,49 @@ class PlaceStatusCalculator {
       return const PlaceStatus(kind: PlaceStatusKind.unknown, supporting: '');
     }
 
-    final today = _modelDayOfWeek(now);
-    final nowMin = now.hour * 60 + now.minute;
+    // Everything below is in wall-clock minutes from Monday 00:00 of this
+    // week, so midnight, week wrap-around and DST changes need no special
+    // cases.
+    final spans = _weekSpans(place.hours);
+    final nowMin = _modelDayOfWeek(now) * _day + now.hour * 60 + now.minute;
 
-    // Resolve any block currently active. A block from the previous day that
-    // crosses midnight is also active "today" until its close minute.
-    for (final h in place.hours) {
-      final span = _spanOnDay(h, today, prevDay: false);
-      if (span != null && nowMin >= span.startMin && nowMin < span.endMin) {
-        final remaining = span.endMin - nowMin;
-        final closeAt = _dateTimeFor(now, span.endMin);
-        if (remaining <= closingSoonThreshold.inMinutes) {
-          return PlaceStatus(
-            kind: PlaceStatusKind.closingSoon,
-            supporting: 'in $remaining min',
-            nextChange: closeAt,
-          );
-        }
-        return PlaceStatus(
+    if (_openAt(spans, nowMin)) {
+      // Follow back-to-back and overlapping blocks to the real closing time.
+      var closeMin = nowMin;
+      while (closeMin < nowMin + _week) {
+        final next = _openUntil(spans, closeMin);
+        if (next == null) break;
+        closeMin = next;
+      }
+      if (closeMin >= nowMin + _week) {
+        return const PlaceStatus(
           kind: PlaceStatusKind.open,
-          supporting: 'until ${_fmtMin(span.endMin, use24HourFormat)}',
+          supporting: '24 hours',
+        );
+      }
+      final remaining = closeMin - nowMin;
+      final closeAt = _wallClockAfter(now, remaining);
+      if (remaining <= closingSoonThreshold.inMinutes) {
+        return PlaceStatus(
+          kind: PlaceStatusKind.closingSoon,
+          supporting: 'in $remaining min',
           nextChange: closeAt,
         );
       }
+      return PlaceStatus(
+        kind: PlaceStatusKind.open,
+        supporting: 'until ${_fmtMin(closeMin, use24HourFormat)}',
+        nextChange: closeAt,
+      );
     }
 
-    // Yesterday's late block that crosses midnight into today.
-    final yesterday = (today - 1 + 7) % 7;
-    for (final h in place.hours.where((h) => h.dayOfWeek == yesterday)) {
-      if (_endsAfterMidnight(h)) {
-        final endMin = h.closeTime.hour * 60 + h.closeTime.minute;
-        if (nowMin < endMin) {
-          final remaining = endMin - nowMin;
-          final closeAt = _dateTimeFor(now, endMin);
-          if (remaining <= closingSoonThreshold.inMinutes) {
-            return PlaceStatus(
-              kind: PlaceStatusKind.closingSoon,
-              supporting: 'in $remaining min',
-              nextChange: closeAt,
-            );
-          }
-          return PlaceStatus(
-            kind: PlaceStatusKind.open,
-            supporting: 'until ${_fmtMin(endMin, use24HourFormat)}',
-            nextChange: closeAt,
-          );
-        }
-      }
-    }
-
-    // Closed. Find the next open moment within the next 7 days.
-    final next = _nextOpening(place.hours, now: now);
-    if (next == null) {
-      return const PlaceStatus(kind: PlaceStatusKind.closed, supporting: '');
-    }
+    // Closed: the next opening is the earliest span starting after now. The
+    // spans repeat weekly, so there always is one within a week.
+    final openMin = spans
+        .map((s) => s.startMin)
+        .where((start) => start > nowMin)
+        .reduce((a, b) => a < b ? a : b);
+    final next = _wallClockAfter(now, openMin - nowMin);
     return PlaceStatus(
       kind: PlaceStatusKind.closed,
       supporting: 'opens ${_fmtFuture(next, now, use24HourFormat)}',
@@ -101,64 +93,43 @@ class PlaceStatusCalculator {
     );
   }
 
-  static _Span? _spanOnDay(
-    BusinessHours h,
-    int dayOfWeek, {
-    required bool prevDay,
-  }) {
-    if (h.dayOfWeek != dayOfWeek) return null;
-    final start = h.openTime.hour * 60 + h.openTime.minute;
-    var end = h.closeTime.hour * 60 + h.closeTime.minute;
-    if (end <= start) {
-      // Crosses midnight; end belongs to the next day, not "today".
-      end = 24 * 60;
-    }
-    return _Span(start, end);
-  }
+  /// Each block as a span of week minutes. A block that closes at or before
+  /// it opens runs past midnight. Each span is repeated a week earlier and
+  /// later, so Sunday-night blocks cover early Monday and next week's
+  /// openings are found.
+  static List<_Span> _weekSpans(List<BusinessHours> hours) => [
+    for (final h in hours)
+      for (final shift in const [-_week, 0, _week])
+        () {
+          final open = _minutesOf(h.openTime);
+          final close = _minutesOf(h.closeTime);
+          final start = h.dayOfWeek * _day + open + shift;
+          final length = close > open ? close - open : close - open + _day;
+          return _Span(start, start + length);
+        }(),
+  ];
 
-  static bool _endsAfterMidnight(BusinessHours h) {
-    final start = h.openTime.hour * 60 + h.openTime.minute;
-    final end = h.closeTime.hour * 60 + h.closeTime.minute;
-    return end <= start;
-  }
+  static bool _openAt(List<_Span> spans, int minute) =>
+      spans.any((s) => s.startMin <= minute && minute < s.endMin);
 
-  static DateTime? _nextOpening(
-    List<BusinessHours> hours, {
-    required DateTime now,
-  }) {
-    for (var offset = 0; offset < 7; offset++) {
-      final dt = now.add(Duration(days: offset));
-      final dow = _modelDayOfWeek(dt);
-      final dayBlocks = hours.where((h) => h.dayOfWeek == dow).toList()
-        ..sort(
-          (a, b) => _minutesOf(a.openTime).compareTo(_minutesOf(b.openTime)),
-        );
-      for (final h in dayBlocks) {
-        final openMin = _minutesOf(h.openTime);
-        if (offset == 0 && openMin <= now.hour * 60 + now.minute) continue;
-        return DateTime(
-          dt.year,
-          dt.month,
-          dt.day,
-          h.openTime.hour,
-          h.openTime.minute,
-        );
+  /// The furthest end of any span open at [minute], or null if none is.
+  static int? _openUntil(List<_Span> spans, int minute) {
+    int? end;
+    for (final s in spans) {
+      if (s.startMin <= minute && minute < s.endMin) {
+        if (end == null || s.endMin > end) end = s.endMin;
       }
     }
-    return null;
+    return end;
   }
 
   static int _minutesOf(TimeOfDay t) => t.hour * 60 + t.minute;
 
-  static DateTime _dateTimeFor(DateTime now, int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h >= 24) {
-      final tomorrow = now.add(const Duration(days: 1));
-      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, h - 24, m);
-    }
-    return DateTime(now.year, now.month, now.day, h, m);
-  }
+  /// The wall-clock time [minutes] after [now]. Built from calendar fields
+  /// rather than by adding a Duration, so a DST change in between doesn't
+  /// shift it by an hour.
+  static DateTime _wallClockAfter(DateTime now, int minutes) =>
+      DateTime(now.year, now.month, now.day, now.hour, now.minute + minutes);
 
   static String _fmtMin(int minutes, bool use24) {
     final h = (minutes ~/ 60) % 24;
@@ -177,9 +148,12 @@ class PlaceStatusCalculator {
   }
 
   static String _fmtFuture(DateTime when, DateTime now, bool use24) {
-    final today = DateTime(now.year, now.month, now.day);
-    final whenDay = DateTime(when.year, when.month, when.day);
-    final daysAhead = whenDay.difference(today).inDays;
+    // Calendar days in UTC, where every day is 24 hours long.
+    final daysAhead = DateTime.utc(
+      when.year,
+      when.month,
+      when.day,
+    ).difference(DateTime.utc(now.year, now.month, now.day)).inDays;
     final clock = _fmtClock(when.hour, when.minute, use24);
     if (daysAhead == 0) return clock;
     if (daysAhead == 1) return '$clock tomorrow';
