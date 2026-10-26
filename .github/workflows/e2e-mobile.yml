@@ -61,24 +61,16 @@ jobs:
       - name: Start the E2E stack
         run: e2e/start-native.sh
 
-      # The runtime that matches the selected Xcode's simulator SDK. The newest runtime on the runner
-      # can be newer than Xcode 16 supports, and then flutter test can't attach to the app.
       - name: Boot a simulator
         id: simulator
         run: |
-          sdk=$(xcrun --sdk iphonesimulator --show-sdk-version)
-          udid=$(xcrun simctl list devices available --json | SDK="$sdk" python3 -c '
-          import json, os, sys
-          sdk = tuple(int(p) for p in os.environ["SDK"].split("."))
-          def version(runtime):
-              return tuple(int(p) for p in runtime.rsplit("iOS-", 1)[1].split("-"))
-          runtimes = {r: d for r, d in json.load(sys.stdin)["devices"].items() if ".iOS-" in r}
-          usable = [r for r in runtimes if version(r)[:2] <= sdk[:2]]
-          for runtime in sorted(usable, key=version, reverse=True):
-              phones = [d for d in runtimes[runtime] if d["name"].startswith("iPhone")]
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          for runtime in sorted(runtimes, reverse=True):
+              phones = [d for d in runtimes[runtime] if "iOS" in runtime and d["name"].startswith("iPhone")]
               if phones:
                   print(phones[0]["udid"])
-                  print(phones[0]["name"], "on", runtime, file=sys.stderr)
                   break
           ')
           xcrun simctl boot "$udid"
