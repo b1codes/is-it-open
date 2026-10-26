@@ -12,6 +12,9 @@ on:
         type: string
         required: false
         default: ''
+  # TEMPORARY: verifies the iOS retry (#63) on PR #40. Remove before merging.
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       monkey_seed:
