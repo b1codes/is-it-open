@@ -62,6 +62,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _clearSearch(BuildContext context) {
+    // Close the field's text toolbar (Copy, Select all...) first: it's for
+    // text that's about to go. Flutter would hide it anyway once the field
+    // scrolls back, but it does that mid-layout, reading the old
+    // selection's geometry, which fails a debug assertion
+    // (https://github.com/b1codes/is-it-open/issues/61).
+    ContextMenuController.removeAny();
     _searchController.clear();
     context.read<SearchBloc>().add(const SearchQueryChanged(''));
     _loadSuggestions(context.read<SearchBloc>());

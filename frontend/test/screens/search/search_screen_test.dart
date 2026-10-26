@@ -184,6 +184,25 @@ void main() {
       );
     });
 
+    // Clearing a long query scrolls the field back while its text toolbar
+    // shows, which used to fail a Flutter debug assertion (#61).
+    testWidgets('the clear button closes the text toolbar', (tester) async {
+      FakeGeolocator.install(addTearDown);
+      await pump(tester, FakeApiService(latency: Duration.zero));
+      await tester.enterText(find.byType(TextField), 'coffee ' * 50);
+      await tester.pumpAndSettle();
+      final field = tester.state<EditableTextState>(find.byType(EditableText));
+      field.showToolbar();
+      await tester.pumpAndSettle();
+      expect(field.selectionOverlay?.toolbarIsVisible, isTrue);
+
+      await tester.tap(find.byIcon(Icons.clear));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(field.selectionOverlay?.toolbarIsVisible ?? false, isFalse);
+      expect(find.text('Trending Nearby'), findsOneWidget);
+    });
+
     testWidgets('clearing the field reloads suggestions', (tester) async {
       FakeGeolocator.install(addTearDown);
       final api = MockApiService();
