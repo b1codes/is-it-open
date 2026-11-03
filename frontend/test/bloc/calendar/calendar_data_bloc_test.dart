@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
@@ -8,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_event.dart';
 import 'package:frontend/bloc/calendar/calendar_data_state.dart';
+import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/ical_parser_service.dart';
 import 'package:mocktail/mocktail.dart';
@@ -202,6 +204,107 @@ void main() {
     act: (bloc) => bloc.add(ClearCalendarData()),
     expect: () => [const CalendarDataState()],
   );
+
+  // Sign-out clears the state while the previous user's loads may still be
+  // in flight. Each one completes after the clear and must not write that
+  // user's data back.
+  group('a load that finishes after ClearCalendarData', () {
+    Future<void> settle() => Future<void>.delayed(Duration.zero);
+
+    test("doesn't restore the remote feed", () async {
+      final feed = Completer<String>();
+      when(() => api.getCalendarFromUrl(any())).thenAnswer((_) => feed.future);
+      final bloc = build()..add(const LoadRemoteEvents('https://a.ics'));
+      await settle();
+      bloc.add(ClearCalendarData());
+      await settle();
+      feed.complete(_ics);
+      await settle();
+      expect(bloc.state, const CalendarDataState());
+      await bloc.close();
+    });
+
+    test("doesn't report the previous user's feed failing", () async {
+      final feed = Completer<String>();
+      when(() => api.getCalendarFromUrl(any())).thenAnswer((_) => feed.future);
+      final bloc = build()..add(const LoadRemoteEvents('https://a.ics'));
+      await settle();
+      bloc.add(ClearCalendarData());
+      await settle();
+      feed.completeError(ApiException('timed out'));
+      await settle();
+      expect(bloc.state, const CalendarDataState());
+      await bloc.close();
+    });
+
+    test("doesn't restore saved places", () async {
+      final places = Completer<List<SavedPlace>>();
+      when(() => api.getBookmarks()).thenAnswer((_) => places.future);
+      final bloc = build()..add(LoadSavedPlaces());
+      await settle();
+      bloc.add(ClearCalendarData());
+      await settle();
+      places.complete(sampleSavedPlaces);
+      await settle();
+      expect(bloc.state, const CalendarDataState());
+      await bloc.close();
+    });
+
+    test("doesn't restore device calendars or their events", () async {
+      final work = Calendar(id: 'work', name: 'Work');
+      final calendars = Completer<Result<UnmodifiableListView<Calendar>>>();
+      final events = Completer<Result<UnmodifiableListView<Event>>>();
+      when(() => plugin.hasPermissions()).thenAnswer((_) async => _ok(true));
+      when(
+        () => plugin.retrieveCalendars(),
+      ).thenAnswer((_) => calendars.future);
+      when(
+        () => plugin.retrieveEvents('work', any()),
+      ).thenAnswer((_) => events.future);
+      final bloc = build()
+        ..add(const InitDeviceCalendar())
+        ..add(const ToggleDeviceCalendar('work'));
+      await settle();
+      bloc.add(ClearCalendarData());
+      await settle();
+      calendars.complete(_ok(UnmodifiableListView([work])));
+      events.complete(
+        _ok(
+          UnmodifiableListView([
+            Event(
+              'work',
+              title: 'Standup',
+              start: tz.TZDateTime.utc(2026, 10, 20, 9),
+              end: tz.TZDateTime.utc(2026, 10, 20, 10),
+            ),
+          ]),
+        ),
+      );
+      await settle();
+      expect(bloc.state, const CalendarDataState());
+      await bloc.close();
+    });
+
+    test("doesn't restore the persisted imported events", () async {
+      final first = build()..add(const ImportIcalFile(_ics));
+      await settle();
+      await first.close();
+      final stored = (await SharedPreferences.getInstance()).getString(
+        'persisted_imported_events',
+      )!;
+      // A fresh store, so the next bloc's first read is still in flight on
+      // the platform channel when the sign-out (an expired session at
+      // startup) clears it.
+      SharedPreferences.setMockInitialValues({
+        'persisted_imported_events': stored,
+      });
+
+      final bloc = build()..add(ClearCalendarData());
+      await settle();
+      expect(bloc.state.importedEvents, isEmpty);
+      await bloc.close();
+    });
+  });
 
   group('LoadRemoteEvents', () {
     blocTest<CalendarDataBloc, CalendarDataState>(

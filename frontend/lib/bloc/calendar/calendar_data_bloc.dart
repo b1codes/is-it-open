@@ -24,6 +24,14 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
   /// Whether this platform has device calendars to sync with.
   bool get supportsDeviceCalendar => _supportsDeviceCalendar;
 
+  // Bumped by ClearCalendarData, so a load that started before a sign-out
+  // doesn't write the previous user's data into the cleared state when it
+  // finishes. Each async handler captures it before awaiting and drops its
+  // result if it changed.
+  int _generation = 0;
+
+  bool _isStale(int generation) => generation != _generation;
+
   /// [deviceCalendarPlugin] and [supportsDeviceCalendar] default to the real
   /// plugin and the current platform; tests replace them.
   CalendarDataBloc({
@@ -53,6 +61,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
     ClearCalendarData event,
     Emitter<CalendarDataState> emit,
   ) {
+    _generation++;
     emit(const CalendarDataState());
     _persistImportedEvents([]);
   }
@@ -61,9 +70,11 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
     LoadSavedPlaces event,
     Emitter<CalendarDataState> emit,
   ) async {
+    final generation = _generation;
     emit(state.clearError().copyWith(status: CalendarDataStatus.loading));
     try {
       final bookmarks = await apiService.getBookmarks();
+      if (_isStale(generation)) return;
       emit(
         state.copyWith(
           status: CalendarDataStatus.loaded,
@@ -71,6 +82,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
         ),
       );
     } catch (e) {
+      if (_isStale(generation)) return;
       emit(
         state.copyWith(
           status: CalendarDataStatus.error,
@@ -99,15 +111,18 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
   ) async {
     if (!_supportsDeviceCalendar) return;
 
+    final generation = _generation;
     try {
       var permissionsGranted = await _deviceCalendarPlugin.hasPermissions();
       if (permissionsGranted.isSuccess && (permissionsGranted.data == false)) {
         permissionsGranted = await _deviceCalendarPlugin.requestPermissions();
       }
+      if (_isStale(generation)) return;
 
       if (permissionsGranted.isSuccess && permissionsGranted.data == true) {
         emit(state.copyWith(hasCalendarPermission: true));
         final calendarsResult = await _deviceCalendarPlugin.retrieveCalendars();
+        if (_isStale(generation)) return;
         if (calendarsResult.isSuccess && calendarsResult.data != null) {
           emit(state.copyWith(deviceCalendars: calendarsResult.data!));
         }
@@ -120,6 +135,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
         );
       }
     } catch (e) {
+      if (_isStale(generation)) return;
       emit(
         state.copyWith(errorMessage: 'Error initializing device calendar: $e'),
       );
@@ -150,6 +166,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
       return;
     }
 
+    final generation = _generation;
     final calendarColorMap = <String, Color>{};
     for (final cal in state.deviceCalendars) {
       if (cal.id != null) {
@@ -204,6 +221,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
         }
       }
     }
+    if (_isStale(generation)) return;
     emit(state.copyWith(deviceEvents: allEvents));
   }
 
@@ -236,15 +254,18 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
     Emitter<CalendarDataState> emit,
   ) async {
     if (event.url.isEmpty) return;
+    final generation = _generation;
     emit(state.clearError().copyWith(isLoadingRemote: true));
     try {
       final icsString = await apiService.getCalendarFromUrl(event.url);
+      if (_isStale(generation)) return;
       final events = icalParserService.parse(
         icsString,
         eventColor: Colors.deepPurple.withValues(alpha: 0.5),
       );
       emit(state.copyWith(remoteEvents: events, isLoadingRemote: false));
     } catch (e) {
+      if (_isStale(generation)) return;
       emit(
         state.copyWith(
           errorMessage: 'Error fetching remote calendar: $e',
@@ -258,8 +279,10 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
     LoadPersistedImportedEvents event,
     Emitter<CalendarDataState> emit,
   ) async {
+    final generation = _generation;
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (_isStale(generation)) return;
       final String? eventsJson = prefs.getString('persisted_imported_events');
       if (eventsJson != null) {
         final List<dynamic> decoded = jsonDecode(eventsJson);
