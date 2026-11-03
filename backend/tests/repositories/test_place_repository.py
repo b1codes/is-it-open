@@ -3,7 +3,10 @@
 Search and nearby queries are covered in tests/test_places_repository.py.
 """
 
+from io import StringIO
+
 import pytest
+from django.core.management import call_command
 
 from apps.places import repository as places
 from services.firestore import doc_id, get_client
@@ -313,6 +316,56 @@ class TestListSavedPlaces:
 
     def test_empty(self, user):
         assert places.list_saved_places(user) == []
+
+
+class TestBackfillHours:
+    LEGACY = factories.hours((1, "10:00", "5:30p"), (0, "9am", "24:00"), (2, "noon", "17:00"))
+    CONVERTED = factories.hours((0, "09:00", "00:00"), (1, "10:00", "17:30"))
+
+    @staticmethod
+    def store_hours(tomtom_id, hours):
+        get_client().collection(places.PLACES).document(doc_id(tomtom_id)).update({"hours": hours})
+
+    @staticmethod
+    def stored_hours(tomtom_id):
+        return get_client().collection(places.PLACES).document(doc_id(tomtom_id)).get().to_dict()["hours"]
+
+    def test_converts_hours_stored_before_they_were_checked_once(self, make_place):
+        make_place("legacy")
+        self.store_hours("legacy", self.LEGACY)
+        make_place("current", hours=factories.hours((3, "08:00", "12:00")))
+        make_place("no-hours")
+
+        assert places.backfill_hours(batch_size=1) == 1
+
+        assert self.stored_hours("legacy") == self.CONVERTED
+        assert self.stored_hours("current") == factories.hours((3, "08:00", "12:00"))
+        assert places.backfill_hours() == 0
+
+    @pytest.mark.parametrize("stored", [None, "09:00-17:00", {"day_of_week": 1}])
+    def test_hours_that_arent_a_list_become_empty(self, make_place, stored):
+        make_place("odd")
+        self.store_hours("odd", stored)
+
+        assert places.backfill_hours() == 1
+        assert places.get_place("odd")["hours"] == []
+
+    def test_reads_return_stored_hours_without_converting_them(self, make_place, monkeypatch):
+        # Converting on every read ran a regex over each hour of every place in every response, forever.
+        make_place("current", hours=factories.hours((3, "08:00", "12:00")))
+        monkeypatch.setattr(places, "_read_hours", lambda hours: pytest.fail("converted on read"))
+
+        assert places.get_place("current")["hours"] == factories.hours((3, "08:00", "12:00"))
+
+    def test_the_command_reports_what_it_updated(self, make_place):
+        make_place("legacy")
+        self.store_hours("legacy", self.LEGACY)
+        out = StringIO()
+
+        call_command("backfill_hours", stdout=out)
+
+        assert out.getvalue() == "Updated the hours of 1 place(s).\n"
+        assert self.stored_hours("legacy") == self.CONVERTED
 
 
 class TestReadingStoredHours:

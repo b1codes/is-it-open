@@ -110,9 +110,10 @@ def _read_time(value) -> str | None:
 
 def _read_hours(hours) -> list[dict]:
     """
-    Stored business hours as the API returns them. Entries from before the API checked them are
-    converted to its format where they can be, and left out where they can't, rather than failing
-    the response they're part of (a user's whole bookmark list, or every search that finds the place).
+    Stored business hours in the API's format. Entries from before the API checked them are
+    converted where they can be, and left out where they can't. backfill_hours() rewrites stored
+    hours with this once, so reads are a plain copy: unconverted, one such entry would fail the
+    response it's part of (a user's whole bookmark list, or every search that finds the place).
     """
     readable = []
     for entry in hours if isinstance(hours, list) else []:
@@ -143,7 +144,7 @@ def _to_place(data: dict) -> dict:
         "phone": data.get("phone"),
         "website": data.get("website"),
         "categories": data.get("categories", []),
-        "hours": _read_hours(data.get("hours") or []),
+        "hours": data.get("hours") or [],
     }
 
 
@@ -263,6 +264,38 @@ def search_places(query: str, limit=None):
             break
         cursor = snapshots[-1]
     return matches
+
+
+def backfill_hours(batch_size: int = 400) -> int:
+    """
+    Rewrite `hours` on every place that has hours stored before the API checked them ("9:00",
+    "9am", a weekday out of range), converted with _read_hours: to HH:MM where they can be read,
+    and left out where they can't. Returns the number of places updated, so a second run returns 0.
+
+    Places are read as they are, so run it once, before a backend that returns them takes traffic:
+        python manage.py backfill_hours
+    """
+    client = get_client()
+    query = _places().order_by(FieldPath.document_id())
+    updated = 0
+    cursor = None
+    while True:
+        page = query.start_after(cursor) if cursor is not None else query
+        snapshots = list(page.limit(batch_size).stream())
+        batch = client.batch()
+        pending = 0
+        for snapshot in snapshots:
+            stored = snapshot.to_dict().get("hours")
+            hours = _read_hours(stored or [])
+            if stored != hours:
+                batch.update(snapshot.reference, {"hours": hours})
+                pending += 1
+        if pending:
+            batch.commit()
+            updated += pending
+        if len(snapshots) < batch_size:
+            return updated
+        cursor = snapshots[-1]
 
 
 def reindex_search_terms(batch_size: int = 400) -> int:
