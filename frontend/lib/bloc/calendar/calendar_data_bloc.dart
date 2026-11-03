@@ -182,7 +182,7 @@ class CalendarDataBloc extends Bloc<CalendarDataEvent, CalendarDataState> {
                 CalendarEventData(
                   title: event.title ?? 'No Title',
                   date: event.start!,
-                  endDate: event.end!.subtract(const Duration(days: 1)),
+                  endDate: lastDayOfAllDayEvent(event.start!, event.end!),
                   description: event.description,
                   color: calColor,
                 ),

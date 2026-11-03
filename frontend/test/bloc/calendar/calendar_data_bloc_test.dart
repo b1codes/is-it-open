@@ -370,6 +370,13 @@ void main() {
                 tz.TZDateTime(ny, 2026, 10, 24),
                 allDay: true,
               ),
+              // Reported with an inclusive end on its own day.
+              event(
+                'Holiday',
+                tz.TZDateTime(ny, 2026, 10, 26),
+                tz.TZDateTime(ny, 2026, 10, 26, 23, 59, 59),
+                allDay: true,
+              ),
               event(
                 'Late shift',
                 tz.TZDateTime(ny, 2026, 10, 20, 22),
@@ -388,17 +395,21 @@ void main() {
         isA<CalendarDataState>().having(
           (s) => s.deviceEvents,
           'deviceEvents',
-          hasLength(3),
+          hasLength(4),
         ),
       ],
       verify: (bloc) {
         expect(bloc.state.checkedCalendarIds, {'work'});
-        final [standup, offsite, lateShift] = bloc.state.deviceEvents;
+        final [standup, offsite, holiday, lateShift] = bloc.state.deviceEvents;
         expect(standup.title, 'Standup');
         expect(standup.startTime, isNotNull);
         expect(standup.color, const Color(0xFF2196F3).withValues(alpha: 0.7));
         expect(offsite.isFullDayEvent, isTrue);
         expect(offsite.endDate, DateTime(2026, 10, 23));
+        // A day off its end put it before it began.
+        expect(holiday.isFullDayEvent, isTrue);
+        expect(holiday.date, DateTime(2026, 10, 26));
+        expect(holiday.endDate, DateTime(2026, 10, 26));
         // Shown on both days it covers.
         expect(lateShift.date, DateTime(2026, 10, 20));
         expect(lateShift.endDate, DateTime(2026, 10, 21));

@@ -67,6 +67,39 @@ void main() {
   // 2am on Sunday 8 Mar 2026 (CI runs in that zone), so 24 hours from just
   // after midnight on 1 Nov is 23:30 the same day, and 24 hours from 23:30
   // on 7 Mar is 00:30 on 9 Mar.
+  group('lastDayOfAllDayEvent', () {
+    test('is the day before an exclusive end at midnight', () {
+      expect(
+        lastDayOfAllDayEvent(DateTime(2026, 10, 22), DateTime(2026, 10, 24)),
+        DateTime(2026, 10, 23),
+      );
+    });
+
+    test("is an inclusive end's own day", () {
+      expect(
+        lastDayOfAllDayEvent(
+          DateTime(2026, 10, 22),
+          DateTime(2026, 10, 23, 23, 59, 59),
+        ),
+        DateTime(2026, 10, 23),
+      );
+    });
+
+    test('is never before the start day', () {
+      expect(
+        lastDayOfAllDayEvent(
+          DateTime(2026, 10, 26),
+          DateTime(2026, 10, 26, 23, 59, 59),
+        ),
+        DateTime(2026, 10, 26),
+      );
+      expect(
+        lastDayOfAllDayEvent(DateTime(2026, 10, 26), DateTime(2026, 10, 26)),
+        DateTime(2026, 10, 26),
+      );
+    });
+  });
+
   group('addCalendarDays', () {
     test('moves by calendar days at the same wall-clock time', () {
       expect(

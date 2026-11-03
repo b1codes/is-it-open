@@ -20,6 +20,15 @@ DateTime lastDayOfTimedEvent(DateTime start, DateTime end) {
   return lastDay.isBefore(startDay) ? startDay : lastDay;
 }
 
+/// The last day an all-day event from [start] to [end] covers. Device
+/// calendars report the end either exclusively (midnight after the last day)
+/// or inclusively (late on the last day, such as 23:59:59), so it's the day
+/// before a midnight end and [end]'s day otherwise. Never before [start]'s
+/// day: taking a day off every end put a same-day 23:59:59 end before the
+/// event began, and the calendar drew it wrongly or not at all.
+DateTime lastDayOfAllDayEvent(DateTime start, DateTime end) =>
+    lastDayOfTimedEvent(start, end);
+
 /// [date] moved by [days] calendar days, at the same wall-clock time.
 /// Adding `Duration(days: n)` adds n × 24 hours instead, which across a DST
 /// change lands an hour off: on the same day again, or a day too far.
