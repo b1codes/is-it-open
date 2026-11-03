@@ -37,8 +37,9 @@ def _feed_urls(url: str) -> list[str]:
     """
     The URLs to try for `url`, in order. webcal(s):// only marks a feed to subscribe to: webcals://
     is HTTPS, and webcal:// is HTTP by convention, though most feeds are served over HTTPS now. So
-    webcal:// tries HTTPS first and falls back to HTTP, as calendar apps do. Fetched over HTTPS only,
-    a feed served only over HTTP (some self-hosted, school and sports calendars) couldn't be reached.
+    webcal:// tries HTTPS first and, when nothing answers there, HTTP, as calendar apps do. Fetched
+    over HTTPS only, a feed served only over HTTP (some self-hosted, school and sports calendars)
+    couldn't be reached.
     """
     url = url.strip()
     scheme, _, rest = url.partition("://")
@@ -53,6 +54,8 @@ def _fetch_feed(url: str) -> bytes:
     *fallbacks, last = _feed_urls(url)
     # The next URL is tried only when this one's server couldn't be reached at all. Any other answer
     # (an error status, a timeout, a blocked address) is the feed's, and trying again wouldn't change it.
+    # A failed TLS handshake or a bad certificate isn't retried either: it can come from someone on the
+    # path, who would then see the feed's secret URL, and could answer for it, over plain HTTP.
     for feed_url in fallbacks:
         try:
             return safe_fetch.fetch(feed_url, max_bytes=MAX_CALENDAR_BYTES)

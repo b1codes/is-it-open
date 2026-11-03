@@ -91,8 +91,8 @@ HTTP_FEED_URL = "http://calendar.example.com/feed.ics"
 
 @pytest.mark.parametrize(
     "https_failure",
-    [requests.ConnectionError("refused"), requests.exceptions.SSLError("handshake failed")],
-    ids=["https-refused", "tls-failed"],
+    [requests.ConnectionError("refused"), requests.ConnectionError(ConnectionResetError("reset by peer"))],
+    ids=["https-refused", "https-reset"],
 )
 def test_a_webcal_link_falls_back_to_http_when_https_cant_be_reached(auth_client, http_mock, https_failure):
     # webcal:// means HTTP by convention. Fetched over HTTPS only, an HTTP-only feed couldn't be reached.
@@ -119,6 +119,27 @@ def test_a_webcal_link_does_not_fall_back_when_https_answers(auth_client, http_m
 
     assert response.status_code == 400
     assert len(http_mock.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "tls_failure",
+    [
+        requests.exceptions.SSLError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"),
+        requests.exceptions.SSLError("[SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] handshake failure"),
+    ],
+    ids=["bad-certificate", "handshake-failed"],
+)
+def test_a_webcal_link_does_not_fall_back_when_tls_fails(auth_client, http_mock, tls_failure):
+    # Someone on the path can fail TLS on purpose. Over plain HTTP they'd see the feed's secret URL and
+    # could answer with a calendar of their own.
+    http_mock.get(FEED_URL, body=tls_failure)
+    http_mock.get(HTTP_FEED_URL, body=ICS)
+
+    response = auth_client.get("/calendar/proxy", url="webcal://calendar.example.com/feed.ics")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Failed to fetch calendar: a secure connection to the server couldn't be made"
+    assert [call.request.url for call in http_mock.calls] == [FEED_URL]
 
 
 @pytest.mark.parametrize("url", ["webcals://calendar.example.com/feed.ics", FEED_URL], ids=["webcals", "https"])

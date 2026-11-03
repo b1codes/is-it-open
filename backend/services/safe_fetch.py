@@ -51,7 +51,15 @@ class BlockedAddress(FetchError):
 
 
 class Unreachable(FetchError):
-    """No connection to the server could be made, or kept (refused, reset, or a failed TLS handshake)."""
+    """No connection to the server could be made, or kept (refused, reset, or its host not answering)."""
+
+
+class TLSFailure(FetchError):
+    """
+    The server was reached, but no secure connection could be made with it (its certificate isn't
+    valid for the host, or the TLS handshake failed). Not Unreachable: whoever answered may be on
+    the path rather than the server, so it mustn't be a reason to try again without TLS.
+    """
 
 
 def resolve(host: str, port: int) -> list[IPAddress]:
@@ -212,7 +220,9 @@ def fetch(url: str, *, max_bytes: int) -> bytes:
             raise FetchError("it redirects too many times")
         except requests.Timeout as e:
             raise FetchError("the server took too long") from e
-        except requests.ConnectionError as e:  # SSLError included
+        except requests.exceptions.SSLError as e:  # before ConnectionError, which it subclasses
+            raise TLSFailure("a secure connection to the server couldn't be made") from e
+        except requests.ConnectionError as e:
             raise Unreachable("the server couldn't be reached") from e
         except requests.RequestException as e:
             raise FetchError("the server couldn't be reached") from e

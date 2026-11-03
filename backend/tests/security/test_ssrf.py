@@ -493,6 +493,19 @@ def test_each_checked_address_is_tried_in_turn(settings, auth_client, server, dn
     assert server.requests == ["/feed.ics"]
 
 
+def test_a_webcal_link_whose_tls_fails_is_not_fetched_over_http(settings, auth_client, server):
+    """
+    A real failed handshake (the server speaks plain HTTP on the port) isn't "unreachable": the same
+    port over http:// would answer, so falling back would hand the feed to whoever failed TLS.
+    """
+    settings.SAFE_FETCH_PRIVATE_HOSTS = ["127.0.0.1"]
+
+    response = _proxy(auth_client, server.url().replace("http:", "webcal:"))
+
+    assert response.json() == {"detail": "Failed to fetch calendar: a secure connection to the server couldn't be made"}
+    assert server.requests == []
+
+
 def test_no_checked_address_answers(settings, auth_client, dns):
     dns["down.invalid"] = ["::1", "127.0.0.1"]
     settings.SAFE_FETCH_PRIVATE_HOSTS = ["down.invalid"]
