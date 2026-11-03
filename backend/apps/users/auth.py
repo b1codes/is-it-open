@@ -77,7 +77,8 @@ class GlobalAuth(HttpBearer):
                 return None
 
             # Find or create user. Username will be set to Auth0 sub.
-            # This is a plain read for existing users; a transaction only runs on first sign-in.
+            # This is a plain read for existing users. Only a first sign-in writes: a create-only
+            # write, read back if a concurrent first sign-in created the user first.
             try:
                 user, _ = repository.get_or_create_user(
                     sub,
