@@ -177,10 +177,24 @@ def retry_on_contention(operation: Callable[[], T]) -> T:
     raise AssertionError("unreachable")  # pragma: no cover
 
 
+# Attempts the client library makes at one transaction before giving up. It retries an aborted
+# commit straight away, as a retry of the same transaction, which production Firestore lets keep its
+# place in the lock queue, so contending writers take turns rather than aborting each other.
+_TRANSACTION_ATTEMPTS = 5
+
+
 def run_transaction(body: Callable[[firestore.Transaction], T]) -> T:
-    """Run `body(transaction)` in a Firestore transaction, retrying contention with backoff."""
+    """
+    Run `body(transaction)` in a Firestore transaction: the library's retries first, then, if
+    contention outlasts them, a new transaction after a backoff (retry_on_contention). The emulator
+    doesn't honor a retry's place in the queue, so there, on a slow runner, contending transactions
+    could abort each other in lockstep through every library attempt. One attempt per transaction,
+    each after a backoff, avoided that but gave up the queue place in production too.
+    """
     client = get_client()
-    return retry_on_contention(lambda: firestore.transactional(body)(client.transaction(max_attempts=1)))
+    return retry_on_contention(
+        lambda: firestore.transactional(body)(client.transaction(max_attempts=_TRANSACTION_ATTEMPTS))
+    )
 
 
 def allocate_id(name) -> int:

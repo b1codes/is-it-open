@@ -172,31 +172,65 @@ class TestRunTransaction:
         assert fs.run_transaction(body) == "ok"
         assert ref.get().to_dict() == {"n": 1}
 
-    def test_backs_off_between_aborted_commits(self, firestore_db):
-        ref = fs.get_client().collection("things").document("a")
-        runs = []
-        real_commit = Transaction._commit
-        commits = []
+    @staticmethod
+    def contended(aborts):
+        """Patches commits so the first `aborts` abort, and records each attempt's retry_id."""
+        real_commit, real_begin = Transaction._commit, Transaction._begin
+        commits, retry_ids = [], []
 
-        def contended_commit(transaction):
+        def commit(transaction):
             commits.append(None)
-            if len(commits) <= 2:
+            if len(commits) <= aborts:
                 raise api_exceptions.Aborted("lock timeout")
             return real_commit(transaction)
+
+        def begin(transaction, retry_id=None):
+            retry_ids.append(retry_id)
+            return real_begin(transaction, retry_id=retry_id)
+
+        patches = (
+            patch.object(Transaction, "_commit", commit),
+            patch.object(Transaction, "_begin", begin),
+            patch.object(Transaction, "_rollback"),
+        )
+        return patches, retry_ids
+
+    def run(self, ref, aborts):
+        runs = []
 
         def body(transaction):
             runs.append(None)
             transaction.set(ref, {"n": len(runs)})
             return len(runs)
 
-        with (
-            patch.object(Transaction, "_commit", contended_commit),
-            patch.object(Transaction, "_rollback"),
-            patch.object(fs.time, "sleep") as sleep,
-        ):
-            assert fs.run_transaction(body) == 3
-        assert sleep.call_count == 2  # each abort waits before the next attempt
+        patches, retry_ids = self.contended(aborts)
+        with patches[0], patches[1], patches[2], patch.object(fs.time, "sleep") as sleep:
+            result = fs.run_transaction(body)
+        return result, retry_ids, sleep
+
+    def test_the_library_retries_an_aborted_commit_as_the_same_transaction(self, firestore_db):
+        # A retry of the same transaction keeps its place in production Firestore's lock queue. One
+        # attempt per transaction, each retry was a new transaction after a backoff.
+        ref = fs.get_client().collection("things").document("a")
+
+        result, retry_ids, sleep = self.run(ref, aborts=2)
+
+        assert result == 3
+        assert retry_ids[0] is None
+        assert retry_ids[1] is not None and retry_ids[2] == retry_ids[1]  # the first attempt's ID
+        sleep.assert_not_called()
         assert ref.get().to_dict() == {"n": 3}
+
+    def test_backs_off_and_starts_again_once_the_library_gives_up(self, firestore_db):
+        # How contention on the emulator, which ignores a retry's place in the queue, gets resolved.
+        ref = fs.get_client().collection("things").document("a")
+
+        result, retry_ids, sleep = self.run(ref, aborts=fs._TRANSACTION_ATTEMPTS)
+
+        assert result == fs._TRANSACTION_ATTEMPTS + 1
+        assert sleep.call_count == 1
+        assert retry_ids[fs._TRANSACTION_ATTEMPTS] is None  # a new transaction
+        assert ref.get().to_dict() == {"n": fs._TRANSACTION_ATTEMPTS + 1}
 
 
 class TestResetIdAllocator:
