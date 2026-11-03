@@ -12,6 +12,7 @@ void main() {
     expect(EnvConfig.auth0ClientId, 'mock_client_id');
     expect(EnvConfig.auth0Audience, 'https://is-it-open/api');
     expect(EnvConfig.apiReceiveTimeout, const Duration(seconds: 3));
+    expectSlowEndpointTimeouts();
     expect(
       EnvConfig.mapTileUrl(dark: false),
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -28,6 +29,7 @@ void main() {
     expect(EnvConfig.auth0Audience, 'https://api.isitopen.com/');
     expect(EnvConfig.auth0ClientId, isNotEmpty);
     expect(EnvConfig.apiReceiveTimeout, const Duration(seconds: 3));
+    expectSlowEndpointTimeouts();
     // Desktop platforms without their own key use the web URL.
     expect(
       EnvConfig.apiBaseUrl,
@@ -41,6 +43,8 @@ void main() {
     await EnvConfig.init(env: 'e2e');
     expect(EnvConfig.apiBaseUrl, 'http://127.0.0.1:18000/api');
     expect(EnvConfig.apiReceiveTimeout, const Duration(seconds: 20));
+    // Raised for CI, the default is still shorter than the slow endpoints'.
+    expectSlowEndpointTimeouts();
     for (final dark in [false, true]) {
       expect(
         EnvConfig.mapTileUrl(dark: dark),
@@ -48,4 +52,19 @@ void main() {
       );
     }
   });
+}
+
+/// The endpoints that wait on another server get their backend-derived
+/// bounds, which are never shorter than the default.
+void expectSlowEndpointTimeouts() {
+  expect(EnvConfig.calendarProxyReceiveTimeout, const Duration(seconds: 100));
+  expect(EnvConfig.profileUpdateReceiveTimeout, const Duration(seconds: 40));
+  expect(EnvConfig.placeSearchReceiveTimeout, const Duration(seconds: 40));
+  for (final timeout in [
+    EnvConfig.calendarProxyReceiveTimeout,
+    EnvConfig.profileUpdateReceiveTimeout,
+    EnvConfig.placeSearchReceiveTimeout,
+  ]) {
+    expect(timeout, greaterThanOrEqualTo(EnvConfig.apiReceiveTimeout));
+  }
 }

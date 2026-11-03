@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/core/env_config.dart';
 import 'package:frontend/models/place.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/services/api_service.dart';
@@ -219,6 +220,74 @@ void main() {
       final ics = await api.getCalendarFromUrl('https://cal.example/a.ics');
       expect(http.last.queryParameters, {'url': 'https://cal.example/a.ics'});
       expect(ics, startsWith('BEGIN:VCALENDAR'));
+    });
+  });
+
+  // Endpoints that wait on another server (a calendar feed, TomTom) get their
+  // own receive timeout; at the 3 s default they failed while the backend
+  // went on to finish.
+  group('receive timeout', () {
+    final slowCalls =
+        <
+          String,
+          (
+            String,
+            String,
+            Duration Function(),
+            Future<Object?> Function(ApiService),
+          )
+        >{
+          'getCalendarFromUrl': (
+            'GET',
+            '/calendar/proxy',
+            () => EnvConfig.calendarProxyReceiveTimeout,
+            (a) => a.getCalendarFromUrl('webcal://cal.example/a.ics'),
+          ),
+          'updateProfileFields': (
+            'PUT',
+            '/auth/me',
+            () => EnvConfig.profileUpdateReceiveTimeout,
+            (a) => a.updateProfileFields({'home_street': '1 Main St'}),
+          ),
+          'searchPlaces': (
+            'GET',
+            '/places/search',
+            () => EnvConfig.placeSearchReceiveTimeout,
+            (a) => a.searchPlaces('coffee'),
+          ),
+          'getSuggestions': (
+            'GET',
+            '/places/suggestions',
+            () => EnvConfig.placeSearchReceiveTimeout,
+            (a) => a.getSuggestions(1, 2),
+          ),
+        };
+    for (final MapEntry(key: name, value: (method, path, timeout, call))
+        in slowCalls.entries) {
+      test('$name waits longer than the default for its answer', () async {
+        http.on(
+          method,
+          path,
+          path == '/calendar/proxy'
+              ? const FakeResponse(200, 'BEGIN:VCALENDAR\r\nEND:VCALENDAR')
+              : FakeResponse(200, path == '/auth/me' ? _userJson() : []),
+        );
+        await call(api);
+        expect(http.last.receiveTimeout, timeout());
+        expect(
+          http.last.receiveTimeout,
+          greaterThan(EnvConfig.apiReceiveTimeout),
+        );
+      });
+    }
+
+    test('other endpoints keep the default', () async {
+      http.on('GET', '/places/bookmarks', const FakeResponse(200, []));
+      http.on('GET', '/auth/me', FakeResponse(200, _userJson()));
+      await api.getBookmarks();
+      expect(http.last.receiveTimeout, EnvConfig.apiReceiveTimeout);
+      await api.getProfile();
+      expect(http.last.receiveTimeout, EnvConfig.apiReceiveTimeout);
     });
   });
 

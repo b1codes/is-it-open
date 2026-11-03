@@ -113,6 +113,7 @@ class ApiService {
       final response = await _dio.get(
         '/places/search',
         queryParameters: {'query': query},
+        options: Options(receiveTimeout: EnvConfig.placeSearchReceiveTimeout),
       );
       final List<dynamic> data = response.data;
       return data.map((json) => Place.fromJson(json)).toList();
@@ -130,6 +131,7 @@ class ApiService {
       final response = await _dio.get(
         '/places/suggestions',
         queryParameters: queryParams,
+        options: Options(receiveTimeout: EnvConfig.placeSearchReceiveTimeout),
       );
       final List<dynamic> data = response.data;
       return data.map((json) => Place.fromJson(json)).toList();
@@ -218,7 +220,14 @@ class ApiService {
   /// newer edits, and sent the old address's coordinates with a new one.)
   Future<User> updateProfileFields(Map<String, dynamic> fields) async {
     try {
-      final response = await _dio.put('/auth/me', data: fields);
+      // Geocoding a changed address can take longer than the default allows;
+      // the edit is saved regardless, so timing out reported a saved change
+      // as failed.
+      final response = await _dio.put(
+        '/auth/me',
+        data: fields,
+        options: Options(receiveTimeout: EnvConfig.profileUpdateReceiveTimeout),
+      );
       return User.fromJson(response.data);
     } on DioException catch (e) {
       throw ApiException.from('Failed to update profile', e);
@@ -281,6 +290,7 @@ class ApiService {
       final response = await _dio.get(
         '/calendar/proxy',
         queryParameters: {'url': url},
+        options: Options(receiveTimeout: EnvConfig.calendarProxyReceiveTimeout),
       );
       return response.data.toString();
     } on DioException catch (e) {
