@@ -8,6 +8,7 @@ import requests
 from responses import matchers
 
 from apps.users import repository as users
+from apps.users.api import GEOCODE_RETRY_SECONDS
 from tests.conftest import TOMTOM_BASE, TOMTOM_KEY, ApiClient
 
 GEOCODE_URL = re.compile(rf"{re.escape(TOMTOM_BASE)}/geocode/.+\.json")
@@ -33,6 +34,14 @@ PROFILE_FIELDS = {
     "use_current_location",
     "calendar_subscription_url",
 }
+
+
+def _age_the_failed_geocode(username, prefix):
+    """Back-dates the last failed geocode of the user's `prefix` address, so the next update tries again."""
+    user = users.get_user(username)
+    field = f"{prefix}_geocode_failed_at"
+    setattr(user, field, getattr(user, field) - GEOCODE_RETRY_SECONDS)
+    users.save_user(user, {field})
 
 
 def _field_errors(response):
@@ -404,7 +413,7 @@ class TestUpdateMe:
         assert (stored.home_city, stored.home_lat, stored.home_lng) == ("Shelbyville", 1.0, 2.0)
 
     @pytest.fixture
-    def after_an_outage(self, make_user, tomtom):
+    def just_after_an_outage(self, make_user, tomtom):
         """A client whose home address changed to Shelbyville while TomTom was down; Home is still Springfield's."""
         user = make_user("alice", home_city="Springfield", home_lat=1.0, home_lng=2.0)
         client = ApiClient(users.get_or_create_token(user))
@@ -413,6 +422,12 @@ class TestUpdateMe:
         tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
         tomtom.calls.reset()
         return client
+
+    @pytest.fixture
+    def after_an_outage(self, just_after_an_outage):
+        """The same, long enough after the failed geocode that the next update tries again."""
+        _age_the_failed_geocode("alice", "home")
+        return just_after_an_outage
 
     @pytest.mark.parametrize("update", [{"first_name": "Al"}, {}], ids=["other-field", "nothing"])
     def test_an_address_geocoding_missed_is_geocoded_by_a_later_update(self, after_an_outage, tomtom, update):
@@ -436,6 +451,41 @@ class TestUpdateMe:
         assert (response.json()["first_name"], response.json()["home_lat"]) == ("Al", 1.0)
         assert users.get_user("alice").home_geocode_pending
         assert len(tomtom.calls) == 1
+        after_an_outage.put("/auth/me", {"first_name": "Albert"})
+        assert len(tomtom.calls) == 1  # this attempt failed too, so the next one waits again
+
+        _age_the_failed_geocode("alice", "home")
+        tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
+        response = after_an_outage.put("/auth/me", {"first_name": "Al"})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        assert len(tomtom.calls) == 2
+        assert not users.get_user("alice").home_geocode_pending
+
+    @pytest.mark.parametrize("update", [{"first_name": "Al"}, {"calendar_subscription_url": "https://c"}, {}])
+    def test_a_pending_geocode_waits_a_while_after_a_failed_attempt(self, just_after_an_outage, tomtom, update):
+        # Retried on every update, each save waited on TomTom's timeouts (5s a geocode) for as long as it was down.
+        response = just_after_an_outage.put("/auth/me", update)
+
+        assert response.status_code == 200
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
+        assert len(tomtom.calls) == 0
+        assert users.get_user("alice").home_geocode_pending
+
+        _age_the_failed_geocode("alice", "home")
+        response = just_after_an_outage.put("/auth/me", update)
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        assert len(tomtom.calls) == 1
+
+    def test_editing_a_pending_address_geocodes_it_straight_away(self, just_after_an_outage, tomtom):
+        response = just_after_an_outage.put("/auth/me", {"home_city": "Capital City"})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        (call,) = tomtom.calls
+        assert "Capital City" in unquote(call.request.url)
+        stored = users.get_user("alice")
+        assert (stored.home_geocode_pending, stored.home_geocode_failed_at) == (False, None)
 
     def test_an_address_tomtom_rejects_is_not_left_pending(self, after_an_outage, tomtom):
         # A 400 used to count as an outage: the geocode stayed pending, and every save asked TomTom again.
@@ -477,6 +527,7 @@ class TestUpdateMe:
         client = ApiClient(users.get_or_create_token(user))
         tomtom.get(GEOCODE_URL, status=503)
         client.put("/auth/me", {"work_city": "Shelbyville"})
+        _age_the_failed_geocode(user.username, "work")
         tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
 
         response = client.put("/auth/me", {"first_name": "Al"})

@@ -1,4 +1,5 @@
 import re
+import time
 
 from ninja import Field, Router, Schema
 from ninja.errors import HttpError
@@ -132,6 +133,11 @@ class ProfileUpdateInput(StrictSchema):
     calendar_subscription_url: str | None = None
 
 
+# How long a pending geocode waits after a failed attempt before an update that doesn't change the
+# address tries it again.
+GEOCODE_RETRY_SECONDS = 10 * 60
+
+
 @router.put("/me", response=AuthOutput, auth=GlobalAuth())
 def update_me(request, data: ProfileUpdateInput):
     user = request.auth
@@ -150,9 +156,20 @@ def update_me(request, data: ProfileUpdateInput):
         set_field("last_name", data.last_name)
 
     # We will track if address fields changed to determine if we need to geocode. One whose geocode
-    # is pending (it changed while TomTom couldn't be asked; see below) is geocoded again.
-    home_address_changed = user.home_geocode_pending
-    work_address_changed = user.work_geocode_pending
+    # is pending (it changed while TomTom couldn't be asked; see below) is geocoded again, but only
+    # once its last failed attempt is GEOCODE_RETRY_SECONDS old: retried on every update, each profile
+    # save (a name, the calendar URL) waited on TomTom's timeouts for as long as it was down. Editing
+    # the address geocodes it straight away, as always.
+    now = time.time()
+
+    def retry_due(prefix):
+        failed_at = getattr(user, f"{prefix}_geocode_failed_at")
+        return getattr(user, f"{prefix}_geocode_pending") and (
+            failed_at is None or now - failed_at >= GEOCODE_RETRY_SECONDS
+        )
+
+    home_address_changed = retry_due("home")
+    work_address_changed = retry_due("work")
 
     # Define fields that trigger geocoding
     home_geo_fields = ["home_street", "home_city", "home_state", "home_zip"]
@@ -185,6 +202,7 @@ def update_me(request, data: ProfileUpdateInput):
         for field, val in given.items():
             set_field(field, val)
         set_field(f"{prefix}_geocode_pending", False)
+        set_field(f"{prefix}_geocode_failed_at", None)
         return True
 
     if override_coordinates("home"):
@@ -199,8 +217,8 @@ def update_me(request, data: ProfileUpdateInput):
 
     # Perform geocoding if needed. The old coordinates belong to the old address, so an address
     # that's cleared or that TomTom has no match for has none. If TomTom can't be asked (an outage,
-    # no API key), the old ones are kept, rather than lost, and the geocode is pending: each later
-    # update tries again, whatever it changes, until it gets an answer or coordinates are given.
+    # no API key), the old ones are kept, rather than lost, and the geocode is pending: a later update
+    # tries again (see retry_due), whatever it changes, until it gets an answer or coordinates are given.
     if home_address_changed or work_address_changed:
         client = TomTomClient()
 
@@ -215,10 +233,12 @@ def update_me(request, data: ProfileUpdateInput):
                 coords = client.geocode_address(full_address) if full_address else None
             except GeocodeUnavailable:
                 set_field(f"{prefix}_geocode_pending", True)
+                set_field(f"{prefix}_geocode_failed_at", now)
                 continue
             set_field(f"{prefix}_lat", coords["lat"] if coords else None)
             set_field(f"{prefix}_lng", coords["lon"] if coords else None)
             set_field(f"{prefix}_geocode_pending", False)
+            set_field(f"{prefix}_geocode_failed_at", None)
 
     if changed:
         repository.save_user(user, changed)
