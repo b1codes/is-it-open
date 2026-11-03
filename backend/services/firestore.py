@@ -37,11 +37,13 @@ _RESERVE_RETRYABLE = (
     api_exceptions.ServiceUnavailable,
 )
 
-# Retry writes and transactions that Firestore aborts on lock contention. The client library
-# retries an aborted transaction at once, with no backoff, counting on the retry keeping its place
-# in line. The emulator doesn't do that: five same-document transactions on a slow CI runner kept
-# aborting each other in lockstep until every attempt was gone. So each transaction makes one
-# attempt per call, and retries wait a jittered, growing delay (about 10s in total at most).
+# Retry writes and transactions that Firestore aborts on lock contention, up to _CONTENTION_ATTEMPTS
+# calls with a jittered, growing delay between them (about 10s of waiting in total at most). The
+# client library retries an aborted transaction at once, with no backoff, counting on the retry
+# keeping its place in line. The emulator doesn't do that: five same-document transactions on a
+# slow CI runner kept aborting each other in lockstep until every attempt was gone. So once the
+# library's _TRANSACTION_ATTEMPTS run out, run_transaction starts a new transaction after the delay:
+# up to 10 x 5 = 50 attempts at one transaction in all.
 _CONTENTION_ATTEMPTS = 10
 _CONTENTION_BACKOFF_SECONDS = 0.05
 _CONTENTION_MAX_BACKOFF_SECONDS = 2.0
