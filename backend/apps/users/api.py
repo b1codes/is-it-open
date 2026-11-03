@@ -172,13 +172,14 @@ def update_me(request, data: ProfileUpdateInput):
             set_field(field, val)
             work_address_changed = work_address_changed or field in work_geo_fields
 
-    # Allow explicit lat/lng overrides from frontend. Don't re-geocode if coordinates are
-    # provided, even if they're the same values. While a geocode is pending, though, the stored
-    # coordinates are the old address's, and sending them back unchanged (as a client resending
-    # the profile it has cached does) doesn't choose them.
+    # Allow explicit lat/lng overrides from frontend: new coordinates are used instead of geocoding.
+    # The stored ones sent back unchanged (as a client resending the profile it has cached does)
+    # don't choose them, so an address edited in the same request, or whose geocode is pending, is
+    # still geocoded. Only while one was pending did that hold, so an edited street sent with the
+    # cached profile kept the old address's coordinates.
     def override_coordinates(prefix):
         given = {f: v for f in (f"{prefix}_lat", f"{prefix}_lng") if (v := getattr(data, f)) is not None}
-        echoed = getattr(user, f"{prefix}_geocode_pending") and all(getattr(user, f) == v for f, v in given.items())
+        echoed = all(getattr(user, f) == v for f, v in given.items())
         if not given or echoed:
             return False
         for field, val in given.items():

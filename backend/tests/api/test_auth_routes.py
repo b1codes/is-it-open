@@ -308,6 +308,28 @@ class TestUpdateMe:
         assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
         assert len(tomtom.calls) == 0
 
+    def test_an_edited_address_sent_with_the_cached_coordinates_is_geocoded(self, make_user, tomtom):
+        # A client that resends its cached profile sends the old address's coordinates with the new
+        # street. They used to count as an override, so the new address kept them.
+        user = make_user("alice", home_city="Springfield", home_lat=1.0, home_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+        tomtom.get(GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
+
+        response = client.put("/auth/me", {"home_city": "Shelbyville", "home_lat": 1.0, "home_lng": 2.0})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
+        assert "Shelbyville" in unquote(tomtom.calls[0].request.url)
+        assert (users.get_user("alice").home_lat, users.get_user("alice").home_lng) == (5.0, 6.0)
+
+    def test_the_cached_coordinates_alone_change_nothing(self, make_user, tomtom):
+        user = make_user(home_city="Springfield", home_lat=1.0, home_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+
+        response = client.put("/auth/me", {"home_city": "Springfield", "home_lat": 1.0, "home_lng": 2.0})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
+        assert len(tomtom.calls) == 0
+
     def test_free_text_address_alone_is_not_geocoded(self, make_user, tomtom):
         # Only the structured parts (street/city/state/zip) are geocoded, so the coordinates stay.
         user = make_user(home_city="Springfield", home_lat=1.0, home_lng=2.0)
