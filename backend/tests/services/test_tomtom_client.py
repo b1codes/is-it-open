@@ -144,6 +144,16 @@ class TestSearchPlace:
         # A string address is no address: the place is kept with a blank one.
         assert [(r["tomtom_id"], r["address"]) for r in results] == [("a", " , "), ("good", "123 Test St, Testville")]
 
+    def test_skips_results_whose_position_is_out_of_range(self, client, tomtom):
+        # One such place failed the whole response (a 500) on LocationSchema's range check.
+        edges = factories.tomtom_result("edges", "Edges", lat=-90, lon=180)
+        lat_91 = factories.tomtom_result("lat", "Lat", lat=91.0, lon=20.0)
+        lon_200 = factories.tomtom_result("lon", "Lon", lat=10.0, lon=200.0)
+        lon_minus_181 = factories.tomtom_result("lon-neg", "Lon neg", lat=10.0, lon=-180.5)
+        tomtom.get(POI_SEARCH_URL, json=factories.tomtom_response(lat_91, edges, lon_200, lon_minus_181))
+
+        assert [r["tomtom_id"] for r in client.search_place("x")] == ["edges"]
+
     @pytest.mark.parametrize("body", WRONG_TYPE_BODIES, ids=WRONG_TYPE_BODY_IDS)
     def test_body_of_the_wrong_type_is_no_results(self, client, tomtom, body):
         tomtom.get(POI_SEARCH_URL, json=body)

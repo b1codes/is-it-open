@@ -120,6 +120,18 @@ class TestSearch:
         assert response.status_code == 200
         assert [p["tomtom_id"] for p in response.json()] == ["good"]
 
+    def test_a_tomtom_result_off_the_map_is_skipped(self, auth_client, tomtom):
+        # LocationSchema allows lat ±90 and lng ±180, so one such result failed the whole response.
+        off_the_map = factories.tomtom_result("off", "Pizza Off", lat=91.0, lon=200.0)
+        tomtom.get(
+            POI_SEARCH_URL, json=factories.tomtom_response(off_the_map, factories.tomtom_result("good", "Pizza Good"))
+        )
+
+        response = auth_client.get("/places/search", query="pizza")
+
+        assert response.status_code == 200
+        assert [p["tomtom_id"] for p in response.json()] == ["good"]
+
     @pytest.mark.parametrize(
         "body", [["results"], "results", {"results": "tt-1"}], ids=["list", "string", "results-string"]
     )
@@ -533,6 +545,17 @@ class TestSuggestions:
                     }
                 )
             ],
+        )
+
+        response = auth_client.get("/places/suggestions", lat=40.7, lng=-74.0)
+
+        assert response.status_code == 200
+        assert [p["tomtom_id"] for p in response.json()] == ["near-1"]
+
+    def test_a_tomtom_result_off_the_map_is_skipped(self, auth_client, tomtom):
+        off_the_map = factories.tomtom_result("off", "Off the map", lat=-90.5, lon=20.0)
+        tomtom.get(
+            NEARBY_SEARCH_URL, json=factories.tomtom_response(off_the_map, factories.tomtom_result("near-1", "Cafe"))
         )
 
         response = auth_client.get("/places/suggestions", lat=40.7, lng=-74.0)

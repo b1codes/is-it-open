@@ -17,6 +17,11 @@ def _is_coordinate(value) -> bool:
     return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _is_position(lat, lng) -> bool:
+    """Whether (lat, lng) is in LocationSchema's range, so a place there can be returned."""
+    return _is_coordinate(lat) and _is_coordinate(lng) and -90 <= lat <= 90 and -180 <= lng <= 180
+
+
 def _object(value) -> dict:
     """`value` if it's a JSON object, else {}: TomTom fields of the wrong type are treated as missing."""
     return value if isinstance(value, dict) else {}
@@ -162,7 +167,7 @@ class TomTomClient:
         position = _object(result.get("position"))
         tomtom_id, name = _text(result.get("id")), _text(poi.get("name"))
         lat, lng = position.get("lat"), position.get("lon")
-        if not (tomtom_id and name and _is_coordinate(lat) and _is_coordinate(lng)):
+        if not (tomtom_id and name and _is_position(lat, lng)):
             return None
 
         hours = self._parse_opening_hours(poi.get("openingHours"))
