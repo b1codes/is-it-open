@@ -306,7 +306,7 @@ class TomTomClient:
             position = _object(_object(results[0]).get("position"))
             lat = position.get("lat")
             lon = position.get("lon")
-            if _is_coordinate(lat) and _is_coordinate(lon):
+            if _is_position(lat, lon):
                 result = {"lat": lat, "lon": lon}
                 # Cache for 1 day
                 cache.set(cache_key, result, 86400)

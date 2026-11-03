@@ -346,6 +346,9 @@ class TestGeocodeAddress:
             {"results": ["junk"]},
             {"results": [{"position": "39.78,-89.65"}]},
             {"results": [{"position": {"lat": "39.78", "lon": "-89.65"}}]},
+            # Stored as a home or work position, these would break the app's map.
+            {"results": [{"position": {"lat": 91.0, "lon": -89.65}}]},
+            {"results": [{"position": {"lat": 39.78, "lon": 200.0}}]},
         ],
         ids=[
             "no-results",
@@ -357,6 +360,8 @@ class TestGeocodeAddress:
             "junk-result",
             "string-position",
             "string-coordinates",
+            "lat-out-of-range",
+            "lon-out-of-range",
         ],
     )
     def test_no_usable_position_returns_none(self, client, tomtom, body):
