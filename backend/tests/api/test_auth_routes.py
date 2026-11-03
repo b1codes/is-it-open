@@ -326,8 +326,9 @@ class TestUpdateMe:
         assert len(tomtom.calls) == 0
 
     def test_an_edited_address_sent_with_the_cached_coordinates_is_geocoded(self, make_user, tomtom):
-        # A client that resends its cached profile sends the old address's coordinates with the new
-        # street. They used to count as an override, so the new address kept them.
+        # App builds from before the Me screen sent only its changed fields resend the cached profile:
+        # the old address's coordinates with the new street. They used to count as an override, so the
+        # new address kept them.
         user = make_user("alice", home_city="Springfield", home_lat=1.0, home_lng=2.0)
         client = ApiClient(users.get_or_create_token(user))
         tomtom.get(GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
@@ -515,11 +516,41 @@ class TestUpdateMe:
         assert not users.get_user("alice").home_geocode_pending
 
     def test_sending_back_the_stale_coordinates_does_not_cancel_a_pending_geocode(self, after_an_outage, tomtom):
-        # The app's profile screen resends the coordinates it has cached with every save.
+        # Older app builds' profile screen resends the coordinates it has cached with every save.
         response = after_an_outage.put("/auth/me", {"first_name": "Al", "home_lat": 1.0, "home_lng": 2.0})
 
         assert (response.json()["home_lat"], response.json()["home_lng"]) == (5.0, 6.0)
         assert len(tomtom.calls) == 1
+
+    def test_turning_on_current_location_where_home_already_is_wins_over_a_pending_geocode(
+        self, after_an_outage, tomtom
+    ):
+        # Home is the device's position from turning "Use Current Location" on before (and off since);
+        # it's turned on again there. Equal to the stored coordinates, the position counted as a cached
+        # profile sent back, so the pending geocode moved Home to the address.
+        response = after_an_outage.put("/auth/me", {"use_current_location": True, "home_lat": 1.0, "home_lng": 2.0})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (1.0, 2.0)
+        assert len(tomtom.calls) == 0
+        stored = users.get_user("alice")
+        assert (stored.home_lat, stored.home_lng, stored.home_geocode_pending) == (1.0, 2.0, False)
+
+    def test_current_location_does_not_make_the_cached_work_coordinates_an_override(self, make_user, tomtom):
+        # Older app builds' settings screen sends the whole cached profile when the toggle is turned on.
+        user = make_user(work_city="Springfield", work_lat=1.0, work_lng=2.0)
+        client = ApiClient(users.get_or_create_token(user))
+        tomtom.get(GEOCODE_URL, status=503)
+        client.put("/auth/me", {"work_city": "Shelbyville"})
+        _age_the_failed_geocode(user.username, "work")
+        tomtom.replace("GET", GEOCODE_URL, json={"results": [{"position": {"lat": 5.0, "lon": 6.0}}]})
+
+        response = client.put(
+            "/auth/me",
+            {"use_current_location": True, "home_lat": 3.0, "home_lng": 4.0, "work_lat": 1.0, "work_lng": 2.0},
+        )
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (3.0, 4.0)
+        assert (response.json()["work_lat"], response.json()["work_lng"]) == (5.0, 6.0)
 
     def test_new_coordinates_win_over_a_pending_geocode(self, after_an_outage, tomtom):
         response = after_an_outage.put("/auth/me", {"home_lat": 7.0, "home_lng": 8.0})

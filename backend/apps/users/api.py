@@ -197,13 +197,17 @@ def update_me(request, data: ProfileUpdateInput):
             work_address_changed = work_address_changed or field in work_geo_fields
 
     # Allow explicit lat/lng overrides from frontend: new coordinates are used instead of geocoding.
-    # The stored ones sent back unchanged (as a client resending the profile it has cached does)
-    # don't choose them, so an address edited in the same request, or whose geocode is pending, is
-    # still geocoded. Only while one was pending did that hold, so an edited street sent with the
-    # cached profile kept the old address's coordinates.
+    # The stored ones sent back unchanged (as app builds from before the profile screens sent only
+    # the fields they change resend their cached profile) don't choose them, so an address edited in
+    # the same request, or whose geocode is pending, is still geocoded. Only while one was pending did
+    # that hold, so an edited street sent with the cached profile kept the old address's coordinates.
+    # Home coordinates sent with use_current_location=true are the device's position, though, which
+    # "Use Current Location" sends on purpose, and they can be the stored ones (turned on again where
+    # it was before). As an echo, a pending geocode then moved Home from the device to the address.
     def override_coordinates(prefix):
         given = {f: v for f in (f"{prefix}_lat", f"{prefix}_lng") if (v := getattr(data, f)) is not None}
-        echoed = all(getattr(user, f) == v for f, v in given.items())
+        device_position = prefix == "home" and data.use_current_location is True
+        echoed = not device_position and all(getattr(user, f) == v for f, v in given.items())
         if not given or echoed:
             return False
         for field, val in given.items():
