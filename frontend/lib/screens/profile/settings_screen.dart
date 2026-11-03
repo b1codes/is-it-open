@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/preferences/preferences_cubit.dart';
+import '../../components/app_snack_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -30,7 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!serviceEnabled) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location services are disabled.')),
+            AppSnackBar(content: Text('Location services are disabled.')),
           );
           setState(() {
             _isUpdating = false;
@@ -45,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (permission == LocationPermission.denied) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Location permissions are denied')),
+              AppSnackBar(content: Text('Location permissions are denied')),
             );
             setState(() {
               _isUpdating = false;
@@ -58,7 +59,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            AppSnackBar(
               content: Text('Location permissions are permanently denied.'),
             ),
           );
@@ -75,9 +76,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         currentLng = position.longitude;
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error getting location: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            AppSnackBar(content: Text('Error getting location: $e')),
+          );
           setState(() {
             _isUpdating = false;
           });
@@ -110,7 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (state is ProfileUpdateSuccess) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            AppSnackBar(
               content: Text('Settings saved successfully!'),
               backgroundColor: Colors.green,
             ),
@@ -121,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : (state as AuthFailure).error;
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error), backgroundColor: Colors.red),
+            AppSnackBar(content: Text(error), backgroundColor: Colors.red),
           );
         }
       },

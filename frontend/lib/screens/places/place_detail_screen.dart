@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/today/today_cubit.dart';
+import '../../components/app_snack_bar.dart';
 import '../../components/places/address_map_thumb.dart';
 import '../../components/places/status_pill.dart';
 import '../../models/hours.dart';
@@ -72,7 +73,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     } catch (e) {
       // The user may have gone back while it was saving.
       if (!mounted) return;
-      scaffold.showSnackBar(SnackBar(content: Text("Couldn't add to today.")));
+      scaffold.showSnackBar(
+        AppSnackBar(content: Text("Couldn't add to today.")),
+      );
       setState(() => _loadingSaved = false);
     }
   }
@@ -664,9 +667,9 @@ class _CustomPlaceAffordancesState extends State<_CustomPlaceAffordances> {
       widget.onChanged();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't save the label.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(AppSnackBar(content: Text("Couldn't save the label.")));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
 import 'package:frontend/bloc/today/today_cubit.dart';
+import 'package:frontend/components/app_snack_bar.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/models/user.dart';
@@ -206,17 +207,23 @@ void main() {
     }
   });
 
-  // A SnackBar replaced while a page is pushed, then the page popped before
-  // the push finished: the SnackBar's hero flight was turned around between
-  // the wrong pair of heroes, failing a Flutter debug assertion (#61).
+  // A SnackBar replaced by one with the same content while a page is pushed,
+  // then the page popped before the push finished: the two shared a hero tag,
+  // so the first one's flight was turned to the second one's hero, failing a
+  // Flutter debug assertion (#61). AppSnackBar gives each its own tag.
   testWidgets('a SnackBar changing mid-navigation is fine', (tester) async {
     await start(tester);
     await tester.pumpAndSettle();
+    // Page heroes are on (they were turned off app-wide to avoid this).
+    expect(
+      HeroControllerScope.maybeOf(tester.element(find.byType(Navigator))),
+      isNotNull,
+    );
     final messenger = ScaffoldMessenger.of(
       tester.element(find.byType(LoginScreen)),
     );
     void report() =>
-        messenger.showSnackBar(const SnackBar(content: Text('Offline')));
+        messenger.showSnackBar(AppSnackBar(content: const Text('Offline')));
     report();
     await tester.pumpAndSettle();
 

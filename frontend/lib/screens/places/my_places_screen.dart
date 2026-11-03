@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/preferences/preferences_cubit.dart';
 import '../../bloc/today/today_cubit.dart';
+import '../../components/app_snack_bar.dart';
 import '../../components/core/sheet_scrollable.dart';
 import '../../components/places/quick_add_place_sheet.dart';
 import '../../components/places/saved_place_row.dart';
@@ -908,7 +909,7 @@ void _openActionSheet(
   final navigator = Navigator.of(context);
   final sp = enriched.savedPlace;
   void reportFailure(String action) => messenger.showSnackBar(
-    SnackBar(
+    AppSnackBar(
       content: Text("Couldn't $action ${sp.customName ?? sp.place.name}."),
     ),
   );
@@ -1150,7 +1151,7 @@ class _EmptyState extends StatelessWidget {
                       // Search lives outside this screen; surface the affordance
                       // and let the user navigate via the side menu / home shell.
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
+                        AppSnackBar(
                           backgroundColor: theme.paperRaised,
                           content: Text(
                             'Use Search from the menu to find places.',

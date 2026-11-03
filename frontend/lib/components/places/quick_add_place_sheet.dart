@@ -6,6 +6,7 @@ import '../../models/place.dart';
 import '../../services/api_service.dart';
 import '../../utils/navigation.dart';
 import '../../utils/places_theme.dart';
+import '../app_snack_bar.dart';
 
 // Add-a-custom-place sheet. Lightweight: name + address are required; the
 // "pick on map" and inline hours editor are flagged as follow-ups so the
@@ -59,7 +60,9 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
         closeRoute(nav, route, savedPlace);
       }
     } catch (e) {
-      scaffold.showSnackBar(SnackBar(content: Text('Couldn\'t save place.')));
+      scaffold.showSnackBar(
+        AppSnackBar(content: Text('Couldn\'t save place.')),
+      );
       if (mounted) setState(() => _submitting = false);
     }
   }

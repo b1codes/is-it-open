@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../bloc/preferences/preferences_cubit.dart';
+import '../../components/app_snack_bar.dart';
 import '../../models/hours.dart';
 import '../../models/place.dart';
 import '../../models/saved_place.dart';
@@ -47,7 +48,7 @@ class _PlanVisitScreenState extends State<PlanVisitScreen> {
       if (mounted) {
         setState(() => _current = previous);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't update visit length.")),
+          AppSnackBar(content: Text("Couldn't update visit length.")),
         );
       }
     } finally {

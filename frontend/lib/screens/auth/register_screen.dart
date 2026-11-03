@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import 'login_screen.dart';
+import '../../components/app_snack_bar.dart';
 import '../../components/shared/glass_card.dart';
 import '../../components/shared/thermal_button.dart';
 import '../../utils/app_theme.dart';
@@ -33,7 +34,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
-                SnackBar(
+                AppSnackBar(
                   content: Text(state.error),
                   backgroundColor: AppColors.thermalCore,
                 ),

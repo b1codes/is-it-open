@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../components/app_snack_bar.dart';
 import '../../models/user.dart';
 import '../../components/shared/address_input_accordion.dart';
 import '../../components/shared/glass_card.dart';
@@ -143,7 +144,7 @@ class _MeScreenState extends State<MeScreen> {
         // a "saved" message, and asked TomTom again for a pending geocode.
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
-          const SnackBar(content: Text('No changes to save.')),
+          AppSnackBar(content: Text('No changes to save.')),
         );
         return;
       }
@@ -152,9 +153,7 @@ class _MeScreenState extends State<MeScreen> {
         ProfileFieldsUpdateRequested(fields: fields),
       );
 
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Saving profile...')),
-      );
+      messenger.showSnackBar(AppSnackBar(content: Text('Saving profile...')));
     }
   }
 
@@ -171,7 +170,7 @@ class _MeScreenState extends State<MeScreen> {
         if (state is ProfileUpdateSuccess) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            AppSnackBar(
               content: Text('Profile saved successfully!'),
               backgroundColor: Colors.green,
             ),
@@ -179,12 +178,18 @@ class _MeScreenState extends State<MeScreen> {
         } else if (state is ProfileUpdateFailure) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+            AppSnackBar(
+              content: Text(state.error),
+              backgroundColor: Colors.red,
+            ),
           );
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+            AppSnackBar(
+              content: Text(state.error),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       },

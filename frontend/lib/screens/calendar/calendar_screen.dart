@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:calendar_view/calendar_view.dart';
 
+import '../../components/app_snack_bar.dart';
 import '../../components/calendar/calendar_event_tile.dart';
 import '../../components/calendar/calendar_view_stack.dart';
 import '../../components/calendar/calendar_sidebar.dart';
@@ -125,7 +126,7 @@ class _CalendarScreenView extends StatelessWidget {
         if (state.errorMessage != null) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+          ).showSnackBar(AppSnackBar(content: Text(state.errorMessage!)));
         }
       },
       child: _CalendarScreenContent(embedded: embedded),

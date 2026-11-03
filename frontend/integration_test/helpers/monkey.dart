@@ -131,7 +131,8 @@ String randomMonkeyText(Random random) {
 /// Two of the three in https://github.com/b1codes/is-it-open/issues/61 are
 /// avoided by the app instead: the sign-in dialog keys its fields and the
 /// search clear button closes the text toolbar first (the toolbar
-/// assertion), and MyApp turns off page hero flights (the SnackBar hero).
+/// assertion), and every SnackBar is an AppSnackBar, whose hero tag is its
+/// own (the SnackBar hero).
 final knownFlutterBugs =
     <({String issue, bool Function(FlutterErrorDetails) matches})>[
       (
