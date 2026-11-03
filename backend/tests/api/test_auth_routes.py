@@ -379,8 +379,15 @@ class TestUpdateMe:
 
     @pytest.mark.parametrize(
         "geocode",
-        [{"status": 500}, {"status": 429}, {"body": requests.Timeout("timed out")}, {"body": "not json"}],
-        ids=["server-error", "rate-limited", "timeout", "malformed"],
+        [
+            {"status": 500},
+            {"status": 429},
+            # A wrong TOMTOM_BASE_URL or a moved endpoint. It used to count as no match and clear Home.
+            {"status": 404},
+            {"body": requests.Timeout("timed out")},
+            {"body": "not json"},
+        ],
+        ids=["server-error", "rate-limited", "not-found", "timeout", "malformed"],
     )
     def test_geocoding_outage_keeps_the_address_and_the_old_coordinates(self, make_user, tomtom, geocode):
         # Whether the new address has a match isn't known, and losing Home would be worse than a stale pin.

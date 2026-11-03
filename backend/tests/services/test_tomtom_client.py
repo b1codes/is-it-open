@@ -370,9 +370,14 @@ class TestGeocodeAddress:
             *(f for f, i in zip(FAILURES, FAILURE_IDS, strict=True) if i != "400"),
             {"status": 401},
             {"status": 408},
+            # TomTom doesn't serve the URL (a wrong TOMTOM_BASE_URL, a moved endpoint): as "no match",
+            # these cleared the coordinates of every address geocoded meanwhile.
+            {"status": 404},
+            {"status": 405},
+            {"status": 414},
             {"body": ""},
         ],
-        ids=[*(i for i in FAILURE_IDS if i != "400"), "401", "408", "empty-body"],
+        ids=[*(i for i in FAILURE_IDS if i != "400"), "401", "408", "404", "405", "414", "empty-body"],
     )
     def test_failure_is_unavailable_and_not_cached(self, client, tomtom, failure):
         # Not None: that means "no match", and the profile clears an address's coordinates on it.
@@ -383,10 +388,9 @@ class TestGeocodeAddress:
         tomtom.replace("GET", GEOCODE_URL, json=_geocode_reply())
         assert client.geocode_address("1 Main St") == {"lat": 39.78, "lon": -89.65}
 
-    @pytest.mark.parametrize("status", [400, 404, 422])
-    def test_an_address_tomtom_rejects_has_no_match_and_is_not_cached(self, client, tomtom, status):
+    def test_an_address_tomtom_rejects_has_no_match_and_is_not_cached(self, client, tomtom):
         # Asking again gets the same answer, so it isn't "unavailable", which keeps a profile's geocode pending.
-        tomtom.get(GEOCODE_URL, status=status, json={"errorText": "Invalid query"})
+        tomtom.get(GEOCODE_URL, status=400, json={"errorText": "Invalid query"})
 
         assert client.geocode_address("??") is None
 

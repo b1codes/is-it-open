@@ -92,12 +92,6 @@ class GeocodeUnavailable(Exception):
     """TomTom couldn't be asked (no API key) or didn't answer, so whether an address has a match isn't known."""
 
 
-# Error statuses that say nothing about the address, so a geocode that gets one is tried again later, as
-# after a timeout or a 5xx: rejected credentials (a revoked or inactive key, like having none), too many
-# requests, and a request timeout.
-_GEOCODE_UNAVAILABLE_STATUSES = frozenset({401, 403, 408, 429})
-
-
 class TomTomClient:
     def __init__(self):
         self.api_key = settings.TOMTOM_API_KEY
@@ -272,8 +266,8 @@ class TomTomClient:
         """
         Geocode an address string using TomTom Search API.
         Returns a dict with 'lat' and 'lon' keys, or None if TomTom has no match, rejects the address
-        (a 4xx other than those below), or no address was given. Raises GeocodeUnavailable without an
-        API key, when the request fails, or on a 5xx, 401, 403, 408 or 429.
+        (a 400), or no address was given. Raises GeocodeUnavailable without an API key, when the request
+        fails, or on any other error status.
         """
         if not address:
             return None
@@ -292,13 +286,18 @@ class TomTomClient:
         params = {"key": self.api_key, "limit": 1}
         try:
             response = requests.get(url, params=params, timeout=5)
-            if response.status_code in _GEOCODE_UNAVAILABLE_STATUSES or response.status_code >= 500:
-                raise GeocodeUnavailable(f"TomTom answered {response.status_code}")
-            # Any other error is TomTom's answer about this address (a 400: one it can't read), which
-            # asking again won't change. Treated as unavailable, it kept the geocode pending for good,
-            # so each later profile save asked again and the old address's coordinates stayed.
-            if response.status_code >= 400:
+            # A 400 is TomTom's answer about this address (one it can't read), which asking again won't
+            # change. Treated as unavailable, it kept the geocode pending for good, so each later profile
+            # save asked again and the old address's coordinates stayed. (An address it can read but has
+            # no match for is a 200 with no results.)
+            if response.status_code == 400:
                 return None
+            # Any other error says nothing about the address, so the geocode is tried again later: a 5xx,
+            # rejected credentials (401/403, like having no key), too many requests (429), a timeout
+            # (408), and a URL TomTom doesn't serve (404, 405, 414: a wrong TOMTOM_BASE_URL or a moved
+            # endpoint), which as "no match" cleared every geocoded address's coordinates.
+            if response.status_code >= 400:
+                raise GeocodeUnavailable(f"TomTom answered {response.status_code}")
             body = response.json()
         except requests.RequestException as error:
             raise GeocodeUnavailable(str(error)) from error
