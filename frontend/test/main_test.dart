@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/bloc/auth/auth_bloc.dart';
 import 'package:frontend/bloc/calendar/calendar_data_bloc.dart';
+import 'package:frontend/bloc/today/today_cubit.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/models/saved_place.dart';
 import 'package:frontend/models/user.dart';
@@ -282,6 +283,55 @@ void main() {
     expect(read<CalendarDataBloc>(tester).state.remoteEvents, isEmpty);
     expect(api.calendarLoads, 1, reason: 'B has no subscription to load');
     await tester.unmount();
+  });
+
+  group("the next user doesn't inherit today's route", () {
+    // A planned two stops today. They stayed in memory and on the device, so
+    // B's My Places showed them as "Not in your places".
+    Map<String, Object> routeOfA() => {
+      ...TodayRouteCubit.persistedValues(['tt-a1', 'tt-a2'], DateTime.now()),
+    };
+
+    Future<void> expectNoRoute(WidgetTester tester) async {
+      expect(read<TodayRouteCubit>(tester).state.tomtomIds, isEmpty);
+      expect(read<TodayRouteCubit>(tester).state.autoClearedFrom, isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('today_route_ids'), isNull);
+    }
+
+    testWidgets('after signing out', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        ...routeOfA(),
+        'auth_token': 'tok',
+        'auth_user_json': jsonEncode(demoUser.toJson()),
+      });
+      await start(tester, api: _CountingApi(), size: desktopSize);
+      await tester.pumpAndSettle();
+      // Created on first use; let it load A's route.
+      read<TodayRouteCubit>(tester);
+      await tester.pumpAndSettle();
+      expect(read<TodayRouteCubit>(tester).state.tomtomIds, ['tt-a1', 'tt-a2']);
+
+      read<AuthBloc>(tester).add(LogoutRequested());
+      await tester.pumpAndSettle();
+
+      await expectNoRoute(tester);
+      await tester.unmount();
+    });
+
+    testWidgets('after a stored session expires', (tester) async {
+      SharedPreferences.setMockInitialValues({
+        ...routeOfA(),
+        'auth_token': 'revoked',
+        'auth_user_json': jsonEncode(demoUser.toJson()),
+      });
+      await start(tester, api: _CountingApi(rejectStoredToken: true));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      await expectNoRoute(tester);
+      await tester.unmount();
+    });
   });
 
   testWidgets(

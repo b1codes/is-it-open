@@ -82,8 +82,8 @@ class MyApp extends StatelessWidget {
             // Home shows login or the app depending on the auth state, so
             // drop any screens pushed on top of it (register, settings, a
             // place) when the user signs in or out. Signing in loads that
-            // user's places and calendar; signing out clears them, so the
-            // next person on this device doesn't see them.
+            // user's places and calendar; signing out clears them and today's
+            // route, so the next person on this device doesn't see them.
             _navigatorKey.currentState?.popUntil((route) => route.isFirst);
             if (state is AuthAuthenticated) {
               context.read<CalendarDataBloc>().add(LoadSavedPlaces());
@@ -93,6 +93,7 @@ class MyApp extends StatelessWidget {
               }
             } else if (state is AuthUnauthenticated || state is AuthFailure) {
               context.read<CalendarDataBloc>().add(ClearCalendarData());
+              context.read<TodayRouteCubit>().clear();
             }
           },
           child: BlocBuilder<ThemeCubit, ThemeMode>(

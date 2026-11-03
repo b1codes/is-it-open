@@ -101,6 +101,35 @@ void main() {
         });
       });
 
+      test(
+        'clear empties the route, with no reset note, and forgets it',
+        () async {
+          await withClock(Clock.fixed(monday), () async {
+            await start(['a', 'b']);
+            await cubit.clear();
+            expect(cubit.state.tomtomIds, isEmpty);
+            expect(cubit.state.autoClearedFrom, isNull);
+            expect(prefs.getString('today_route_ids'), isNull);
+            expect(prefs.getString('today_route_date'), isNull);
+          });
+        },
+      );
+
+      test(
+        "a load that finishes after clear doesn't bring the route back",
+        () async {
+          await withClock(Clock.fixed(monday), () async {
+            await start(['a']);
+            // Signed out while a fresh cubit was still reading the stored route.
+            final loading = TodayRouteCubit(prefs: prefs);
+            await loading.clear();
+            await Future<void>.delayed(Duration.zero);
+            expect(loading.state.tomtomIds, isEmpty);
+            await loading.close();
+          });
+        },
+      );
+
       test('remove drops the place and ignores unknown ids', () async {
         await withClock(Clock.fixed(monday), () async {
           await start(['a', 'b']);

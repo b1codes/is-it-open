@@ -61,6 +61,10 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
 
   final SharedPreferences? _injectedPrefs;
 
+  // Bumped by [clear], so a load that started before it doesn't bring the
+  // cleared route back when it finishes.
+  int _generation = 0;
+
   Future<SharedPreferences> _prefs() async =>
       _injectedPrefs ?? await SharedPreferences.getInstance();
 
@@ -71,7 +75,9 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
       {_idsKey: jsonEncode(ids), _dateKey: _dateString(date)};
 
   Future<void> _hydrate() async {
+    final generation = _generation;
     final prefs = await _prefs();
+    if (generation != _generation || isClosed) return;
     final raw = prefs.getString(_idsKey);
     final storedDateString = prefs.getString(_dateKey);
     final today = _dateOnly(clock.now());
@@ -146,6 +152,18 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
     );
+  }
+
+  /// Empties the route, in memory and on the device, without the overnight
+  /// reset's note. Called on sign-out: the route belongs to whoever built it,
+  /// and the next account on this device would otherwise inherit it.
+  Future<void> clear() async {
+    _generation++;
+    final today = _dateOnly(clock.now());
+    emit(TodayRouteState(tomtomIds: const [], touchedOn: today));
+    final prefs = await _prefs();
+    await prefs.remove(_idsKey);
+    await prefs.remove(_dateKey);
   }
 
   Future<void> dismissResetNote() async {
