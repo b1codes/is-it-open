@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:clock/clock.dart';
@@ -215,6 +216,70 @@ void main() {
       });
     });
 
+    // Sign-out calls clear() while an edit may still be writing to the
+    // device. The edit must neither show the old route again nor leave it
+    // persisted for the next account.
+    group('an edit still writing when clear runs', () {
+      final monday = DateTime(2026, 10, 19, 9);
+
+      Future<void> clearDuring(
+        List<String> start,
+        Future<void> Function(TodayRouteCubit cubit) edit, {
+        DateTime? editAt,
+      }) async {
+        await withClock(Clock.fixed(monday), () async {
+          final prefs = _MapPreferences(
+            TodayRouteCubit.persistedValues(start, monday),
+          );
+          final cubit = TodayRouteCubit(prefs: prefs);
+          await Future<void>.delayed(Duration.zero);
+          expect(cubit.state.tomtomIds, start);
+
+          final gate = Completer<void>();
+          prefs.writeGate = gate.future;
+          final editing = withClock(
+            Clock.fixed(editAt ?? monday),
+            () => edit(cubit),
+          );
+          await Future<void>.delayed(Duration.zero);
+          final clearing = cubit.clear();
+          expect(cubit.state.tomtomIds, isEmpty);
+
+          // The edit's write lands after clear started removing the route.
+          gate.complete();
+          await editing;
+          await clearing;
+
+          expect(cubit.state.tomtomIds, isEmpty);
+          expect(cubit.state.autoClearedFrom, isNull);
+          expect(prefs.getString('today_route_ids'), isNull);
+          expect(prefs.getString('today_route_date'), isNull);
+          await cubit.close();
+        });
+      }
+
+      test('add', () => clearDuring(['a'], (cubit) => cubit.add('b')));
+
+      test(
+        'remove',
+        () => clearDuring(['a', 'b'], (cubit) => cubit.remove('a')),
+      );
+
+      test(
+        'reorder',
+        () => clearDuring(['a', 'b'], (cubit) => cubit.reorder(0, 2)),
+      );
+
+      test(
+        'refresh past midnight',
+        () => clearDuring(
+          ['a'],
+          (cubit) => cubit.refresh(),
+          editAt: DateTime(2026, 10, 20, 0, 5),
+        ),
+      );
+    });
+
     test('copyWith keeps or clears the reset note', () {
       final state = TodayRouteState(
         tomtomIds: const ['a'],
@@ -234,12 +299,23 @@ class _MapPreferences implements SharedPreferences {
 
   final Map<String, Object> _values;
 
+  /// While set, [setString] waits for it before writing, to model a slow
+  /// platform write.
+  Future<void>? writeGate;
+
   @override
   String? getString(String key) => _values[key] as String?;
 
   @override
   Future<bool> setString(String key, String value) async {
+    await writeGate;
     _values[key] = value;
+    return true;
+  }
+
+  @override
+  Future<bool> remove(String key) async {
+    _values.remove(key);
     return true;
   }
 
