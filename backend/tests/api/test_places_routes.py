@@ -629,13 +629,14 @@ LEGACY_HOURS_AS_RETURNED = factories.hours((0, "09:00", "17:30"), (1, "09:00", "
 
 
 class TestHoursStoredBeforeTheyWereChecked:
-    """After backfill_hours, which README_DEPLOY.md says to run once before the new backend takes traffic."""
+    """Before and after backfill_hours (README_DEPLOY.md section 8), which only stores the conversion."""
 
-    @pytest.fixture
-    def legacy_place(self, make_place):
+    @pytest.fixture(params=[False, True], ids=["not-backfilled", "backfilled"])
+    def legacy_place(self, request, make_place):
         make_place("legacy", name="Old Diner")
         get_client().collection(places.PLACES).document(doc_id("legacy")).update({"hours": LEGACY_HOURS})
-        assert places.backfill_hours() == 1
+        if request.param:
+            assert places.backfill_hours() == 1
         return "legacy"
 
     def test_bookmarks(self, auth_client, legacy_place, make_place, make_bookmark):

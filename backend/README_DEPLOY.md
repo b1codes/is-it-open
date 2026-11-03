@@ -216,9 +216,8 @@ isn't in Postgres.
 
 ## 8. Upgrading from a version that didn't check hours
 Versions before the API checked business hours stored whatever a client sent, such as `9:00` or
-`9am`. The API now returns stored hours as they are, so a place with such an entry fails every
-response that includes it (a user's whole bookmark list, or every search that finds it). Convert
-them once with the new image, before it takes traffic:
+`9am`. The API converts such entries as it reads them, so these places keep working, but convert
+them once in the database too, with the new image:
 ```bash
 docker compose -f docker-compose.prod.yml build backend
 docker compose -f docker-compose.prod.yml run --rm --no-deps backend python manage.py backfill_hours

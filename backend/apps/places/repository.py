@@ -111,9 +111,10 @@ def _read_time(value) -> str | None:
 def _read_hours(hours) -> list[dict]:
     """
     Stored business hours in the API's format. Entries from before the API checked them are
-    converted where they can be, and left out where they can't. backfill_hours() rewrites stored
-    hours with this once, so reads are a plain copy: unconverted, one such entry would fail the
-    response it's part of (a user's whole bookmark list, or every search that finds the place).
+    converted where they can be, and left out where they can't, rather than failing the response
+    they're part of (a user's whole bookmark list, or every search that finds the place). Every
+    read goes through this, so a place backfill_hours() hasn't reached yet is still returned;
+    backfill_hours() makes the conversion durable.
     """
     readable = []
     for entry in hours if isinstance(hours, list) else []:
@@ -144,7 +145,7 @@ def _to_place(data: dict) -> dict:
         "phone": data.get("phone"),
         "website": data.get("website"),
         "categories": data.get("categories", []),
-        "hours": data.get("hours") or [],
+        "hours": _read_hours(data.get("hours") or []),
     }
 
 
@@ -272,7 +273,7 @@ def backfill_hours(batch_size: int = 400) -> int:
     "9am", a weekday out of range), converted with _read_hours: to HH:MM where they can be read,
     and left out where they can't. Returns the number of places updated, so a second run returns 0.
 
-    Places are read as they are, so run it once, before a backend that returns them takes traffic:
+    Reads convert such hours too, so this only stores the conversion. Run it once after upgrading:
         python manage.py backfill_hours
     """
     client = get_client()

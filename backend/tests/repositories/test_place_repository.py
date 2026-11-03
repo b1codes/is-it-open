@@ -350,12 +350,16 @@ class TestBackfillHours:
         assert places.backfill_hours() == 1
         assert places.get_place("odd")["hours"] == []
 
-    def test_reads_return_stored_hours_without_converting_them(self, make_place, monkeypatch):
-        # Converting on every read ran a regex over each hour of every place in every response, forever.
-        make_place("current", hours=factories.hours((3, "08:00", "12:00")))
-        monkeypatch.setattr(places, "_read_hours", lambda hours: pytest.fail("converted on read"))
+    def test_reads_convert_hours_it_hasnt_reached_yet(self, make_place, make_user, make_bookmark):
+        # Returned as stored, one such entry failed the whole response (a 500) until it ran.
+        make_place("legacy")
+        self.store_hours("legacy", self.LEGACY)
+        user = make_user()
+        make_bookmark(user, places.get_place("legacy"))
 
-        assert places.get_place("current")["hours"] == factories.hours((3, "08:00", "12:00"))
+        assert places.get_place("legacy")["hours"] == self.CONVERTED
+        assert [s["place"]["hours"] for s in places.list_saved_places(user)] == [self.CONVERTED]
+        assert self.stored_hours("legacy") == self.LEGACY
 
     def test_the_command_reports_what_it_updated(self, make_place):
         make_place("legacy")

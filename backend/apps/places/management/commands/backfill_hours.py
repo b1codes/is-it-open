@@ -5,8 +5,8 @@ One-shot rewrite of business hours stored before the API checked them. See backe
     python manage.py backfill_hours
 
 Converts each place's hours to the API's 24-hour HH:MM ("9:00" and "9am" become "09:00") and drops
-entries that can't be read. The API returns stored hours as they are, so an unconverted entry would
-fail every response that includes its place. Re-running it changes nothing.
+entries that can't be read. The API converts them the same way as it reads them, so this only stores
+the result. Re-running it changes nothing.
 """
 
 from django.core.management.base import BaseCommand
