@@ -146,11 +146,25 @@ void main() {
     expect(puts.single.data, {'first_name': 'Avery J'});
   });
 
+  testWidgets('saving with nothing changed sends nothing', (tester) async {
+    // An empty PUT /auth/me: a round trip, a spinner and a "saved" message for
+    // nothing, and another TomTom call when a geocode is pending.
+    final api = echoingApi();
+    await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
+    await tester.enterText(field('First Name'), '${demoUser.firstName} ');
+    await save(tester);
+
+    verifyNever(() => api.updateProfileFields(any()));
+    expect(find.text('No changes to save.'), findsOneWidget);
+    expect(find.text('Profile saved successfully!'), findsNothing);
+  });
+
   testWidgets('the save button shows a spinner while saving', (tester) async {
     final reply = Completer<User>();
     final api = MockApiService();
     when(() => api.updateProfileFields(any())).thenAnswer((_) => reply.future);
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
+    await tester.enterText(field('First Name'), 'Avery J');
     await tester.ensureVisible(find.text('Save Profile'));
     await tester.tap(find.text('Save Profile'));
     // Not pumpAndSettle: the spinner never settles.
@@ -178,6 +192,7 @@ void main() {
       () => api.updateProfileFields(any()),
     ).thenThrow(ApiException('Failed to update profile: 500'));
     await tester.pumpApp(const MeScreen(), api: api, size: desktopSize);
+    await tester.enterText(field('First Name'), 'Avery J');
     await save(tester);
     expect(
       find.text('Exception: Failed to update profile: 500'),

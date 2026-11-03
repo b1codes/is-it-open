@@ -137,13 +137,24 @@ class _MeScreenState extends State<MeScreen> {
         }
       }
 
+      final messenger = ScaffoldMessenger.of(context);
+      if (fields.isEmpty) {
+        // Sent anyway, an empty PUT /auth/me cost a round trip, a spinner and
+        // a "saved" message, and asked TomTom again for a pending geocode.
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(content: Text('No changes to save.')),
+        );
+        return;
+      }
+
       context.read<AuthBloc>().add(
         ProfileFieldsUpdateRequested(fields: fields),
       );
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Saving profile...')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Saving profile...')),
+      );
     }
   }
 
