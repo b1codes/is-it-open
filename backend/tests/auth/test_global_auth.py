@@ -6,6 +6,8 @@ serves its JWKS through `http_mock`. tests/test_auth0.py covers mock mode.
 """
 
 import datetime
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
@@ -242,6 +244,57 @@ class TestJwksCache:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "Sign-in can't be checked right now. Try again shortly."}
+
+    @staticmethod
+    def slow_jwks(auth0_tenant, http_mock, **reply):
+        """Serves the JWKS (or `reply`) after a delay, so concurrent requests overlap its fetch."""
+        jwks = auth0_tenant.jwks_response
+        http_mock.remove(jwks)
+
+        def respond(request):
+            time.sleep(0.3)
+            if reply:
+                return reply["status"], {}, ""
+            return 200, {"Content-Type": "application/json"}, jwks.body
+
+        http_mock.add_callback("GET", auth0_tenant.jwks_url, callback=respond)
+
+    def test_concurrent_requests_on_a_cold_start_fetch_once(self, auth0_tenant, http_mock):
+        # A new worker's first burst of Auth0 requests: each fetched the JWKS, waiting on Auth0 on its own.
+        self.slow_jwks(auth0_tenant, http_mock)
+        verify = GlobalAuth().verify_auth0_token
+        tokens = [auth0_tenant.token() for _ in range(8)]
+
+        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
+            payloads = list(pool.map(verify, tokens))
+
+        assert all(payload is not None for payload in payloads)
+        assert len(http_mock.calls) == 1
+
+    def test_concurrent_requests_on_a_cold_start_share_a_failed_fetch(self, auth0_tenant, http_mock):
+        self.slow_jwks(auth0_tenant, http_mock, status=503)
+        verify = GlobalAuth().verify_auth0_token
+
+        def outcome(token):
+            try:
+                return verify(token)
+            except auth_module.JwksUnavailable:
+                return "unavailable"
+
+        tokens = [auth0_tenant.token() for _ in range(8)]
+        with ThreadPoolExecutor(max_workers=len(tokens)) as pool:
+            outcomes = list(pool.map(outcome, tokens))
+
+        assert outcomes == ["unavailable"] * len(tokens)
+        assert len(http_mock.calls) == 1
+        assert auth0_tenant.domain not in auth_module._jwks_first_fetch
+
+    def test_a_request_waiting_too_long_on_the_first_fetch_is_unavailable(self, auth0_tenant, monkeypatch):
+        monkeypatch.setattr(auth_module, "JWKS_FETCH_TIMEOUT", 0.01)
+        auth_module._jwks_first_fetch[auth0_tenant.domain] = threading.Event()  # another request's, still running
+
+        with pytest.raises(auth_module.JwksUnavailable):
+            GlobalAuth().verify_auth0_token(auth0_tenant.token())
 
     def test_cached_per_domain(self, settings, authenticate, auth0_tenant, http_mock, rsa_private_key):
         authenticate(auth0_tenant.token())

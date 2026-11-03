@@ -59,9 +59,11 @@ def _isolate(settings):
     cache.clear()
     auth_module._jwks_cache.clear()
     auth_module._jwks_failed_at.clear()
+    auth_module._jwks_first_fetch.clear()
     yield
     auth_module._jwks_cache.clear()
     auth_module._jwks_failed_at.clear()
+    auth_module._jwks_first_fetch.clear()
 
 
 @pytest.fixture

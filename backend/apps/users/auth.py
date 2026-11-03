@@ -18,7 +18,8 @@ from . import repository
 # It's refetched when a token's `kid` isn't in it, since that's how a key Auth0 has rotated to first
 # shows up, and once it's JWKS_MAX_AGE old, so a key Auth0 has revoked stops being trusted. Fetches
 # happen at most once per JWKS_MIN_REFETCH_INTERVAL, also while the first one keeps failing, so tokens
-# with made-up kids can't make the server hammer Auth0 or tie up its workers waiting on it.
+# with made-up kids can't make the server hammer Auth0 or tie up its workers waiting on it. A worker's
+# first fetch is made once too: requests that arrive while it's in flight wait for it.
 JWKS_MAX_AGE = 60 * 60
 JWKS_MIN_REFETCH_INTERVAL = 60
 # Auth0 publishes a key before it signs with it, so a token issued before the cached JWKS was fetched
@@ -43,7 +44,13 @@ class JwksUnavailable(Exception):
 _jwks_cache: dict[str, _CachedJwks] = {}
 # When a domain with no cached JWKS last failed to fetch it (or claimed the retry), by domain.
 _jwks_failed_at: dict[str, float] = {}
+# A domain's first fetch while it's in flight, by domain: set when it's done, whether or not it worked.
+_jwks_first_fetch: dict[str, threading.Event] = {}
 _jwks_lock = threading.Lock()
+
+# Seconds a JWKS fetch may take to connect, and between bytes. A request waiting on another's first
+# fetch waits up to twice this before answering 503.
+JWKS_FETCH_TIMEOUT = 5
 
 
 def _find_key(jwks: dict, kid: str) -> dict | None:
@@ -161,11 +168,14 @@ class GlobalAuth(HttpBearer):
         for a new one or it's JWKS_MAX_AGE old, and the last refetch was at least
         JWKS_MIN_REFETCH_INTERVAL ago.
 
+        With nothing cached yet, one request fetches it and the others wait for that fetch.
+
         Raises JwksUnavailable if there's no cached copy and the fetch fails or failed within the
         interval, or if `refetch` asked for one and it fails or is throttled: the token's kid isn't
         cached, and it may be a key Auth0 rotated to after the last refetch, so it can't be rejected.
         """
         now, now_wall = time.monotonic(), time.time()
+        first_fetch = claimed_first_fetch = None
         with _jwks_lock:
             cached = _jwks_cache.get(domain)
             if cached is not None:
@@ -184,7 +194,36 @@ class GlobalAuth(HttpBearer):
                     raise JwksUnavailable(domain)
                 # Claim the retry, so requests meanwhile answer 503 rather than waiting on Auth0 too.
                 _jwks_failed_at[domain] = now
+            elif domain in _jwks_first_fetch:
+                first_fetch = _jwks_first_fetch[domain]
+            else:
+                # Claim the first fetch. Unclaimed, every request a new worker started with fetched
+                # the JWKS at once, each waiting on Auth0 on its own.
+                claimed_first_fetch = _jwks_first_fetch[domain] = threading.Event()
 
+        if first_fetch is not None:
+            return self._await_first_fetch(domain, first_fetch)
+        try:
+            return self._fetch_into_cache(domain, cached, refetch=refetch, now=now, now_wall=now_wall)
+        finally:
+            # Whether it worked or not, requests waiting on this first fetch can now read the outcome.
+            if claimed_first_fetch is not None:
+                with _jwks_lock:
+                    del _jwks_first_fetch[domain]
+                claimed_first_fetch.set()
+
+    @staticmethod
+    def _await_first_fetch(domain, first_fetch: threading.Event) -> tuple[_CachedJwks, bool]:
+        """The JWKS another request's first fetch got: fetched during this request, so it's fresh."""
+        first_fetch.wait(2 * JWKS_FETCH_TIMEOUT)
+        with _jwks_lock:
+            cached = _jwks_cache.get(domain)
+        if cached is None:
+            raise JwksUnavailable(domain)
+        return cached, True
+
+    @staticmethod
+    def _fetch_into_cache(domain, cached, *, refetch, now, now_wall) -> tuple[_CachedJwks, bool]:
         jwks = _fetch_jwks(domain)
         if jwks is None:
             if cached is None:
@@ -217,7 +256,7 @@ def _issued_before(token, fetched_at_wall: float) -> bool:
 
 def _fetch_jwks(domain) -> dict | None:
     try:
-        response = requests.get(f"https://{domain}/.well-known/jwks.json", timeout=5)
+        response = requests.get(f"https://{domain}/.well-known/jwks.json", timeout=JWKS_FETCH_TIMEOUT)
         if response.status_code == 200:
             jwks = response.json()
             if isinstance(jwks, dict):
