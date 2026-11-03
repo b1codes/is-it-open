@@ -230,6 +230,30 @@ void main() {
       ).single;
       expect(event.endDate, DateTime(2026, 11, 2));
     });
+
+    // RFC 5545 wants a DATE DTEND here, but the parser accepts a DATE-TIME
+    // one. Like a device calendar's all-day event, it covers the day it
+    // reaches into unless it ends at midnight.
+    test('a DATE-TIME DTEND after midnight covers its own day', () {
+      final event = parse(
+        _event('''
+          DTSTART;VALUE=DATE:20261023
+          DTEND:20261025T120000
+        '''),
+      ).single;
+      expect(event.date, DateTime(2026, 10, 23));
+      expect(event.endDate, DateTime(2026, 10, 25));
+    });
+
+    test('a DATE-TIME DTEND at midnight is exclusive', () {
+      final event = parse(
+        _event('''
+          DTSTART;VALUE=DATE:20261023
+          DTEND:20261025T000000
+        '''),
+      ).single;
+      expect(event.endDate, DateTime(2026, 10, 24));
+    });
   });
 
   group('recurrence', () {

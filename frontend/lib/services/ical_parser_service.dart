@@ -299,9 +299,10 @@ class IcalParserService {
     // DTEND is exclusive for all-day events: a one-day event ends the next
     // day at midnight, so the last day it covers is the one before. A timed
     // event that runs past midnight covers each day up to its end, so the
-    // calendar draws the part after midnight on the next day.
+    // calendar draws the part after midnight on the next day. The same rules
+    // as device calendars (utils/calendar_dates.dart).
     final lastDay = isAllDay
-        ? DateTime(end.year, end.month, end.day - 1)
+        ? lastDayOfAllDayEvent(naiveStart, naiveEnd)
         : lastDayOfTimedEvent(naiveStart, naiveEnd);
 
     return CalendarEventData(
