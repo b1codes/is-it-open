@@ -86,6 +86,61 @@ def test_subscribe_link_is_fetched_over_https(auth_client, http_mock, url):
     assert http_mock.calls[0].request.url == FEED_URL
 
 
+HTTP_FEED_URL = "http://calendar.example.com/feed.ics"
+
+
+@pytest.mark.parametrize(
+    "https_failure",
+    [requests.ConnectionError("refused"), requests.exceptions.SSLError("handshake failed")],
+    ids=["https-refused", "tls-failed"],
+)
+def test_a_webcal_link_falls_back_to_http_when_https_cant_be_reached(auth_client, http_mock, https_failure):
+    # webcal:// means HTTP by convention. Fetched over HTTPS only, an HTTP-only feed couldn't be reached.
+    http_mock.get(FEED_URL, body=https_failure)
+    http_mock.get(HTTP_FEED_URL, body=ICS)
+
+    response = auth_client.get("/calendar/proxy", url="webcal://calendar.example.com/feed.ics")
+
+    assert response.status_code == 200
+    assert response.content == ICS
+    assert [call.request.url for call in http_mock.calls] == [FEED_URL, HTTP_FEED_URL]
+
+
+@pytest.mark.parametrize(
+    "https_answer",
+    [{"status": 404}, {"status": 500}, {"body": requests.ConnectTimeout("timed out")}],
+    ids=["404", "500", "timeout"],
+)
+def test_a_webcal_link_does_not_fall_back_when_https_answers(auth_client, http_mock, https_answer):
+    # Only an unreachable server is retried over HTTP. (A timeout would double the wait.)
+    http_mock.get(FEED_URL, **https_answer)
+
+    response = auth_client.get("/calendar/proxy", url="webcal://calendar.example.com/feed.ics")
+
+    assert response.status_code == 400
+    assert len(http_mock.calls) == 1
+
+
+@pytest.mark.parametrize("url", ["webcals://calendar.example.com/feed.ics", FEED_URL], ids=["webcals", "https"])
+def test_a_secure_link_is_never_fetched_over_http(auth_client, http_mock, url):
+    http_mock.get(FEED_URL, body=requests.ConnectionError("refused"))
+
+    response = auth_client.get("/calendar/proxy", url=url)
+
+    assert response.status_code == 400
+    assert len(http_mock.calls) == 1
+
+
+def test_a_webcal_link_neither_scheme_reaches_is_400(auth_client, http_mock):
+    http_mock.get(FEED_URL, body=requests.ConnectionError("refused"))
+    http_mock.get(HTTP_FEED_URL, body=requests.ConnectionError("refused"))
+
+    response = auth_client.get("/calendar/proxy", url="webcal://calendar.example.com/feed.ics")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Failed to fetch calendar: the server couldn't be reached"
+
+
 @pytest.mark.parametrize(
     "url", ["not a url", "ftp://example.com/cal.ics", "webcalx://example.com/cal.ics", "", "  ", "x https://a.b/"]
 )

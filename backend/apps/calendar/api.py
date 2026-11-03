@@ -33,20 +33,40 @@ def _is_icalendar(body: bytes) -> bool:
 URL_PATTERN = r"^\s*([Hh][Tt][Tt][Pp][Ss]?|[Ww][Ee][Bb][Cc][Aa][Ll][Ss]?)://"
 
 
-def _feed_url(url: str) -> str:
-    """`url` to fetch: webcal(s):// only marks a feed to subscribe to, which is served over HTTPS."""
+def _feed_urls(url: str) -> list[str]:
+    """
+    The URLs to try for `url`, in order. webcal(s):// only marks a feed to subscribe to: webcals://
+    is HTTPS, and webcal:// is HTTP by convention, though most feeds are served over HTTPS now. So
+    webcal:// tries HTTPS first and falls back to HTTP, as calendar apps do. Fetched over HTTPS only,
+    a feed served only over HTTP (some self-hosted, school and sports calendars) couldn't be reached.
+    """
     url = url.strip()
     scheme, _, rest = url.partition("://")
-    if scheme.lower() in ("webcal", "webcals"):
-        return f"https://{rest}"
-    return url
+    if scheme.lower() == "webcal":
+        return [f"https://{rest}", f"http://{rest}"]
+    if scheme.lower() == "webcals":
+        return [f"https://{rest}"]
+    return [url]
+
+
+def _fetch_feed(url: str) -> bytes:
+    *fallbacks, last = _feed_urls(url)
+    # The next URL is tried only when this one's server couldn't be reached at all. Any other answer
+    # (an error status, a timeout, a blocked address) is the feed's, and trying again wouldn't change it.
+    for feed_url in fallbacks:
+        try:
+            return safe_fetch.fetch(feed_url, max_bytes=MAX_CALENDAR_BYTES)
+        except safe_fetch.Unreachable:
+            continue
+    return safe_fetch.fetch(last, max_bytes=MAX_CALENDAR_BYTES)
 
 
 @router.get("/proxy", response={400: ErrorSchema}, openapi_extra=ICAL_RESPONSE)
 def proxy_ical(request, url: str = Query(..., pattern=URL_PATTERN)):
-    # `url` is the user's, so it's only fetched from public hosts (see services/safe_fetch.py).
+    # `url` is the user's, so it's only fetched from public hosts (see services/safe_fetch.py), over
+    # HTTP as well as HTTPS.
     try:
-        body = safe_fetch.fetch(_feed_url(url), max_bytes=MAX_CALENDAR_BYTES)
+        body = _fetch_feed(url)
     except safe_fetch.FetchError as e:
         raise HttpError(400, f"Failed to fetch calendar: {e}") from e
     if not _is_icalendar(body):

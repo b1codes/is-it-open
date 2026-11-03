@@ -50,6 +50,10 @@ class BlockedAddress(FetchError):
     """The URL's host resolves to an address that isn't public."""
 
 
+class Unreachable(FetchError):
+    """No connection to the server could be made, or kept (refused, reset, or a failed TLS handshake)."""
+
+
 def resolve(host: str, port: int) -> list[IPAddress]:
     """The addresses `host` resolves to (an IP literal resolves to itself)."""
     infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
@@ -208,6 +212,8 @@ def fetch(url: str, *, max_bytes: int) -> bytes:
             raise FetchError("it redirects too many times")
         except requests.Timeout as e:
             raise FetchError("the server took too long") from e
+        except requests.ConnectionError as e:  # SSLError included
+            raise Unreachable("the server couldn't be reached") from e
         except requests.RequestException as e:
             raise FetchError("the server couldn't be reached") from e
         # Reading the body (_read) goes to urllib3 directly, so its errors aren't wrapped in requests'.
