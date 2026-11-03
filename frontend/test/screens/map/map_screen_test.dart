@@ -127,7 +127,7 @@ void main() {
         tester
             .element(find.byType(MapScreen))
             .read<AuthBloc>()
-            .add(ProfileUpdateRequested(updatedUser: user));
+            .add(ProfileFieldsUpdateRequested(fields: user.toJson()));
         await tester.pumpAndSettle();
       }
 

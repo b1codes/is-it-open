@@ -19,10 +19,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<RegisterRequested>(_onRegisterRequested);
     on<Auth0LoginRequested>(_onAuth0LoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
-    on<ProfileUpdateRequested>(
-      (event, emit) =>
-          _saveProfile(emit, () => apiClient.updateProfile(event.updatedUser)),
-    );
     on<ProfileFieldsUpdateRequested>(
       (event, emit) =>
           _saveProfile(emit, () => apiClient.updateProfileFields(event.fields)),

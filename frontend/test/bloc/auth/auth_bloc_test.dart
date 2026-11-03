@@ -370,7 +370,6 @@ void main() {
         ProfileUpdateSuccess(user: saved),
       ],
       verify: (_) async {
-        verifyNever(() => api.updateProfile(any()));
         expect((await _stored())['auth_calendar_url'], fields.values.single);
       },
     );
@@ -396,25 +395,30 @@ void main() {
     );
   });
 
-  group('ProfileUpdateRequested', () {
-    final edited = User.fromJson({..._user.toJson(), 'home_city': 'Brooklyn'});
+  group('a profile save', () {
+    const fields = {'home_city': 'Brooklyn'};
+    final edited = User.fromJson({..._user.toJson(), ...fields});
 
     blocTest<AuthBloc, AuthState>(
       'is ignored when signed out',
       build: build,
-      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
       expect: () => <AuthState>[],
-      verify: (_) => verifyNever(() => api.updateProfile(any())),
+      verify: (_) => verifyNever(() => api.updateProfileFields(any())),
     );
 
     blocTest<AuthBloc, AuthState>(
-      'saves the updated profile',
+      'stores the saved profile',
       build: () {
-        when(() => api.updateProfile(edited)).thenAnswer((_) async => edited);
+        when(
+          () => api.updateProfileFields(fields),
+        ).thenAnswer((_) async => edited);
         return build();
       },
       seed: () => AuthAuthenticated(user: _user),
-      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
       // Signed in throughout, so a save never looks like a fresh sign-in.
       expect: () => [
         ProfileUpdating(user: _user),
@@ -432,13 +436,14 @@ void main() {
     blocTest<AuthBloc, AuthState>(
       'keeps the token and every field when the response has no token',
       build: () {
-        when(() => api.updateProfile(any())).thenAnswer(
+        when(() => api.updateProfileFields(any())).thenAnswer(
           (_) async => User.fromJson({...demoUser.toJson(), 'token': null}),
         );
         return build();
       },
       seed: () => AuthAuthenticated(user: _user),
-      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: demoUser)),
+      act: (bloc) =>
+          bloc.add(const ProfileFieldsUpdateRequested(fields: fields)),
       expect: () => [
         ProfileUpdating(user: _user),
         isA<ProfileUpdateSuccess>().having((s) => s.user.toJson(), 'user', {
@@ -449,37 +454,18 @@ void main() {
     );
 
     blocTest<AuthBloc, AuthState>(
-      'keeps the current user and reports the error on failure',
-      build: () {
-        when(
-          () => api.updateProfile(any()),
-        ).thenThrow(ApiException('Failed to update profile: 422'));
-        return build();
-      },
-      seed: () => AuthAuthenticated(user: _user),
-      act: (bloc) => bloc.add(ProfileUpdateRequested(updatedUser: edited)),
-      expect: () => [
-        ProfileUpdating(user: _user),
-        ProfileUpdateFailure(
-          user: _user,
-          error: 'Exception: Failed to update profile: 422',
-        ),
-      ],
-    );
-
-    blocTest<AuthBloc, AuthState>(
       'reports a repeated failure again',
       build: () {
         when(
-          () => api.updateProfile(any()),
+          () => api.updateProfileFields(any()),
         ).thenThrow(ApiException('Failed to update profile: 422'));
         return build();
       },
       seed: () => AuthAuthenticated(user: _user),
       act: (bloc) async {
-        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fields));
         await Future<void>.delayed(Duration.zero);
-        bloc.add(ProfileUpdateRequested(updatedUser: edited));
+        bloc.add(const ProfileFieldsUpdateRequested(fields: fields));
       },
       expect: () {
         final failed = ProfileUpdateFailure(
@@ -623,7 +609,9 @@ void main() {
       ['a', 'b', 'c'],
     );
     expect(const Auth0LoginRequested(token: 't').props, ['t']);
-    expect(ProfileUpdateRequested(updatedUser: _user).props, [_user]);
+    expect(const ProfileFieldsUpdateRequested(fields: {'a': 1}).props, [
+      {'a': 1},
+    ]);
     expect(AppStarted().props, isEmpty);
     expect(ProfileUpdateFailure(user: _user, error: 'e').props, [_user, 'e']);
     expect(ProfileUpdating(user: _user), isNot(AuthAuthenticated(user: _user)));

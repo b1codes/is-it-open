@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import '../../models/user.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -36,15 +35,6 @@ class RegisterRequested extends AuthEvent {
 }
 
 class LogoutRequested extends AuthEvent {}
-
-class ProfileUpdateRequested extends AuthEvent {
-  final User updatedUser;
-
-  const ProfileUpdateRequested({required this.updatedUser});
-
-  @override
-  List<Object?> get props => [updatedUser];
-}
 
 /// Changes only [fields] of the profile, keyed as `PUT /auth/me` takes them.
 class ProfileFieldsUpdateRequested extends AuthEvent {

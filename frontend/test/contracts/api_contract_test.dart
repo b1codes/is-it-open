@@ -68,11 +68,10 @@ final _calls = <(String, String, Future<Object?> Function(ApiService))>[
     (api) => api.register('avery', 'pw'),
   ),
   ('GET /api/auth/me', 'getProfile', (api) => api.getProfile()),
-  ('PUT /api/auth/me', 'updateProfile', (api) => api.updateProfile(_user)),
   (
     'PUT /api/auth/me',
-    'updateProfile with only an id and username',
-    (api) => api.updateProfile(User(id: 1, username: 'avery')),
+    'updateProfileFields with every profile field',
+    (api) => api.updateProfileFields(_user.toJson()..remove('token')),
   ),
   (
     'PUT /api/auth/me',
@@ -301,7 +300,9 @@ void main() {
 
     test('reports a body field the contract lacks', () async {
       final strict = ContractAdapter(contract);
-      await ApiService(httpClientAdapter: strict).updateProfile(_user);
+      await ApiService(
+        httpClientAdapter: strict,
+      ).updateProfileFields(_user.toJson());
 
       expect(
         strict.violations,

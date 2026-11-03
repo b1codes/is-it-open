@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/models/place.dart';
 import 'package:frontend/models/saved_place.dart';
-import 'package:frontend/models/user.dart';
 import 'package:frontend/services/api_service.dart';
 
 import '../helpers/fake_http_adapter.dart';
@@ -159,13 +158,9 @@ void main() {
       expect(bookmarks.single.isPinned, isTrue);
     });
 
-    test('getProfile and updateProfile use /auth/me', () async {
+    test('getProfile uses /auth/me', () async {
       http.on('GET', '/auth/me', FakeResponse(200, _userJson()));
-      http.on('PUT', '/auth/me', FakeResponse(200, _userJson()));
       expect((await api.getProfile()).username, 'avery');
-      final updated = await api.updateProfile(demoUser);
-      expect(http.lastBody, demoUser.toJson());
-      expect(updated, isA<User>());
     });
 
     test('updateProfileFields sends only the fields given', () async {
@@ -283,7 +278,7 @@ void main() {
       'Failed to delete bookmark': (a) => a.deleteBookmark('x'),
       'Failed to get bookmarks': (a) => a.getBookmarks(),
       'Failed to get profile': (a) => a.getProfile(),
-      'Failed to update profile': (a) => a.updateProfile(demoUser),
+      'Failed to update profile': (a) => a.updateProfileFields({}),
       'Failed to toggle pin for place': (a) => a.togglePinPlace('x', true),
       'Failed to toggle check-it-out for place': (a) =>
           a.toggleCheckItOut('x', true),

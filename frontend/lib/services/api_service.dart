@@ -211,13 +211,11 @@ class ApiService {
     }
   }
 
-  /// Saves every field of [user]. For a screen that edits the whole profile;
-  /// to change a few fields, use [updateProfileFields].
-  Future<User> updateProfile(User user) => updateProfileFields(user.toJson());
-
   /// Changes only [fields], keyed as `PUT /auth/me` takes them (e.g.
   /// `{'calendar_subscription_url': url}`). The server keeps every field left
   /// out, so a profile cached before another device's edit doesn't undo it.
+  /// (There's no "save the whole profile": resending a cached profile undid
+  /// newer edits, and sent the old address's coordinates with a new one.)
   Future<User> updateProfileFields(Map<String, dynamic> fields) async {
     try {
       final response = await _dio.put('/auth/me', data: fields);

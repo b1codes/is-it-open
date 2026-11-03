@@ -49,12 +49,6 @@ class _CountingApi extends FakeApiService {
   }
 
   @override
-  Future<User> updateProfile(User user) async {
-    if (failProfileSaves) throw ApiException('Failed to update profile: 500');
-    return super.updateProfile(user);
-  }
-
-  @override
   Future<User> updateProfileFields(Map<String, dynamic> fields) async {
     if (failProfileSaves) throw ApiException('Failed to update profile: 500');
     return super.updateProfileFields(fields);

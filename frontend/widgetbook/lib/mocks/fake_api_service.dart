@@ -139,9 +139,6 @@ class FakeApiService extends ApiService {
   Future<User> getProfile() => _respond(() => _user);
 
   @override
-  Future<User> updateProfile(User user) => _respond(() => _user = user);
-
-  @override
   Future<User> updateProfileFields(Map<String, dynamic> fields) =>
       _respond(() => _user = User.fromJson({..._user.toJson(), ...fields}));
 
