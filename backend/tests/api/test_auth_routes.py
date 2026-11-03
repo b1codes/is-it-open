@@ -408,6 +408,17 @@ class TestUpdateMe:
         assert users.get_user("alice").home_geocode_pending
         assert len(tomtom.calls) == 1
 
+    def test_an_address_tomtom_rejects_is_not_left_pending(self, after_an_outage, tomtom):
+        # A 400 used to count as an outage: the geocode stayed pending, and every save asked TomTom again.
+        tomtom.replace("GET", GEOCODE_URL, status=400, json={"errorText": "Invalid query"})
+
+        response = after_an_outage.put("/auth/me", {})
+
+        assert (response.json()["home_lat"], response.json()["home_lng"]) == (None, None)
+        assert not users.get_user("alice").home_geocode_pending
+        after_an_outage.put("/auth/me", {"first_name": "Al"})
+        assert len(tomtom.calls) == 1
+
     def test_a_pending_geocode_with_no_match_clears_the_coordinates(self, after_an_outage, tomtom):
         tomtom.replace("GET", GEOCODE_URL, json={"results": []})
 

@@ -78,6 +78,12 @@ class GeocodeUnavailable(Exception):
     """TomTom couldn't be asked (no API key) or didn't answer, so whether an address has a match isn't known."""
 
 
+# Error statuses that say nothing about the address, so a geocode that gets one is tried again later, as
+# after a timeout or a 5xx: rejected credentials (a revoked or inactive key, like having none), too many
+# requests, and a request timeout.
+_GEOCODE_UNAVAILABLE_STATUSES = frozenset({401, 403, 408, 429})
+
+
 class TomTomClient:
     def __init__(self):
         self.api_key = settings.TOMTOM_API_KEY
@@ -251,8 +257,9 @@ class TomTomClient:
     def geocode_address(self, address: str):
         """
         Geocode an address string using TomTom Search API.
-        Returns a dict with 'lat' and 'lon' keys, or None if TomTom has no match (or no address was given).
-        Raises GeocodeUnavailable without an API key or when the request fails.
+        Returns a dict with 'lat' and 'lon' keys, or None if TomTom has no match, rejects the address
+        (a 4xx other than those below), or no address was given. Raises GeocodeUnavailable without an
+        API key, when the request fails, or on a 5xx, 401, 403, 408 or 429.
         """
         if not address:
             return None
@@ -271,7 +278,13 @@ class TomTomClient:
         params = {"key": self.api_key, "limit": 1}
         try:
             response = requests.get(url, params=params, timeout=5)
-            response.raise_for_status()
+            if response.status_code in _GEOCODE_UNAVAILABLE_STATUSES or response.status_code >= 500:
+                raise GeocodeUnavailable(f"TomTom answered {response.status_code}")
+            # Any other error is TomTom's answer about this address (a 400: one it can't read), which
+            # asking again won't change. Treated as unavailable, it kept the geocode pending for good,
+            # so each later profile save asked again and the old address's coordinates stayed.
+            if response.status_code >= 400:
+                return None
             body = response.json()
         except requests.RequestException as error:
             raise GeocodeUnavailable(str(error)) from error
