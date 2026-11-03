@@ -322,6 +322,54 @@ void main() {
       });
     });
 
+    testWidgets('a stop saved and added from another screen shows its place', (
+      tester,
+    ) async {
+      // A place's details opened from search or the map save the place, then
+      // add it to today. Looked up only in the bookmarks this screen had
+      // loaded, the stop said "Not in your places" until a manual refresh.
+      await withClock(Clock.fixed(_noon), () async {
+        final withoutGym = [
+          for (final saved in sampleSavedPlaces)
+            if (saved.place.tomtomId != 'tt_gym') saved,
+        ];
+        // The first load is before the gym was saved; any later one is after.
+        final loads = [withoutGym];
+        final api = MockApiService();
+        when(() => api.getBookmarks()).thenAnswer(
+          (_) async => loads.isEmpty ? sampleSavedPlaces : loads.removeAt(0),
+        );
+        await pump(tester, api: api);
+        expect(_rowNames(tester), isNot(contains(gymPlace.name)));
+
+        await today(tester).add('tt_gym');
+        await tester.pumpAndSettle();
+
+        expect(find.text('Not in your places'), findsNothing);
+        expect(
+          find.bySemanticsLabel(RegExp('Route stop: ${gymPlace.name}')),
+          findsOneWidget,
+        );
+        await tester.unmount();
+      });
+    });
+
+    testWidgets("adding a loaded place doesn't reload", (tester) async {
+      await withClock(Clock.fixed(_noon), () async {
+        final api = MockApiService();
+        when(
+          () => api.getBookmarks(),
+        ).thenAnswer((_) async => sampleSavedPlaces);
+        await pump(tester, api: api);
+
+        await today(tester).add('tt_gym');
+        await tester.pumpAndSettle();
+
+        verify(() => api.getBookmarks()).called(1);
+        await tester.unmount();
+      });
+    });
+
     testWidgets('a stop that is no longer saved says so', (tester) async {
       await withClock(Clock.fixed(_noon), () async {
         await pump(tester, todayRouteIds: ['tt_gone']);

@@ -38,6 +38,9 @@ class MyPlacesScreen extends StatefulWidget {
 
 class _MyPlacesScreenState extends State<MyPlacesScreen> {
   Future<List<SavedPlace>>? _bookmarksFuture;
+
+  /// The tomtom IDs in the last bookmarks to load, or null while none have.
+  Set<String>? _loadedIds;
   _ViewMode _viewMode = _ViewMode.list;
   _VisitFilter _filter = _VisitFilter.all;
   Timer? _ticker;
@@ -72,9 +75,34 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   }
 
   void _loadBookmarks() {
+    final next = context.read<ApiService>().getBookmarks();
     setState(() {
-      _bookmarksFuture = context.read<ApiService>().getBookmarks();
+      _bookmarksFuture = next;
     });
+    _track(next);
+  }
+
+  void _track(Future<List<SavedPlace>> load) {
+    load.then((bookmarks) {
+      if (identical(load, _bookmarksFuture)) {
+        _loadedIds = {for (final saved in bookmarks) saved.place.tomtomId};
+      }
+    }, onError: (_) {}); // the list shows the error
+  }
+
+  /// A stop added to today's route from another screen (a place's details
+  /// opened from search or the map, which saves the place first) isn't in the
+  /// bookmarks this screen loaded, so they're reloaded. Looked up only in the
+  /// loaded list, its card said "Not in your places" until a manual refresh.
+  bool _addedAStopThatIsNotLoaded(
+    TodayRouteState previous,
+    TodayRouteState current,
+  ) {
+    final loaded = _loadedIds;
+    return loaded != null &&
+        current.tomtomIds.any(
+          (id) => !previous.tomtomIds.contains(id) && !loaded.contains(id),
+        );
   }
 
   Future<void> _refresh() async {
@@ -87,6 +115,7 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
     setState(() {
       _bookmarksFuture = next;
     });
+    _track(next);
     try {
       await next;
     } catch (_) {
@@ -99,36 +128,10 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
   Widget build(BuildContext context) {
     final theme = context.places;
 
-    final bodyContent = FutureBuilder<List<SavedPlace>>(
-      future: _bookmarksFuture,
-      builder: (context, snapshot) {
-        // In the home sheet every state scrolls with the sheet's controller,
-        // so the sheet can be dragged and expanded before the list loads.
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _SkeletonList(controller: widget.scrollController);
-        }
-        if (snapshot.hasError) {
-          return SheetScrollable(
-            controller: widget.scrollController,
-            child: _ErrorState(onRetry: _refresh),
-          );
-        }
-        final allPlaces = snapshot.data ?? const <SavedPlace>[];
-        if (allPlaces.isEmpty) {
-          return SheetScrollable(
-            controller: widget.scrollController,
-            child: _EmptyState(onPlaceAdded: _refresh),
-          );
-        }
-        return _PlacesBody(
-          allPlaces: allPlaces,
-          filter: _filter,
-          viewMode: _viewMode,
-          onFilterChanged: (f) => setState(() => _filter = f),
-          onRefresh: _refresh,
-          scrollController: widget.scrollController,
-        );
-      },
+    final bodyContent = BlocListener<TodayRouteCubit, TodayRouteState>(
+      listenWhen: _addedAStopThatIsNotLoaded,
+      listener: (context, route) => _refresh(),
+      child: _bookmarksList(),
     );
 
     if (widget.embedded) {
@@ -167,6 +170,40 @@ class _MyPlacesScreenState extends State<MyPlacesScreen> {
         ],
       ),
       body: SafeArea(child: bodyContent),
+    );
+  }
+
+  Widget _bookmarksList() {
+    return FutureBuilder<List<SavedPlace>>(
+      future: _bookmarksFuture,
+      builder: (context, snapshot) {
+        // In the home sheet every state scrolls with the sheet's controller,
+        // so the sheet can be dragged and expanded before the list loads.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _SkeletonList(controller: widget.scrollController);
+        }
+        if (snapshot.hasError) {
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _ErrorState(onRetry: _refresh),
+          );
+        }
+        final allPlaces = snapshot.data ?? const <SavedPlace>[];
+        if (allPlaces.isEmpty) {
+          return SheetScrollable(
+            controller: widget.scrollController,
+            child: _EmptyState(onPlaceAdded: _refresh),
+          );
+        }
+        return _PlacesBody(
+          allPlaces: allPlaces,
+          filter: _filter,
+          viewMode: _viewMode,
+          onFilterChanged: (f) => setState(() => _filter = f),
+          onRefresh: _refresh,
+          scrollController: widget.scrollController,
+        );
+      },
     );
   }
 }
