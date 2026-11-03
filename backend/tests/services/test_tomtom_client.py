@@ -356,7 +356,12 @@ class TestGeocodeAddress:
 
     @pytest.mark.parametrize(
         "failure",
-        [*(f for f in FAILURES if f.get("status") != 400), {"status": 401}, {"status": 408}, {"body": ""}],
+        [
+            *(f for f, i in zip(FAILURES, FAILURE_IDS, strict=True) if i != "400"),
+            {"status": 401},
+            {"status": 408},
+            {"body": ""},
+        ],
         ids=[*(i for i in FAILURE_IDS if i != "400"), "401", "408", "empty-body"],
     )
     def test_failure_is_unavailable_and_not_cached(self, client, tomtom, failure):
