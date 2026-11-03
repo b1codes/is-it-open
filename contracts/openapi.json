@@ -1675,6 +1675,8 @@
           "home_lat": {
             "anyOf": [
               {
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -1686,6 +1688,8 @@
           "home_lng": {
             "anyOf": [
               {
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {
@@ -1752,6 +1756,8 @@
           "work_lat": {
             "anyOf": [
               {
+                "maximum": 90,
+                "minimum": -90,
                 "type": "number"
               },
               {
@@ -1763,6 +1769,8 @@
           "work_lng": {
             "anyOf": [
               {
+                "maximum": 180,
+                "minimum": -180,
                 "type": "number"
               },
               {

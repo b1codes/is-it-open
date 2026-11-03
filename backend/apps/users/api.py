@@ -1,5 +1,6 @@
 import re
 import time
+from typing import Annotated
 
 from ninja import Field, Router, Schema
 from ninja.errors import HttpError
@@ -112,6 +113,12 @@ def me(request):
     return _auth_output(request.auth, _request_token(request, request.auth))
 
 
+# The bounds LocationSchema (apps.places.api) has. Unbounded, a home_lat of 1000 was stored, and the
+# app's map asserted on it.
+Latitude = Annotated[float, Field(ge=-90, le=90)]
+Longitude = Annotated[float, Field(ge=-180, le=180)]
+
+
 class ProfileUpdateInput(StrictSchema):
     first_name: str | None = None
     last_name: str | None = None
@@ -120,15 +127,15 @@ class ProfileUpdateInput(StrictSchema):
     home_city: str | None = None
     home_state: str | None = None
     home_zip: str | None = None
-    home_lat: float | None = None
-    home_lng: float | None = None
+    home_lat: Latitude | None = None
+    home_lng: Longitude | None = None
     work_address: str | None = None
     work_street: str | None = None
     work_city: str | None = None
     work_state: str | None = None
     work_zip: str | None = None
-    work_lat: float | None = None
-    work_lng: float | None = None
+    work_lat: Latitude | None = None
+    work_lng: Longitude | None = None
     use_current_location: bool | None = None
     calendar_subscription_url: str | None = None
 

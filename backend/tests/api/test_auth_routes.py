@@ -267,6 +267,14 @@ class TestUpdateMe:
         assert data["home_street"] == "1 Main St"
         assert len(tomtom.calls) == 0
 
+    def test_coordinates_on_the_bounds_are_stored(self, auth_client):
+        coordinates = {"home_lat": 90, "home_lng": -180, "work_lat": -90, "work_lng": 180}
+
+        response = auth_client.put("/auth/me", coordinates)
+
+        assert response.status_code == 200
+        assert {k: response.json()[k] for k in coordinates} == coordinates
+
     def test_home_address_change_is_geocoded(self, auth_client, tomtom):
         tomtom.get(
             GEOCODE_URL,
@@ -555,6 +563,10 @@ class TestUpdateMe:
             # Values of the wrong JSON type used to be coerced (0 -> false, "1.5" -> 1.5).
             ({"use_current_location": 0}, {"use_current_location"}),
             ({"home_lat": "1.5"}, {"home_lat"}),
+            # Coordinates off the globe used to be stored, and the app's map asserted on them.
+            ({"home_lat": 1000, "home_lng": 2.0}, {"home_lat"}),
+            ({"home_lat": -90.5, "home_lng": 180.5}, {"home_lat", "home_lng"}),
+            ({"work_lat": 91, "work_lng": -181}, {"work_lat", "work_lng"}),
         ],
     )
     def test_invalid_body_is_422(self, auth_client, payload, fields):
