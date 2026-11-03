@@ -49,8 +49,9 @@ def _days_open(start: dict, end: dict, open_time: str, close_time: str) -> list[
     or before it opens runs past midnight (00:00 to 00:00 is a full day), as the app reads it, so a
     range of up to a day (overnight, 22:00 to 02:00 the next day) is one block on the day it opens.
     A longer one is split at midnight: open until midnight on its first day, all day on the days
-    between, and from midnight on its last day. Read as one block, a 24/7 place's range (00:00 one
-    Monday to 00:00 the next) was open on Mondays only. Raises ValueError on a bad date, and
+    between, and from midnight on its last day, and one of a week or more is all day every day. Read
+    as one block, a 24/7 place's range (00:00 one Monday to 00:00 the next) was open on Mondays
+    only. Raises ValueError on a bad date, and
     OverflowError on a range reaching past the year 9999.
     """
     start_date = datetime.strptime(start["date"], "%Y-%m-%d").date()
@@ -63,13 +64,21 @@ def _days_open(start: dict, end: dict, open_time: str, close_time: str) -> list[
     if closes_at - opens_at <= timedelta(days=1):
         return [(start_date, open_time, close_time)]
 
+    # A week or more covers every moment of every weekday, so each is open all day. Cut off at seven
+    # blocks instead, a range that opened mid-day (a 24/7 place whose window TomTom starts at the
+    # current time) kept only the end of its first weekday.
+    if closes_at - opens_at >= timedelta(days=7):
+        return [(start_date + timedelta(days=i), "00:00", "00:00") for i in range(7)]
+
     blocks = [(start_date, open_time, "00:00")]
     day = start_date + timedelta(days=1)
-    # Seven days cover every weekday, and later ones would repeat one, so a range reaching far into
-    # the future stops there.
-    while len(blocks) < 7 and datetime.combine(day, datetime.min.time()) < closes_at:
+    while datetime.combine(day, datetime.min.time()) < closes_at:
         last = closes_at <= datetime.combine(day + timedelta(days=1), datetime.min.time())
-        blocks.append((day, "00:00", close_time if last else "00:00"))
+        # A range just under a week can end on the weekday it opened (Monday 10:00 to the next
+        # Monday 09:00). That block goes on the first date, since a weekday's later dates are
+        # dropped as another week's.
+        on = day if day - start_date < timedelta(days=7) else start_date
+        blocks.append((on, "00:00", close_time if last else "00:00"))
         day += timedelta(days=1)
     return blocks
 

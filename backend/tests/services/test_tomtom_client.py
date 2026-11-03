@@ -570,11 +570,30 @@ class TestParseOpeningHours:
         # Tuesday 10:00 came out as an hour on Mondays.
         assert self.parse({"timeRanges": [self.time_range(opens, closes)]}) == self.blocks(*expected)
 
-    def test_a_range_far_into_the_future_stops_after_a_week(self):
-        ranges = [self.time_range("2026-10-14 12:00", "9999-12-31 23:00")]
+    @pytest.mark.parametrize(
+        "opens, closes",
+        [
+            ("2026-10-14 12:00", "9999-12-31 23:00"),
+            # A 24/7 place whose window TomTom starts at the current time.
+            ("2026-10-12 10:00", "2026-10-26 10:00"),
+            ("2026-10-12 10:00", "2026-10-19 10:00"),
+        ],
+        ids=["far-into-the-future", "two-weeks-from-mid-day", "a-week-from-mid-day"],
+    )
+    def test_a_range_of_a_week_or_more_is_open_all_day_every_day(self, opens, closes):
+        # Cut off at seven blocks, it kept only the end of its first weekday: Monday from 10:00.
+        ranges = [self.time_range(opens, closes)]
+
+        hours = self.parse({"timeRanges": ranges})
+
+        assert sorted(hours, key=lambda h: h["day_of_week"]) == self.blocks(*((d, "00:00", "00:00") for d in range(7)))
+
+    def test_a_range_just_under_a_week_keeps_both_ends_of_its_first_weekday(self):
+        # It ends on the weekday it opened, a week later: that's Monday's first hours.
+        ranges = [self.time_range("2026-10-12 10:00", "2026-10-19 09:00")]
 
         assert self.parse({"timeRanges": ranges}) == self.blocks(
-            (2, "12:00", "00:00"), *((d % 7, "00:00", "00:00") for d in range(3, 9))
+            (0, "10:00", "00:00"), *((d, "00:00", "00:00") for d in range(1, 7)), (0, "00:00", "09:00")
         )
 
     def test_a_split_range_and_another_range_on_its_last_day(self):

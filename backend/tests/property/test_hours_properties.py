@@ -124,10 +124,10 @@ def test_a_range_longer_than_a_day_is_open_for_exactly_its_minutes_of_the_week(s
         day_start = h["day_of_week"] * 24 * 60 + minutes(h["open_time"])
         block_length = (minutes(h["close_time"]) - minutes(h["open_time"])) % (24 * 60) or 24 * 60
         open_minutes |= _week_minutes(day_start, day_start + block_length)
-    # Only the first date of each weekday counts, so a range of over a week stops a week after its first day began.
+    # Every minute of the range, as minutes of the week, so a range of a week or more is open all week. (It used
+    # to stop a week after its first day began, which lost the start of that weekday.)
     first_minute = opens.weekday() * 24 * 60 + opens.hour * 60 + opens.minute
-    end = min(length, WEEK - opens.hour * 60 - opens.minute)
-    assert open_minutes == _week_minutes(first_minute, first_minute + end)
+    assert open_minutes == _week_minutes(first_minute, first_minute + min(length, WEEK))
 
 
 # TomTom search results with every field possibly missing or null.
