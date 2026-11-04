@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The API (dio), the map tiles and calendar subscriptions. Debug builds got this from
+         src/debug/AndroidManifest.xml, so only release builds were cut off. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- geolocator: the map's "current position" and Settings' "Use Current Location". -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- device_calendar: showing device calendar events next to business hours. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
+    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
     <application
         android:label="Is It Open?"
         android:name="${applicationName}"

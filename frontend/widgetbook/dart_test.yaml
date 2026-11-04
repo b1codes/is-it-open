@@ -1,0 +1,6 @@
+# Test runner config (package:test). CI appends `retry: 1`; locally a flaky test fails on its first try.
+tags:
+  # Known-flaky tests: excluded from the required CI job (`-x quarantine`) and run by the nightly workflow.
+  quarantine:
+  # Visual regression tests (goldens_test.dart). They compare only on Linux; CI runs them in their own job.
+  golden:

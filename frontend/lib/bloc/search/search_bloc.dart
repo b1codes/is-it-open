@@ -10,6 +10,12 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final ApiService apiClient;
   static const String _recentPlacesKey = 'recent_search_places';
 
+  // Counts query changes. A response to anything but the latest one is
+  // dropped, so a slower earlier search can't overwrite newer results or
+  // refill a search the user has cleared, even when its text is the same
+  // (typing "pi", "piz", then back to "pi").
+  int _latestRequest = 0;
+
   SearchBloc({required this.apiClient}) : super(const SearchState()) {
     on<SearchQueryChanged>(_onSearchQueryChanged);
     on<LoadSearchSuggestions>(_onLoadSearchSuggestions);
@@ -20,6 +26,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     SearchQueryChanged event,
     Emitter<SearchState> emit,
   ) async {
+    final request = ++_latestRequest;
     if (event.query.isEmpty) {
       emit(state.copyWith(status: SearchStatus.initial, places: []));
       return;
@@ -29,8 +36,10 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     try {
       final places = await apiClient.searchPlaces(event.query);
+      if (request != _latestRequest) return;
       emit(state.copyWith(status: SearchStatus.success, places: places));
     } catch (e) {
+      if (request != _latestRequest) return;
       emit(state.copyWith(status: SearchStatus.failure, error: e.toString()));
     }
   }

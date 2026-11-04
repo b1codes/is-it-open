@@ -13,7 +13,9 @@ flutter pub get
 flutter run -d chrome   # or -d macos
 ```
 
-Map tiles (OpenStreetMap / CARTO) and Google Fonts load over the network.
+Map tiles (OpenStreetMap / CARTO) load over the network. The app's Google
+Fonts (Montserrat, Open Sans) are bundled in `assets/google_fonts/` (see
+`tool/fetch_fonts.sh`).
 
 ## Layout
 
@@ -86,10 +88,18 @@ nested navigator and shows the popped result with a "Reopen" button.
    (`--force-jit` works around build_runner failing to AOT-compile builders
    when dependencies ship build hooks.)
 
-4. Run `flutter test`. The smoke test renders every use case and fails on
-   any exception (it ignores RenderFlex overflow, since the test font's
-   glyph metrics don't match the app's fonts).
+4. Run `flutter test`. The smoke test renders every use case in the app's
+   real fonts and fails on any exception, RenderFlex overflows included.
+   The accessibility test checks it against Flutter's accessibility
+   guidelines (tap target size, labels, text contrast) and at 2× text. See
+   "Accessibility" in `../../TESTING.md`.
 
-Use cases that depend on "now" (calendar, place status) use the wall clock,
-as the app does. Component previews such as `StatusPill` take fixed
+5. Push, and let CI's Goldens job render the new use case's goldens (light
+   and dark × phone, tablet and desktop × text scale 1.0 and 2.0). It fails
+   because they're missing; `make goldens-pull` fetches them. Review, then
+   commit `test/goldens/`. See "Visual regression" in `../../TESTING.md`.
+
+Use cases that depend on "now" (calendar, place status) read `clock.now()`,
+as the app does: the wall clock in the catalog, a fixed time in the golden
+tests. Component previews such as `StatusPill` take fixed
 `PlaceStatus` values so they stay stable for visual review.

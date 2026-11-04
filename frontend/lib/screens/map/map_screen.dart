@@ -4,6 +4,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
+import '../../components/calendar/calendar_sidebar.dart';
+import '../../core/env_config.dart';
 import '../../bloc/map/map_ui_cubit.dart';
 import '../../bloc/map/map_ui_state.dart';
 import '../../models/user.dart';
@@ -402,61 +404,21 @@ class _MapScreenState extends State<MapScreen> {
     if (user != null) {
       if (user.homeLat != null && user.homeLng != null) {
         markers.add(
-          Marker(
-            point: LatLng(user.homeLat!, user.homeLng!),
-            width: 40,
-            height: 40,
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.markerHome,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Icon(Icons.location_on, color: theme.markerHome, size: 40),
-                Positioned(
-                  top: 8,
-                  child: const Icon(Icons.home, color: Colors.white, size: 16),
-                ),
-              ],
-            ),
+          _pinMarker(
+            LatLng(user.homeLat!, user.homeLng!),
+            label: 'Home',
+            color: theme.markerHome,
+            icon: Icons.home,
           ),
         );
       }
       if (user.workLat != null && user.workLng != null) {
         markers.add(
-          Marker(
-            point: LatLng(user.workLat!, user.workLng!),
-            width: 40,
-            height: 40,
-            child: Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Positioned(
-                  top: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.markerWork,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Icon(Icons.location_on, color: theme.markerWork, size: 40),
-                Positioned(
-                  top: 8,
-                  child: const Icon(Icons.work, color: Colors.white, size: 16),
-                ),
-              ],
-            ),
+          _pinMarker(
+            LatLng(user.workLat!, user.workLng!),
+            label: 'Work',
+            color: theme.markerWork,
+            icon: Icons.work,
           ),
         );
       }
@@ -465,45 +427,14 @@ class _MapScreenState extends State<MapScreen> {
     int colorIndex = 0;
     for (final sp in _savedPlaces) {
       if (_checkedPlaceIds.contains(sp.place.tomtomId)) {
-        final color = GraphicsHelper.colorForSavedPlace(sp, colorIndex);
         final iconName = sp.icon ?? 'star';
-        final iconData = _availableIcons[iconName] ?? Icons.star;
-        final lat = sp.place.location.latitude;
-        final lon = sp.place.location.longitude;
-
         markers.add(
-          Marker(
-            point: LatLng(lat, lon),
-            width: 40,
-            height: 40,
-            child: GestureDetector(
-              onTap: () {
-                if (widget.onPlaceTapped != null) {
-                  widget.onPlaceTapped!(sp);
-                }
-              },
-              child: Stack(
-                alignment: Alignment.topCenter,
-                children: [
-                  Positioned(
-                    top: 6,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.location_on, color: color, size: 40),
-                  Positioned(
-                    top: 8,
-                    child: Icon(iconData, color: Colors.white, size: 16),
-                  ),
-                ],
-              ),
-            ),
+          _pinMarker(
+            LatLng(sp.place.location.latitude, sp.place.location.longitude),
+            label: _displayName(sp),
+            color: GraphicsHelper.colorForSavedPlace(sp, colorIndex),
+            icon: _availableIcons[iconName] ?? Icons.star,
+            onTap: () => widget.onPlaceTapped?.call(sp),
           ),
         );
       }
@@ -516,37 +447,126 @@ class _MapScreenState extends State<MapScreen> {
           point: _userPosition!,
           width: 22,
           height: 22,
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.markerPosition,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.markerPosition.withValues(alpha: 0.4),
-                  spreadRadius: 4,
-                  blurRadius: 6,
-                ),
-              ],
+          child: Semantics(
+            container: true,
+            label: 'Your location',
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.markerPosition,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.markerPosition.withValues(alpha: 0.4),
+                    spreadRadius: 4,
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       );
     }
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(initialCenter: _currentLocation!, initialZoom: 13.0),
-      children: [
-        TileLayer(
-          urlTemplate: Theme.of(context).brightness == Brightness.dark
-              ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.brandonlc.isitopen',
+    return BlocListener<AuthBloc, AuthState>(
+      // A profile save stays authenticated with the old user until it
+      // lands (ProfileUpdating), so only a save that moves home gets here.
+      listenWhen: (previous, current) =>
+          _homeOf(current) != null && _homeOf(current) != _homeOf(previous),
+      listener: (context, state) => _recenterOnNewHome(state),
+      // The map's own gesture detector exposes a tap action; name it.
+      child: Semantics(
+        label: 'Map',
+        container: true,
+        child: FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _currentLocation!,
+            initialZoom: 13.0,
+            // Shown until tiles load (and offline). The default light grey
+            // left dark mode's map, and the phone sheet over it, light.
+            backgroundColor: theme.paper,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: EnvConfig.mapTileUrl(
+                dark: Theme.of(context).brightness == Brightness.dark,
+              ),
+              userAgentPackageName: 'com.brandonlc.isitopen',
+            ),
+            if (markers.isNotEmpty) MarkerLayer(markers: markers),
+          ],
         ),
-        if (markers.isNotEmpty) MarkerLayer(markers: markers),
-      ],
+      ),
     );
+  }
+
+  /// A map pin, announced to screen readers by [label]. The marker is a 48px
+  /// square, the minimum tap target, with the 40px pin drawn where it was
+  /// in the old 40px marker.
+  Marker _pinMarker(
+    LatLng point, {
+    required String label,
+    required Color color,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return Marker(
+      point: point,
+      width: 48,
+      height: 48,
+      child: Semantics(
+        container: true,
+        button: onTap != null,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                Positioned(
+                  top: 6,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Icon(Icons.location_on, color: color, size: 40),
+                Positioned(
+                  top: 8,
+                  child: Icon(icon, color: Colors.white, size: 16),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static LatLng? _homeOf(AuthState state) {
+    if (state is! AuthAuthenticated) return null;
+    final user = state.user;
+    if (user.homeLat == null || user.homeLng == null) return null;
+    return LatLng(user.homeLat!, user.homeLng!);
+  }
+
+  // A newly saved home address moves the map there, unless the map follows
+  // the device. Before, the map only centred on home when it was created.
+  void _recenterOnNewHome(AuthState state) {
+    final home = _homeOf(state)!;
+    final user = (state as AuthAuthenticated).user;
+    if (user.useCurrentLocation && _userPosition != null) return;
+    setState(() => _currentLocation = home);
+    _mapController.move(home, 13.0);
   }
 
   @override
@@ -560,83 +580,93 @@ class _MapScreenState extends State<MapScreen> {
         builder: (context, uiState) {
           final isMobile = MediaQuery.of(context).size.width < 800;
 
+          // Picks the layout from the real width: while the sidebar animates
+          // open, the full layout doesn't fit (its switch tile asserts).
           Widget sidebarContent = SafeArea(
-            child: uiState.isSidebarCollapsed
-                ? _buildCollapsedSidebar()
-                : CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: SwitchListTile(
-                          title: const Text('Show Pinned Locations'),
-                          subtitle: const Text(
-                            'Automatically show markers for all pinned places',
+            child: LayoutBuilder(
+              builder: (context, constraints) =>
+                  uiState.isSidebarCollapsed ||
+                      constraints.maxWidth <
+                          CalendarSidebarWidget.minExpandedWidth
+                  ? _buildCollapsedSidebar()
+                  : CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: SwitchListTile(
+                            title: const Text('Show Pinned Locations'),
+                            subtitle: const Text(
+                              'Automatically show markers for all pinned places',
+                            ),
+                            value: _showPinnedLocations,
+                            onChanged: (val) {
+                              setState(() {
+                                _showPinnedLocations = val;
+                                if (val) {
+                                  for (final sp in _savedPlaces) {
+                                    if (sp.isPinned) {
+                                      _checkedPlaceIds.add(sp.place.tomtomId);
+                                    }
+                                  }
+                                } else {
+                                  for (final sp in _savedPlaces) {
+                                    if (sp.isPinned) {
+                                      _checkedPlaceIds.remove(
+                                        sp.place.tomtomId,
+                                      );
+                                    }
+                                  }
+                                }
+                              });
+                            },
                           ),
-                          value: _showPinnedLocations,
-                          onChanged: (val) {
-                            setState(() {
-                              _showPinnedLocations = val;
-                              if (val) {
-                                for (final sp in _savedPlaces) {
-                                  if (sp.isPinned) {
-                                    _checkedPlaceIds.add(sp.place.tomtomId);
-                                  }
-                                }
-                              } else {
-                                for (final sp in _savedPlaces) {
-                                  if (sp.isPinned) {
-                                    _checkedPlaceIds.remove(sp.place.tomtomId);
-                                  }
-                                }
-                              }
-                            });
-                          },
                         ),
-                      ),
-                      const SliverToBoxAdapter(child: Divider()),
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Row(
-                            children: [
-                              Text(
-                                'My Places',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              ),
-                              const Spacer(),
-                              if (_checkedPlaceIds.isNotEmpty)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.layers_clear,
-                                    size: 18,
+                        const SliverToBoxAdapter(child: Divider()),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'My Places',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
-                                  tooltip: 'Hide All',
+                                ),
+                                const Spacer(),
+                                if (_checkedPlaceIds.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.layers_clear,
+                                      size: 18,
+                                    ),
+                                    tooltip: 'Hide All',
+                                    onPressed: () {
+                                      setState(() {
+                                        _checkedPlaceIds.clear();
+                                        _showPinnedLocations = false;
+                                      });
+                                    },
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  tooltip: 'Refresh Places',
                                   onPressed: () {
-                                    setState(() {
-                                      _checkedPlaceIds.clear();
-                                      _showPinnedLocations = false;
-                                    });
+                                    setState(() => _isLoadingPlaces = true);
+                                    _loadSavedPlaces();
                                   },
                                 ),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                onPressed: () {
-                                  setState(() => _isLoadingPlaces = true);
-                                  _loadSavedPlaces();
-                                },
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      _buildPlacesSliverSidebar(),
-                    ],
-                  ),
+                        _buildPlacesSliverSidebar(),
+                      ],
+                    ),
+            ),
           );
 
           return Scaffold(
@@ -663,6 +693,7 @@ class _MapScreenState extends State<MapScreen> {
                   Builder(
                     builder: (context) => IconButton(
                       icon: const Icon(Icons.filter_list),
+                      tooltip: 'Places on the map',
                       onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
                   ),
@@ -676,7 +707,10 @@ class _MapScreenState extends State<MapScreen> {
                       Expanded(child: _buildMap()),
                       const VerticalDivider(width: 1),
                       AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
+                        duration: PlacesMotion.of(
+                          context,
+                          const Duration(milliseconds: 300),
+                        ),
                         curve: Curves.easeInOut,
                         width: uiState.isSidebarCollapsed ? 64 : 300,
                         child: sidebarContent,

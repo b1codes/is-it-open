@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:io' show Platform;
 import 'dart:convert' show utf8;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../models/saved_place.dart';
-import '../../models/user.dart';
 import '../../bloc/calendar/calendar_data_bloc.dart';
 import '../../bloc/calendar/calendar_data_event.dart';
 import '../../bloc/calendar/calendar_data_state.dart';
@@ -64,18 +61,21 @@ void _showSubscriptionDialog(BuildContext context, String? currentUrl) {
         ),
         ElevatedButton(
           onPressed: () {
-            final authState = authBloc.state;
-            if (authState is AuthAuthenticated) {
-              final updatedUser = User(
-                id: authState.user.id,
-                username: authState.user.username,
-                calendarSubscriptionUrl: controller.text,
+            // Pasted links often come with spaces around them.
+            final url = controller.text.trim();
+            if (authBloc.state is AuthAuthenticated) {
+              // Send only the URL: the cached profile may be older than the
+              // server's (edited on another device), and sending it all
+              // would undo those edits.
+              authBloc.add(
+                ProfileFieldsUpdateRequested(
+                  fields: {'calendar_subscription_url': url},
+                ),
               );
-              authBloc.add(ProfileUpdateRequested(updatedUser: updatedUser));
             }
             Navigator.pop(context);
             Future.delayed(const Duration(seconds: 1), () {
-              dataBloc.add(LoadRemoteEvents(controller.text));
+              dataBloc.add(LoadRemoteEvents(url));
             });
           },
           style: ElevatedButton.styleFrom(
@@ -124,8 +124,15 @@ class CalendarSidebarWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(title, style: PlacesType.title(theme.ink)),
-          const Spacer(),
+          // Flexible so the header fits while the sidebar animates its width.
+          Expanded(
+            child: Text(
+              title,
+              style: PlacesType.title(theme.ink),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           ?trailing,
         ],
       ),
@@ -145,6 +152,10 @@ class CalendarSidebarWidget extends StatelessWidget {
               sp.place.tomtomId,
             );
             final color = colorForPlace(sp, index);
+            // The icon on the selected fill.
+            final onFill = PlacesTheme.onColor(
+              Color.alphaBlend(color, theme.paperRaised),
+            );
             final iconName = sp.icon ?? 'star';
             final iconData = availableIcons[iconName] ?? Icons.star;
 
@@ -181,7 +192,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                           ),
                           child: Icon(
                             iconData,
-                            color: isChecked ? Colors.white : color,
+                            color: isChecked ? onFill : color,
                             size: 18,
                           ),
                         ),
@@ -201,6 +212,10 @@ class CalendarSidebarWidget extends StatelessWidget {
             final cal = dataState.deviceCalendars[index];
             final isChecked = dataState.checkedCalendarIds.contains(cal.id);
             final color = cal.color != null ? Color(cal.color!) : Colors.blue;
+            // The dot on the selected fill.
+            final onFill = PlacesTheme.onColor(
+              Color.alphaBlend(color, theme.paperRaised),
+            );
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -240,7 +255,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                               width: 10,
                               height: 10,
                               decoration: BoxDecoration(
-                                color: isChecked ? Colors.white : color,
+                                color: isChecked ? onFill : color,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -321,6 +336,10 @@ class CalendarSidebarWidget extends StatelessWidget {
             sp.place.tomtomId,
           );
           final color = colorForPlace(sp, index);
+          // The icon and name on the selected fill.
+          final onFill = PlacesTheme.onColor(
+            Color.alphaBlend(color, theme.paperRaised),
+          );
           final iconName = sp.icon ?? 'star';
           final iconData = availableIcons[iconName] ?? Icons.star;
 
@@ -334,7 +353,10 @@ class CalendarSidebarWidget extends StatelessWidget {
                 );
               },
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+                duration: PlacesMotion.of(
+                  context,
+                  const Duration(milliseconds: 200),
+                ),
                 constraints: const BoxConstraints(minHeight: 48),
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(
@@ -352,21 +374,15 @@ class CalendarSidebarWidget extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      iconData,
-                      color: isChecked ? Colors.white : color,
-                      size: 16,
-                    ),
+                    Icon(iconData, color: isChecked ? onFill : color, size: 16),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         displayName(sp),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            PlacesType.label(
-                              isChecked ? Colors.white : theme.ink,
-                            ).copyWith(
+                        style: PlacesType.label(isChecked ? onFill : theme.ink)
+                            .copyWith(
                               fontWeight: isChecked
                                   ? FontWeight.w600
                                   : FontWeight.w500,
@@ -386,7 +402,7 @@ class CalendarSidebarWidget extends StatelessWidget {
 
   Widget _buildDeviceCalendarsSidebar(BuildContext context) {
     final theme = context.places;
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+    if (!context.read<CalendarDataBloc>().supportsDeviceCalendar) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: PlacesSpacing.xl),
         child: Column(
@@ -536,6 +552,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                           ),
                         )
                       : Icon(Icons.sync, size: 20, color: theme.ink),
+                  tooltip: 'Sync Subscription',
                   onPressed: dataState.isLoadingRemote
                       ? null
                       : () => context.read<CalendarDataBloc>().add(
@@ -544,6 +561,7 @@ class CalendarSidebarWidget extends StatelessWidget {
                 ),
               IconButton(
                 icon: Icon(Icons.settings, size: 20, color: theme.ink),
+                tooltip: 'Subscription Settings',
                 onPressed: () => _showSubscriptionDialog(context, url),
               ),
             ],
@@ -569,12 +587,23 @@ class CalendarSidebarWidget extends StatelessWidget {
     );
   }
 
+  /// Narrower than this, the full sidebar can't lay out, e.g. while the
+  /// calendar animates the sidebar open, so the compact one is shown. The
+  /// map's sidebar switches at the same width.
+  static const double minExpandedWidth = 240;
+
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          isCollapsed || constraints.maxWidth < minExpandedWidth
+          ? _buildCollapsedSidebar(context)
+          : _buildExpandedSidebar(context),
+    );
+  }
+
+  Widget _buildExpandedSidebar(BuildContext context) {
     final theme = context.places;
-    if (isCollapsed) {
-      return _buildCollapsedSidebar(context);
-    }
     return ListView(
       children: [
         _buildSectionHeader(
@@ -582,6 +611,7 @@ class CalendarSidebarWidget extends StatelessWidget {
           'My Places',
           trailing: IconButton(
             icon: Icon(Icons.refresh, size: 20, color: theme.ink),
+            tooltip: 'Refresh Places',
             onPressed: () =>
                 context.read<CalendarDataBloc>().add(LoadSavedPlaces()),
           ),
@@ -597,6 +627,7 @@ class CalendarSidebarWidget extends StatelessWidget {
           trailing: dataState.hasCalendarPermission
               ? IconButton(
                   icon: Icon(Icons.sync, size: 20, color: theme.ink),
+                  tooltip: 'Sync Device Calendars',
                   onPressed: () => context.read<CalendarDataBloc>().add(
                     const InitDeviceCalendar(fromButton: true),
                   ),

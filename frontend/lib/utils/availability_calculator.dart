@@ -14,6 +14,10 @@ class AvailabilityWindow {
     required this.placeCount,
     this.placeIds = const [],
   });
+
+  /// `1 place open`, `3 places open`.
+  String get label =>
+      placeCount == 1 ? '1 place open' : '$placeCount places open';
 }
 
 class AvailabilityCalculator {

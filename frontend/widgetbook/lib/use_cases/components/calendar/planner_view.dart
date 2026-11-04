@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/components/calendar/planner_view.dart';
 import 'package:widgetbook/widgetbook.dart';
@@ -55,14 +56,14 @@ class _PlannerHost extends StatefulWidget {
 }
 
 class _PlannerHostState extends State<_PlannerHost> {
-  DateTime _baseDate = dateOnly(DateTime.now());
+  DateTime _baseDate = dateOnly(clock.now());
 
   void _shift(int days) =>
       setState(() => _baseDate = _baseDate.add(Duration(days: days)));
 
   @override
   Widget build(BuildContext context) {
-    final anchor = dateOnly(DateTime.now());
+    final anchor = dateOnly(clock.now());
     return Scaffold(
       body: Builder(
         builder: (context) => PlannerView(

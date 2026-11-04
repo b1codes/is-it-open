@@ -8,9 +8,9 @@ from apps.places import repository as places
 from apps.users import repository as users
 from services.firestore import doc_id, get_client
 from services.geo import (
+    _EARTH_RADIUS_KM,
     MAX_QUERY_CELLS_FALLBACK,
     MAX_RADIUS_KM,
-    _EARTH_RADIUS_KM,
     distance_km,
     encode_geohash,
     geohash_query_prefixes,
@@ -250,7 +250,9 @@ class GeohashCoveringTest(SimpleTestCase):
             self.assertTrue(all(prefixes))
             self.assertLessEqual(len(prefixes), MAX_QUERY_CELLS_FALLBACK)
             for _ in range(20):
-                plat, plng = self._destination(lat, lng, rng.uniform(0, 360), radius * rng.choice([rng.random(), 0.9999999]))
+                plat, plng = self._destination(
+                    lat, lng, rng.uniform(0, 360), radius * rng.choice([rng.random(), 0.9999999])
+                )
                 if distance_km(lat, lng, plat, plng) > radius:
                     continue
                 geohash = encode_geohash(plat, plng)
@@ -370,9 +372,9 @@ class InvalidTomTomIdTest(FirestoreTestCase):
     def test_bookmark_with_empty_tomtom_id_is_404(self):
         self.assertEqual(self._post("/api/places/bookmark", {"tomtom_id": ""}).status_code, 404)
 
-    def test_create_place_with_empty_tomtom_id_is_400(self):
+    def test_create_place_with_empty_tomtom_id_is_422(self):
         payload = {**_place_data(""), "address": "1 Main St"}
-        self.assertEqual(self._post("/api/places/", payload).status_code, 400)
+        self.assertEqual(self._post("/api/places/", payload).status_code, 422)
 
 
 class PlaceDetailsTest(FirestoreTestCase):

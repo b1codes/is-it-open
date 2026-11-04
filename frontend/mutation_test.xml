@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nightly, non-blocking mutation testing for pure-Dart logic (see .github/workflows/nightly.yml).
+  Each mutation is a small text change to a source file; if `flutter test` still passes, the
+  tests did not notice it, and the mutation is listed in mutation-test-report/.
+  Run locally: dart pub global activate mutation_test && dart pub global run mutation_test mutation_test.xml
+-->
+<mutations version="1.2">
+  <files>
+    <file>lib/utils/availability_calculator.dart</file>
+    <file>lib/utils/place_status.dart</file>
+    <file>lib/utils/graphics_helper.dart</file>
+    <file>lib/services/ical_parser_service.dart</file>
+    <file>lib/models/hours.dart</file>
+  </files>
+  <commands>
+    <command group="test" expected-return="0" working-directory="." timeout="300">flutter test --no-pub test/utils test/services test/models</command>
+  </commands>
+  <threshold failure="0">
+    <rating over="80" name="A"/>
+    <rating over="60" name="B"/>
+    <rating over="40" name="C"/>
+    <rating over="20" name="D"/>
+    <rating over="0" name="E"/>
+  </threshold>
+</mutations>

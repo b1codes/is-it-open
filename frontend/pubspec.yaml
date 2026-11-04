@@ -50,9 +50,14 @@ dependencies:
   timezone: ^0.9.4
   google_fonts: ^8.1.0
   flutter_timezone: ^5.0.2
+  clock: ^1.1.2
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_driver:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
@@ -63,9 +68,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
   bloc_test: ^9.1.7
-  mockito: ^5.6.4
-  build_runner: ^2.13.1
   mocktail: ^1.0.5
+  glados: ^1.1.7
+  geolocator_platform_interface: ^4.4.1
+  plugin_platform_interface: ^2.1.8
 
 flutter_launcher_icons:
   android: "launcher_icon"

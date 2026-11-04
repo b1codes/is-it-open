@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:clock/clock.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,15 +54,23 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   TodayRouteCubit({SharedPreferences? prefs})
     : _injectedPrefs = prefs,
       super(
-        TodayRouteState(
-          tomtomIds: const [],
-          touchedOn: _dateOnly(DateTime.now()),
-        ),
+        TodayRouteState(tomtomIds: const [], touchedOn: _dateOnly(clock.now())),
       ) {
     _hydrate();
   }
 
   final SharedPreferences? _injectedPrefs;
+
+  // Bumped by [clear], so a load or edit that started before it doesn't
+  // bring the cleared route back when it finishes.
+  int _generation = 0;
+
+  // Writes to the store run one at a time, in call order, so the removal in
+  // [clear] always lands after a write that started before it and the old
+  // route can't end up back on the device.
+  Future<void> _writes = Future.value();
+
+  bool _isStale(int generation) => generation != _generation || isClosed;
 
   Future<SharedPreferences> _prefs() async =>
       _injectedPrefs ?? await SharedPreferences.getInstance();
@@ -73,10 +82,12 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
       {_idsKey: jsonEncode(ids), _dateKey: _dateString(date)};
 
   Future<void> _hydrate() async {
+    final generation = _generation;
     final prefs = await _prefs();
+    if (_isStale(generation)) return;
     final raw = prefs.getString(_idsKey);
     final storedDateString = prefs.getString(_dateKey);
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
 
     if (raw == null || storedDateString == null) {
       emit(TodayRouteState(tomtomIds: const [], touchedOn: today));
@@ -88,6 +99,7 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
       // Overnight reset. Persist the empty state under today's date and
       // surface the prior date so the UI can show its quiet note.
       await _persist(const [], today);
+      if (_isStale(generation)) return;
       emit(
         TodayRouteState(
           tomtomIds: const [],
@@ -105,9 +117,11 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   // Call when the screen comes back into view so a route built yesterday
   // doesn't linger if the app stayed open through midnight.
   Future<void> refresh() async {
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
     if (_sameDay(state.touchedOn, today)) return;
+    final generation = _generation;
     await _persist(const [], today);
+    if (_isStale(generation)) return;
     emit(
       TodayRouteState(
         tomtomIds: const [],
@@ -120,8 +134,10 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   Future<void> add(String tomtomId) async {
     if (state.tomtomIds.contains(tomtomId)) return;
     final next = [...state.tomtomIds, tomtomId];
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
+    final generation = _generation;
     await _persist(next, today);
+    if (_isStale(generation)) return;
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
     );
@@ -130,8 +146,10 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
   Future<void> remove(String tomtomId) async {
     if (!state.tomtomIds.contains(tomtomId)) return;
     final next = state.tomtomIds.where((id) => id != tomtomId).toList();
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
+    final generation = _generation;
     await _persist(next, today);
+    if (_isStale(generation)) return;
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
     );
@@ -143,11 +161,26 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     final adjusted = newIndex > oldIndex ? newIndex - 1 : newIndex;
     final item = next.removeAt(oldIndex);
     next.insert(adjusted, item);
-    final today = _dateOnly(DateTime.now());
+    final today = _dateOnly(clock.now());
+    final generation = _generation;
     await _persist(next, today);
+    if (_isStale(generation)) return;
     emit(
       state.copyWith(tomtomIds: next, touchedOn: today, clearAutoCleared: true),
     );
+  }
+
+  /// Empties the route, in memory and on the device, without the overnight
+  /// reset's note. Called on sign-out: the route belongs to whoever built it,
+  /// and the next account on this device would otherwise inherit it.
+  Future<void> clear() async {
+    _generation++;
+    final today = _dateOnly(clock.now());
+    emit(TodayRouteState(tomtomIds: const [], touchedOn: today));
+    await _write((prefs) async {
+      await prefs.remove(_idsKey);
+      await prefs.remove(_dateKey);
+    });
   }
 
   Future<void> dismissResetNote() async {
@@ -155,11 +188,19 @@ class TodayRouteCubit extends Cubit<TodayRouteState> {
     emit(state.copyWith(clearAutoCleared: true));
   }
 
-  Future<void> _persist(List<String> ids, DateTime date) async {
-    final prefs = await _prefs();
-    for (final entry in persistedValues(ids, date).entries) {
-      await prefs.setString(entry.key, entry.value);
-    }
+  Future<void> _persist(List<String> ids, DateTime date) =>
+      _write((prefs) async {
+        for (final entry in persistedValues(ids, date).entries) {
+          await prefs.setString(entry.key, entry.value);
+        }
+      });
+
+  // Queues [write] behind the writes already in flight.
+  Future<void> _write(Future<void> Function(SharedPreferences prefs) write) {
+    final done = _writes.then((_) async => write(await _prefs()));
+    // A failed write fails its caller but doesn't stall the ones after it.
+    _writes = done.catchError((Object _) {});
+    return done;
   }
 
   static DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);

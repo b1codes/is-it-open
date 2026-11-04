@@ -7,6 +7,7 @@ import '../../../bloc/search/search_event.dart';
 import '../../../bloc/search/search_state.dart';
 
 import 'package:frontend/screens/places/create_place_screen.dart';
+import '../../components/core/sheet_scrollable.dart';
 import '../../components/search/search_result_list_card.dart';
 import '../../components/search/search_result_grid_card.dart';
 
@@ -25,18 +26,14 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _isGridView = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Use a post-frame callback to trigger suggestions after the Bloc is initialized via BlocProvider
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadSuggestions(BuildContext context) async {
+  // Takes the screen's own bloc: the create callback below runs with the
+  // parent context, where there is no SearchBloc to look up.
+  Future<void> _loadSuggestions(SearchBloc bloc) async {
     double? lat;
     double? lng;
 
@@ -52,8 +49,8 @@ class _SearchScreenState extends State<SearchScreen> {
       // Ignore location errors for suggestions
     }
 
-    if (context.mounted) {
-      context.read<SearchBloc>().add(LoadSearchSuggestions(lat: lat, lng: lng));
+    if (!bloc.isClosed) {
+      bloc.add(LoadSearchSuggestions(lat: lat, lng: lng));
     }
   }
 
@@ -65,9 +62,15 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _clearSearch(BuildContext context) {
+    // Close the field's text toolbar (Copy, Select all...) first: it's for
+    // text that's about to go. Flutter would hide it anyway once the field
+    // scrolls back, but it does that mid-layout, reading the old
+    // selection's geometry, which fails a debug assertion
+    // (https://github.com/b1codes/is-it-open/issues/61).
+    ContextMenuController.removeAny();
     _searchController.clear();
     context.read<SearchBloc>().add(const SearchQueryChanged(''));
-    _loadSuggestions(context);
+    _loadSuggestions(context.read<SearchBloc>());
   }
 
   Widget _buildSuggestionsSection(
@@ -88,7 +91,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             SizedBox(
-              height: 120,
+              height: SearchResultGridCard.extent(context, minimum: 120),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -116,9 +119,12 @@ class _SearchScreenState extends State<SearchScreen> {
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 300,
-                  mainAxisExtent: 140,
+                  mainAxisExtent: SearchResultGridCard.extent(
+                    context,
+                    minimum: 140,
+                  ),
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
                 ),
@@ -161,7 +167,7 @@ class _SearchScreenState extends State<SearchScreen> {
     return BlocProvider(
       create: (context) {
         final bloc = SearchBloc(apiClient: context.read<ApiService>());
-        _loadSuggestions(context);
+        _loadSuggestions(bloc);
         return bloc;
       },
       child: Builder(
@@ -182,6 +188,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               prefixIcon: const Icon(Icons.search),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.clear),
+                                tooltip: 'Clear search',
                                 onPressed: () => _clearSearch(context),
                               ),
                               border: const OutlineInputBorder(),
@@ -197,7 +204,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 context.read<SearchBloc>().add(
                                   const SearchQueryChanged(''),
                                 );
-                                _loadSuggestions(context);
+                                _loadSuggestions(context.read<SearchBloc>());
                               }
                             },
                           ),
@@ -227,10 +234,19 @@ class _SearchScreenState extends State<SearchScreen> {
               Expanded(
                 child: BlocBuilder<SearchBloc, SearchState>(
                   builder: (context, state) {
+                    // In the home sheet every state scrolls with the sheet's
+                    // controller, so the sheet stays draggable while a
+                    // search loads, fails or finds nothing.
                     if (state.status == SearchStatus.loading) {
-                      return const Center(child: CircularProgressIndicator());
+                      return SheetScrollable(
+                        controller: widget.scrollController,
+                        child: const Center(child: CircularProgressIndicator()),
+                      );
                     } else if (state.status == SearchStatus.failure) {
-                      return Center(child: Text('Error: ${state.error}'));
+                      return SheetScrollable(
+                        controller: widget.scrollController,
+                        child: Center(child: Text('Error: ${state.error}')),
+                      );
                     } else if (state.status == SearchStatus.initial) {
                       return _buildSuggestionsSection(
                         state,
@@ -238,25 +254,28 @@ class _SearchScreenState extends State<SearchScreen> {
                       );
                     } else if (state.status == SearchStatus.success) {
                       if (state.places.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('No results found'),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const CreatePlaceScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Create a New Place'),
-                              ),
-                            ],
+                        return SheetScrollable(
+                          controller: widget.scrollController,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('No results found'),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const CreatePlaceScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Create a New Place'),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       }
@@ -265,9 +284,12 @@ class _SearchScreenState extends State<SearchScreen> {
                               controller: widget.scrollController,
                               padding: const EdgeInsets.all(8),
                               gridDelegate:
-                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  SliverGridDelegateWithMaxCrossAxisExtent(
                                     maxCrossAxisExtent: 300,
-                                    mainAxisExtent: 140,
+                                    mainAxisExtent: SearchResultGridCard.extent(
+                                      context,
+                                      minimum: 140,
+                                    ),
                                     crossAxisSpacing: 8,
                                     mainAxisSpacing: 8,
                                   ),

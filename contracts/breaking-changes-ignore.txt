@@ -1,0 +1,8 @@
+# Breaking API changes that a PR makes on purpose, one per line, copied from the
+# "API breaking changes" CI job's output, e.g.:
+#
+#   GET /api/places/nearby api path removed without deprecation
+#
+# Only add a line once released app builds no longer depend on what it removes or
+# changes (see contracts/README.md). Entries only affect the PR that adds them, so
+# clear this file out once they've merged.

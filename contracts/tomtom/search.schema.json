@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TomTom Search API v2: POI search, nearby search and place by ID",
+  "description": "The parts of TomTom's response that services/tomtom.py reads (TomTomClient._parse_place). Other fields TomTom sends are allowed. See contracts/README.md.",
+  "type": "object",
+  "required": [
+    "summary",
+    "results"
+  ],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "numResults"
+      ],
+      "properties": {
+        "numResults": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    }
+  },
+  "$defs": {
+    "time": {
+      "type": "object",
+      "required": [
+        "date",
+        "hour",
+        "minute"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "hour": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 23
+        },
+        "minute": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 59
+        }
+      }
+    },
+    "position": {
+      "type": "object",
+      "required": [
+        "lat",
+        "lon"
+      ],
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lon": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "poi",
+        "address",
+        "position"
+      ],
+      "properties": {
+        "type": {
+          "const": "POI"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "poi": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phone": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "categorySet": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "classifications": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "names"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "names": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name"
+                      ],
+                      "properties": {
+                        "nameLocale": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "openingHours": {
+              "type": "object",
+              "required": [
+                "mode",
+                "timeRanges"
+              ],
+              "properties": {
+                "mode": {
+                  "const": "nextSevenDays"
+                },
+                "timeRanges": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "startTime",
+                      "endTime"
+                    ],
+                    "properties": {
+                      "startTime": {
+                        "$ref": "#/$defs/time"
+                      },
+                      "endTime": {
+                        "$ref": "#/$defs/time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "address": {
+          "type": "object",
+          "properties": {
+            "freeformAddress": {
+              "type": "string"
+            },
+            "streetNumber": {
+              "type": "string"
+            },
+            "streetName": {
+              "type": "string"
+            },
+            "municipality": {
+              "type": "string"
+            }
+          }
+        },
+        "position": {
+          "$ref": "#/$defs/position"
+        }
+      }
+    }
+  }
+}

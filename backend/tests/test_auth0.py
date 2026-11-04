@@ -1,7 +1,9 @@
+import jwt
+
 from apps.users import repository
 from apps.users.auth import GlobalAuth
 from tests.base import FirestoreTestCase
-import jwt
+
 
 class Auth0BackendTest(FirestoreTestCase):
     def setUp(self):
@@ -27,14 +29,14 @@ class Auth0BackendTest(FirestoreTestCase):
             "sub": "auth0|mock_user_123",
             "email": "mockuser@example.com",
             "given_name": "Mock",
-            "family_name": "User"
+            "family_name": "User",
         }
         token = jwt.encode(payload, "secret", algorithm="HS256")
-        
+
         # Verify mock auth0 authentication
         with self.settings(AUTH0_MOCK=True):
             user = self.auth.authenticate(None, token)
-            
+
             # Check user is created and properties mapped
             self.assertIsNotNone(user)
             self.assertEqual(user.username, "auth0|mock_user_123")
@@ -50,17 +52,13 @@ class Auth0BackendTest(FirestoreTestCase):
         # Create an existing user with Auth0 sub username
         sub = "auth0|existing_user_456"
         existing_user = repository.create_user(sub, email="old@example.com")
-        
-        payload = {
-            "sub": sub,
-            "email": "new@example.com",
-            "given_name": "UpdatedName"
-        }
+
+        payload = {"sub": sub, "email": "new@example.com", "given_name": "UpdatedName"}
         token = jwt.encode(payload, "secret", algorithm="HS256")
-        
+
         with self.settings(AUTH0_MOCK=True):
             user = self.auth.authenticate(None, token)
-            
+
             # Check we retrieved the existing user (doesn't create a duplicate)
             self.assertEqual(user, existing_user)
             self.assertEqual(user.username, sub)
@@ -69,7 +67,7 @@ class Auth0BackendTest(FirestoreTestCase):
     def test_invalid_jwt_token(self):
         # An invalid JWT (starts with eyJ but malformed or invalid structure)
         token = "eyJinvalid.token.here"
-        
+
         with self.settings(AUTH0_MOCK=True):
             user = self.auth.authenticate(None, token)
             self.assertIsNone(user)

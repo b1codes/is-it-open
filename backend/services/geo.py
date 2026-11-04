@@ -22,7 +22,7 @@ _EDGE_MARGIN_DEG = 1e-7
 def encode_geohash(lat: float, lng: float, precision: int = GEOHASH_PRECISION) -> str:
     lat_range = [-90.0, 90.0]
     lng_range = [-180.0, 180.0]
-    chars = []
+    chars: list[str] = []
     bits = 0
     bit_count = 0
     use_lng = True
@@ -52,7 +52,7 @@ def _grid(precision: int):
     total_bits = precision * 5
     lat_bits = total_bits // 2
     lng_bits = total_bits - lat_bits
-    rows, cols = 2 ** lat_bits, 2 ** lng_bits
+    rows, cols = 2**lat_bits, 2**lng_bits
     return rows, cols, 180.0 / rows, 360.0 / cols
 
 
@@ -125,7 +125,7 @@ def geohash_query_prefixes(lat: float, lng: float, radius_km: float):
     box = _bounding_box(lat, lng, radius_km)
 
     # Cell counts only grow with precision, so stop at the first grid over budget.
-    fits = {MAX_QUERY_CELLS: None, MAX_QUERY_CELLS_FALLBACK: None}
+    fits: dict[int, tuple[int, tuple] | None] = {MAX_QUERY_CELLS: None, MAX_QUERY_CELLS_FALLBACK: None}
     for precision in range(1, GEOHASH_PRECISION + 1):
         covering = _covering(precision, box)
         if covering[0] > MAX_QUERY_CELLS_FALLBACK:

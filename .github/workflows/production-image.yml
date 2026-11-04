@@ -1,0 +1,96 @@
+name: Production image
+
+# Builds and boots the backend as docker-compose.prod.yml runs it, with the settings README_DEPLOY.md
+# starts from (backend/sample.env), then scans the image with Trivy. Called by ci.yml when the
+# backend changes and by nightly.yml (for CVEs published since). See "Infrastructure" in TESTING.md.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  COMPOSE: docker compose -f docker-compose.prod.yml
+  TRIVY: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+
+jobs:
+  boot:
+    name: Boot and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure as the deploy guide does
+        # sample.env's placeholders pass the entrypoint's checks; nothing here talks to Firestore.
+        run: cp backend/sample.env backend/.env
+
+      - name: Build and start
+        # --wait returns once the healthcheck (GET /health on localhost, which ALLOWED_HOSTS doesn't
+        # list) passes.
+        run: $COMPOSE up -d --build --wait --wait-timeout 120
+
+      - name: Check the running backend
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+          api=http://localhost:8000
+          host='Host: yourdomain.com'  # in sample.env's ALLOWED_HOSTS
+
+          [ "$(curl -fsS "$api/health")" = '{"status": "ok"}' ] || fail "GET /health didn't answer ok"
+          [ "$(status -H "$host" "$api/api/openapi.json")" = 200 ] || fail "the API doesn't answer for an allowed host"
+          [ "$(status "$api/api/openapi.json")" = 400 ] || fail "the API answers for a host ALLOWED_HOSTS doesn't list"
+          if curl -s -H "$host" "$api/no-such-page" | grep -q 'URLconf'; then
+            fail "a 404 shows Django's debug page, so DEBUG is on"
+          fi
+          if curl -sS -D - -o /dev/null -X OPTIONS -H "$host" -H 'Origin: https://elsewhere.example' \
+              -H 'Access-Control-Request-Method: POST' "$api/api/auth/login" | grep -qi '^access-control-allow-origin'; then
+            fail "CORS allows another origin, though sample.env turns it off"
+          fi
+
+      - name: Check the entrypoint refuses a broken .env
+        run: |
+          set -x
+          status=0
+          output=$($COMPOSE run --rm --no-deps -e SECRET_KEY= backend 2>&1) || status=$?
+          test "$status" = 1
+          grep -q 'backend/.env: SECRET_KEY is not set' <<< "$output"
+
+      - name: Logs
+        if: failure()
+        run: $COMPOSE logs --no-color backend
+
+      - name: Scan the image (Trivy)
+        # Fails on a HIGH or CRITICAL vulnerability that has a fix (in the base image's Debian
+        # packages or in the Python packages), or on a secret baked into the image. Unfixed CVEs in
+        # the base image are listed in the summary but don't fail the job: there's nothing to
+        # upgrade to yet, and the base image is pulled fresh on every build.
+        run: |
+          image=$($COMPOSE config --images backend)
+          scan() {
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" \
+              "$TRIVY" image --quiet --scanners vuln,secret --severity HIGH,CRITICAL "$@" "$image"
+          }
+          status=0
+          scan --ignore-unfixed --exit-code 1 --format table > "$RUNNER_TEMP/fixable.txt" || status=$?
+          scan --format table > "$RUNNER_TEMP/all.txt" || true
+          {
+            echo "## Production image scan (Trivy)"
+            echo
+            if [ "$status" = 0 ]; then
+              echo "No fixable HIGH or CRITICAL vulnerabilities, and no secrets."
+            else
+              echo "Fixable HIGH or CRITICAL vulnerabilities, or secrets, found:"
+              echo; echo '```'; cat "$RUNNER_TEMP/fixable.txt"; echo '```'
+            fi
+            echo
+            echo '<details><summary>Every HIGH and CRITICAL finding, including unfixed ones</summary>'
+            echo; echo '```'; cat "$RUNNER_TEMP/all.txt"; echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/fixable.txt"
+          exit $status
+
+      - name: Stop
+        if: always()
+        run: $COMPOSE down

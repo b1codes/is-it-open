@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/env_config.dart';
 import '../../utils/places_theme.dart';
 
 // Small non-interactive map render that sits beside the address on the place
@@ -44,9 +45,7 @@ class AddressMapThumb extends StatelessWidget {
             ),
             children: [
               TileLayer(
-                urlTemplate: isDark
-                    ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: EnvConfig.mapTileUrl(dark: isDark),
                 userAgentPackageName: 'com.brandonlc.isitopen',
               ),
               MarkerLayer(

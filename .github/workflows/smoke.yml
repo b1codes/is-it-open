@@ -1,0 +1,102 @@
+name: Smoke test
+
+# The post-deploy smoke test (smoke/smoke.py) against a deployed backend: health, sign-in, search,
+# and a bookmark round trip with a test account. See smoke/README.md.
+#
+# - After a deploy: run it by hand (`gh workflow run smoke.yml`), or call it from a deploy workflow
+#   (`uses: ./.github/workflows/smoke.yml` with `secrets: inherit`).
+# - Every hour, against the SMOKE_BASE_URL repository variable, so a backend that breaks between
+#   deploys (expired credentials, a TomTom key that stops working) is caught too.
+#
+# A failure opens (or comments on) an issue labeled smoke-failure, which notifies the repository's
+# watchers; the next passing run closes it. The job is skipped while SMOKE_BASE_URL isn't set.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Backend to test (default the SMOKE_BASE_URL variable), e.g. https://api.example.com
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      base_url:
+        description: Backend to test (default the SMOKE_BASE_URL variable)
+        required: false
+        type: string
+    secrets:
+      SMOKE_USERNAME:
+        required: true
+      SMOKE_PASSWORD:
+        required: true
+  schedule:
+    - cron: '17 * * * *'  # hourly
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ inputs.base_url || vars.SMOKE_BASE_URL }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke test
+    if: inputs.base_url != '' || vars.SMOKE_BASE_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write  # to open and close the smoke-failure issue
+    env:
+      BASE_URL: ${{ inputs.base_url || vars.SMOKE_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Smoke test
+        id: smoke
+        env:
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          SMOKE_QUERY: ${{ vars.SMOKE_QUERY }}
+        run: |
+          # Without pipefail the pipeline's status is tee's, so a failing smoke test would pass.
+          set -o pipefail
+          status=0
+          python3 smoke/smoke.py "$BASE_URL" 2>&1 | tee "$RUNNER_TEMP/smoke.txt" || status=$?
+          { echo "## Smoke test: $BASE_URL"; echo; echo '```'; cat "$RUNNER_TEMP/smoke.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Open or update the failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create smoke-failure --color B60205 --description "The post-deploy smoke test is failing" 2>/dev/null || true
+          output=$(cat "$RUNNER_TEMP/smoke.txt" 2>/dev/null || echo 'No output; see the run.')
+          body=$(cat <<EOF
+          The smoke test against $BASE_URL failed ([run]($RUN_URL)):
+
+          \`\`\`
+          $output
+          \`\`\`
+          EOF
+          )
+          issue=$(gh issue list --label smoke-failure --state open --json number --jq '.[].number' | head -n 1)
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --label smoke-failure --title "Smoke test failing against $BASE_URL" --body "$body"
+          fi
+
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Empty (or an error) before the label's first use.
+          open=$(gh issue list --label smoke-failure --state open --json number --jq '.[].number' 2>/dev/null) || open=
+          for issue in $open; do
+            gh issue close "$issue" --comment "The smoke test against $BASE_URL passes again ([run]($RUN_URL))."
+          done

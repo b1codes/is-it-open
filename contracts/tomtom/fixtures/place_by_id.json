@@ -1,0 +1,179 @@
+{
+  "summary": {
+    "queryType": "NON_NEAR",
+    "queryTime": 5,
+    "numResults": 1,
+    "offset": 0,
+    "totalResults": 1,
+    "fuzzyLevel": 0
+  },
+  "results": [
+    {
+      "type": "POI",
+      "id": "Tu4lEjRtadpLbiAPajPyOQ",
+      "score": 4.985622406005859,
+      "info": "search:ta:840369002106390-US",
+      "poi": {
+        "name": "Joe's Pizza",
+        "phone": "+1 212-366-1182",
+        "url": "www.joespizzanyc.com",
+        "brands": [],
+        "categorySet": [
+          {
+            "id": 7315036
+          }
+        ],
+        "categories": [
+          "pizza",
+          "restaurant"
+        ],
+        "classifications": [
+          {
+            "code": "RESTAURANT",
+            "names": [
+              {
+                "nameLocale": "en-US",
+                "name": "pizza"
+              },
+              {
+                "nameLocale": "en-US",
+                "name": "restaurant"
+              }
+            ]
+          }
+        ],
+        "openingHours": {
+          "mode": "nextSevenDays",
+          "timeRanges": [
+            {
+              "startTime": {
+                "date": "2026-10-19",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-19",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-20",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-20",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-21",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-21",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-22",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-22",
+                "hour": 23,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-23",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-24",
+                "hour": 2,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-24",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-25",
+                "hour": 2,
+                "minute": 0
+              }
+            },
+            {
+              "startTime": {
+                "date": "2026-10-25",
+                "hour": 10,
+                "minute": 0
+              },
+              "endTime": {
+                "date": "2026-10-25",
+                "hour": 23,
+                "minute": 0
+              }
+            }
+          ]
+        },
+        "timeZone": {
+          "ianaId": "America/New_York"
+        }
+      },
+      "address": {
+        "streetNumber": "7",
+        "streetName": "Carmine Street",
+        "municipalitySubdivision": "Greenwich Village",
+        "municipality": "New York",
+        "countrySecondarySubdivision": "New York",
+        "countrySubdivision": "NY",
+        "countrySubdivisionName": "New York",
+        "countrySubdivisionCode": "NY",
+        "postalCode": "10014",
+        "countryCode": "US",
+        "country": "United States",
+        "countryCodeISO3": "USA",
+        "freeformAddress": "7 Carmine Street, New York, NY 10014",
+        "localName": "New York"
+      },
+      "position": {
+        "lat": 40.730599,
+        "lon": -74.002139
+      },
+      "viewport": {
+        "topLeftPoint": {
+          "lat": 40.7315,
+          "lon": -74.00332
+        },
+        "btmRightPoint": {
+          "lat": 40.7297,
+          "lon": -74.00096
+        }
+      },
+      "entryPoints": [
+        {
+          "type": "main",
+          "position": {
+            "lat": 40.73049,
+            "lon": -74.00228
+          }
+        }
+      ]
+    }
+  ]
+}

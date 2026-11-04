@@ -4,7 +4,9 @@ import 'package:latlong2/latlong.dart';
 
 import '../../models/place.dart';
 import '../../services/api_service.dart';
+import '../../utils/navigation.dart';
 import '../../utils/places_theme.dart';
+import '../app_snack_bar.dart';
 
 // Add-a-custom-place sheet. Lightweight: name + address are required; the
 // "pick on map" and inline hours editor are flagged as follow-ups so the
@@ -12,6 +14,9 @@ import '../../utils/places_theme.dart';
 class QuickAddPlaceSheet extends StatefulWidget {
   const QuickAddPlaceSheet({super.key, this.onSaved});
 
+  /// Called with the saved place; the caller then decides where to go.
+  /// Without it, the sheet pops its route with the place. (Doing both
+  /// popped whatever screen [onSaved] had just opened.)
   final ValueChanged<Place>? onSaved;
 
   @override
@@ -35,6 +40,7 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
     if (!_form.currentState!.validate()) return;
     final api = context.read<ApiService>();
     final nav = Navigator.of(context);
+    final route = ModalRoute.of(context);
     final scaffold = ScaffoldMessenger.of(context);
     setState(() => _submitting = true);
     try {
@@ -46,10 +52,17 @@ class _QuickAddPlaceSheetState extends State<QuickAddPlaceSheet> {
       );
       final savedPlace = await api.savePlace(place);
       await api.bookmarkPlace(savedPlace.tomtomId);
-      widget.onSaved?.call(savedPlace);
-      if (mounted) nav.pop(savedPlace);
+      final onSaved = widget.onSaved;
+      if (onSaved != null) {
+        onSaved(savedPlace);
+        if (mounted) setState(() => _submitting = false);
+      } else {
+        closeRoute(nav, route, savedPlace);
+      }
     } catch (e) {
-      scaffold.showSnackBar(SnackBar(content: Text('Couldn\'t save place.')));
+      scaffold.showSnackBar(
+        AppSnackBar(content: Text('Couldn\'t save place.')),
+      );
       if (mounted) setState(() => _submitting = false);
     }
   }

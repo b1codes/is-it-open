@@ -1,0 +1,185 @@
+name: E2E on mobile
+
+# The E2E journeys (frontend/integration_test) on an iOS simulator and an Android emulator, for what
+# the per-PR web runs can't cover: native plugins (geolocator, shared_preferences, device_calendar),
+# native networking and the platform builds. Then the monkey tests on each device ("Monkey testing"
+# in TESTING.md). Called by nightly.yml; see e2e/README.md.
+on:
+  workflow_call:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests (default random)
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      monkey_seed:
+        description: Seed for the monkey tests (default random)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  SEED: ${{ inputs.monkey_seed }}
+  MONKEY_STEPS: '800'
+  MONKEY_EVENTS: '5000'
+
+jobs:
+  ios:
+    name: E2E (iOS simulator)
+    runs-on: macos-15
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+
+      # Xcode 26 and later only build for iOS 15+, and the app targets iOS 13 (#45).
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'  # the Firestore emulator's minimum
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      # macOS runners have no Docker, so the stack runs directly on the runner.
+      - name: Start the E2E stack
+        run: e2e/start-native.sh
+
+      # e2e/run-ios.sh boots it.
+      - name: Pick a simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          for runtime in sorted(runtimes, reverse=True):
+              phones = [d for d in runtimes[runtime] if "iOS" in runtime and d["name"].startswith("iPhone")]
+              if phones:
+                  print(phones[0]["udid"])
+                  break
+          ')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Pick a monkey seed
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey on the iOS simulator: seed \`$SEED\`, $MONKEY_STEPS steps." >> "$GITHUB_STEP_SUMMARY"
+
+      # The journeys, then the monkey (MONKEY=true), in one launch of the test app. run-ios.sh
+      # retries a launch that doesn't attach to flutter test (#63).
+      - name: Run the journeys and the monkey
+        working-directory: frontend
+        timeout-minutes: 55
+        env:
+          UDID: ${{ steps.simulator.outputs.udid }}
+        run: >
+          ../e2e/run-ios.sh
+          --dart-define=ENV=e2e
+          --dart-define=E2E_STUB_URL=http://127.0.0.1:18090
+          --dart-define=MONKEY=true
+          --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
+
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: e2e-failure-ios
+          path: |
+            e2e/.native/*.log
+            frontend/build/ios-e2e/
+          include-hidden-files: true  # e2e/.native is a dot directory
+          if-no-files-found: ignore
+
+  android:
+    name: E2E (Android emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start the E2E stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build --wait
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'  # for the Android Gradle build
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2.23.0
+        with:
+          flutter-version-file: .fvmrc
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Pick a monkey seed
+        run: |
+          [ -n "$SEED" ] || SEED="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          echo "Monkey on the Android emulator: seed \`$SEED\`, $MONKEY_STEPS steps, then $MONKEY_EVENTS adb monkey events." >> "$GITHUB_STEP_SUMMARY"
+
+      # The journeys, then the monkey (MONKEY=true), in one launch of the test app.
+      - name: Run the journeys and the monkey
+        timeout-minutes: 45
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: frontend
+          # adb reverse makes the stack's host ports the emulator's 127.0.0.1 (envs/e2e.json).
+          script: |
+            adb reverse tcp:18000 tcp:18000
+            adb reverse tcp:18090 tcp:18090
+            flutter test integration_test/app_test.dart -r expanded -d emulator-5554 --dart-define=ENV=e2e --dart-define=MONKEY=true --dart-define=SEED="$SEED" --dart-define=MONKEY_STEPS="$MONKEY_STEPS"
+
+      # Android's own monkey (adb shell monkey) on a debug build: see e2e/android-monkey.sh.
+      - name: Run adb monkey
+        if: success() || failure()
+        timeout-minutes: 20
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: frontend
+          script: |
+            adb reverse tcp:18000 tcp:18000
+            adb reverse tcp:18090 tcp:18090
+            ../e2e/android-monkey.sh
+
+      - name: Stack logs
+        if: failure() || cancelled()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
+
+      - uses: actions/upload-artifact@v4
+        if: failure() || cancelled()
+        with:
+          name: e2e-failure-android
+          path: |
+            e2e-stack.log
+            frontend/build/android-monkey/
+          if-no-files-found: ignore

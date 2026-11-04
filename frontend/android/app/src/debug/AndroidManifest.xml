@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Lets debug builds reach a local backend over plain HTTP (envs/dev.json and envs/e2e.json).
+         Release builds keep Android's default, HTTPS only. -->
+    <application android:networkSecurityConfig="@xml/network_security_config"/>
 </manifest>

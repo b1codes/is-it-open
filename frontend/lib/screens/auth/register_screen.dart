@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import 'login_screen.dart';
+import '../../components/app_snack_bar.dart';
 import '../../components/shared/glass_card.dart';
 import '../../components/shared/thermal_button.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/places_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,21 +24,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final places = context.places;
 
     return Scaffold(
-      backgroundColor: AppColors.paperWarm,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error),
-                backgroundColor: AppColors.thermalCore,
-              ),
-            );
-          } else if (state is AuthAuthenticated) {
-            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                AppSnackBar(
+                  content: Text(state.error),
+                  backgroundColor: AppColors.thermalCore,
+                ),
+              );
           }
+          // On success MyApp returns to its home route, which shows home.
         },
         child: SafeArea(
           child: Center(
@@ -56,7 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text(
                     'Join the neighborhood',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.inkWarmMuted,
+                      color: places.inkMuted,
                     ),
                   ),
                   const SizedBox(height: 64),
@@ -153,8 +157,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 48),
 
                   // Secondary Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  // Wraps the link under the question when they don't fit
+                  // side by side (large text on a phone).
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Already a member?',
@@ -162,16 +169,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          );
+                          final navigator = Navigator.of(context);
+                          if (navigator.canPop()) {
+                            navigator.pop(); // back to the login screen
+                          } else {
+                            navigator.pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                            );
+                          }
                         },
                         child: Text(
                           'Sign in',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.terracotta,
+                            color: places.anchor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../components/shared/glass_card.dart';
 import '../../components/shared/thermal_button.dart';
-import '../../utils/app_theme.dart';
+import '../../utils/places_theme.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -20,11 +20,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.paperWarm,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.inkWarm),
+        iconTheme: IconThemeData(color: theme.colorScheme.onSurface),
       ),
       body: SafeArea(
         child: Center(
@@ -44,7 +44,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 Text(
                   'Reset your access',
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.inkWarmMuted,
+                    color: context.places.inkMuted,
                   ),
                 ),
                 const SizedBox(height: 64),
@@ -117,10 +117,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(
+        Icon(
           Icons.mark_email_read_outlined,
           size: 64,
-          color: AppColors.openGreen,
+          color: context.places.openColor,
         ),
         const SizedBox(height: 24),
         Text(
@@ -140,7 +140,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: Text(
             'Back to login',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.terracotta,
+              color: context.places.anchor,
               fontWeight: FontWeight.bold,
             ),
           ),

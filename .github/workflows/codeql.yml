@@ -1,0 +1,51 @@
+name: CodeQL
+
+# GitHub's static analysis for the backend's Python and for these workflows. Findings appear under
+# Security > Code scanning, and on a PR as annotations. CodeQL doesn't analyze Dart. Secret scanning
+# and push protection are repository settings (already on), so nothing here configures them.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC, for queries added since the last change
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write  # upload results to code scanning
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # security-extended adds lower-precision security queries to the default set.
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - backend/tests
+              - '**/tests.py'
+              - '**/tests_*.py'
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

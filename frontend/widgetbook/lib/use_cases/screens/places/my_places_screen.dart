@@ -36,10 +36,7 @@ Widget buildMyPlacesScreenEmptyUseCase(BuildContext context) {
 @widgetbook.UseCase(name: 'Loading', type: MyPlacesScreen)
 Widget buildMyPlacesScreenLoadingUseCase(BuildContext context) {
   // Requests never resolve, so the skeleton stays up.
-  return const MockAppScope(
-    apiLatency: null,
-    child: MyPlacesScreen(),
-  );
+  return const MockAppScope(apiLatency: null, child: MyPlacesScreen());
 }
 
 @widgetbook.UseCase(name: 'Error', type: MyPlacesScreen)

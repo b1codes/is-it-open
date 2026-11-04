@@ -32,3 +32,18 @@ make firestore-reset   # docker compose down -v
 Backend tests run against the same emulator under a separate project ID
 (`demo-is-it-open-test`) and clear only that project between tests, so they never touch
 your local development data.
+
+## Security rules
+
+`firestore.rules` denies every direct client read and write: only the backend reaches Firestore,
+through the server client library, which bypasses the rules. `rules-test/` checks that with
+[`@firebase/rules-unit-testing`](https://www.npmjs.com/package/@firebase/rules-unit-testing) against
+this emulator, under its own `demo-is-it-open-rules-test` project:
+
+```bash
+make test-rules   # starts the emulator, then runs rules-test/ (needs Node.js 22+)
+```
+
+CI runs it when anything here changes. The rules here only apply to the emulator; a production
+database keeps whatever rules its project has (a Native mode database created in production mode
+denies all client access).

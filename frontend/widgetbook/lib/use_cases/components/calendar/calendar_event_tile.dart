@@ -36,8 +36,7 @@ Widget buildCalendarEventTilePersonalUseCase(BuildContext context) {
     label: 'Title',
     initialValue: 'Design review',
   );
-  // CalendarScreen colors personal events with theme.inkMuted; the tile uses
-  // that color match to pick the personal style.
+  // As CalendarScreen adds them: tagged personal, in theme.inkMuted.
   return _TileStage(
     event: CalendarEventData(
       title: title,
@@ -45,6 +44,7 @@ Widget buildCalendarEventTilePersonalUseCase(BuildContext context) {
       startTime: _day.add(const Duration(hours: 13)),
       endTime: _day.add(const Duration(hours: 14, minutes: 30)),
       color: context.places.inkMuted,
+      event: CalendarBlockKind.personal,
     ),
   );
 }
