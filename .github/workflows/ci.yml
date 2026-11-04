@@ -148,7 +148,7 @@ jobs:
           uvx diff-cover==10.6.0 coverage.xml --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
           { echo "## Backend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-backend
@@ -220,7 +220,7 @@ jobs:
           pipx run diff-cover==10.6.0 lcov.repo.info --compare-branch="origin/${{ github.base_ref }}" --format markdown:diff-cover.md
           { echo "## Frontend diff coverage"; echo; cat diff-cover.md; } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-frontend
@@ -229,7 +229,7 @@ jobs:
             frontend/coverage/lcov.info
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: monkey-frontend
@@ -270,7 +270,7 @@ jobs:
           mkdir -p test-results
           flutter test -x quarantine -x golden --file-reporter json:test-results/flutter.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-widgetbook
@@ -340,21 +340,21 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure() && steps.compare.outcome == 'failure'
         with:
           name: golden-failures
           path: frontend/widgetbook/test/failures/
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure() && steps.compare.outcome == 'failure'
         with:
           name: goldens-updated
           path: frontend/widgetbook/test/goldens/
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-goldens
@@ -416,7 +416,7 @@ jobs:
         if: failure()
         run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-stack.log
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: e2e-failure-${{ matrix.layout }}

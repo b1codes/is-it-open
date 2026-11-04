@@ -44,7 +44,7 @@ jobs:
         run: |
           # Exit code 5 means no test is quarantined.
           uv run pytest -p no:cacheprovider -m quarantine --junitxml=test-results/junit.xml || [ $? -eq 5 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-backend
@@ -72,7 +72,7 @@ jobs:
       - name: Test
         # A failure prints @reproduce_failure(...) for the falsifying example; add it to the test to replay it.
         run: uv run pytest -p no:cacheprovider tests/property --junitxml=test-results/junit.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-backend-property
@@ -106,7 +106,7 @@ jobs:
       - name: Test
         # A failure prints a curl command that reproduces it.
         run: uv run pytest -p no:cacheprovider tests/contracts/test_provider.py --junitxml=test-results/junit.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-backend-api-fuzz
@@ -141,7 +141,7 @@ jobs:
             exit 0
           fi
           uv run pytest -p no:cacheprovider tests/contracts/test_tomtom_contract.py -k live --junitxml=test-results/junit.xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-backend-tomtom
@@ -167,7 +167,7 @@ jobs:
           mkdir -p test-results
           # Exit code 79 means no test is quarantined.
           flutter test -t quarantine --file-reporter json:test-results/flutter.json || [ $? -eq 79 ]
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-frontend
@@ -221,7 +221,7 @@ jobs:
               echo "screenshot of the failure, are in the **monkey-nightly** artifact."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure() || cancelled()
         with:
           name: monkey-nightly
@@ -300,7 +300,7 @@ jobs:
             echo '```'
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-backend
@@ -332,7 +332,7 @@ jobs:
         if: always()
         run: |
           { echo "## Frontend mutation testing"; echo; cat mutation-test-report/*.md 2>/dev/null || echo "No report produced."; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mutation-frontend
