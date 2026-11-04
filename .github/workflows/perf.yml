@@ -44,7 +44,7 @@ jobs:
         if: failure()
         run: docker compose -f docker-compose.e2e.yml logs --no-color > perf/results/stack-logs.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: load-test
@@ -85,7 +85,7 @@ jobs:
         run: dart run tool/app_size.dart check --analysis="$(ls -t ~/.flutter-devtools/apk-code-size-analysis_*.json | head -1)"
 
       # The measurements, for `make app-size-pull` to accept as the new baseline.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: app-size
@@ -128,7 +128,7 @@ jobs:
         if: failure()
         run: docker compose -f docker-compose.e2e.yml logs --no-color > frontend/build/stack-logs.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: frame-timing
